@@ -69,6 +69,9 @@ model User {
   freePulls         Int      @default(0)
   claimedMilestones String[] @default([])
 
+  // Spread-lies cooldown (global across eras)
+  lastSpreadAt      DateTime?
+
   // Timestamps
   createdAt    DateTime @default(now())
   lastLoginAt  DateTime @default(now())
@@ -263,9 +266,14 @@ model EraProgress {
   userId         String
   eraId          String
   believers      Int    @default(0)
-  dominantLegend Int?   // 1..4, which legend the player spread most
+  dominantLegend Int?   // 0..3, index of legend with most spreads
   bossCleared    Boolean @default(false)
   highestStage   Int    @default(0)
+
+  // Per-legend spread counters (4 values, matching eras.ts legends[0..3])
+  legendCounts   Int[]  @default([])
+  // Total spreads across all 4 legends in this era (denormalized for UI)
+  spreadsTotal   Int    @default(0)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

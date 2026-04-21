@@ -47,7 +47,7 @@ export const MILESTONES: readonly MilestoneDef[] = [
     id: "battles_10",
     title: "戰鬥狂熱",
     desc: "你開始理解帷幕的韻律。",
-    pulls: 15,
+    pulls: 20,
     hint: "再贏 {n} 場戰鬥",
   },
   {
@@ -75,14 +75,14 @@ export const MILESTONES: readonly MilestoneDef[] = [
     id: "level_10",
     title: "達到 Lv.10",
     desc: "編織者議會開始注意你。",
-    pulls: 15,
+    pulls: 20,
     hint: "還差 {n} 級",
   },
   {
     id: "level_20",
     title: "達到 Lv.20",
     desc: "正式編織者。",
-    pulls: 25,
+    pulls: 30,
     hint: "還差 {n} 級",
   },
 ];

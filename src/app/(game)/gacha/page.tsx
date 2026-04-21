@@ -34,7 +34,7 @@ export default async function GachaPage() {
         <h3 className="display-serif text-base text-sacred mb-3">機率與保底</h3>
         <ul className="space-y-1.5 leading-relaxed">
           <li>• 基礎:R 75% / SR 19% / SSR 5% / UR 1%</li>
-          <li>• 十連抽:SSR +2%、必出至少 2 張 SR 以上</li>
+          <li>• 十連抽:SSR 8%(+3%)、UR 2%(+1%)、必出至少 2 張 SR 以上</li>
           <li>• {PITY_SR} 連內未出 SR → 下次保底 SR+</li>
           <li>• {PITY_SSR} 連內未出 SSR → 下次保底 SSR+</li>
           <li>• {PITY_UR} 連內未出 UR → 下次必出 UR</li>

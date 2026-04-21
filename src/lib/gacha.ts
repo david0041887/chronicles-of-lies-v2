@@ -21,10 +21,11 @@ const BASE_RATES: { rarity: Rarity; weight: number }[] = [
 ];
 
 const TEN_PULL_RATES: { rarity: Rarity; weight: number }[] = [
-  { rarity: "R", weight: 720 },
+  // 10-pull: SSR 8% (+3), UR 2% (+1) vs base single-pull rates
+  { rarity: "R", weight: 700 },
   { rarity: "SR", weight: 200 },
-  { rarity: "SSR", weight: 70 },
-  { rarity: "UR", weight: 10 },
+  { rarity: "SSR", weight: 80 },
+  { rarity: "UR", weight: 20 },
 ];
 
 export const PITY_SR = 50;

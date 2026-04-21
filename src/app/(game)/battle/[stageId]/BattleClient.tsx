@@ -81,7 +81,14 @@ export function BattleClient({
   const [firstClear, setFirstClear] = useState(false);
   const [previewIdx, setPreviewIdx] = useState<number | null>(null);
   const [surrenderOpen, setSurrenderOpen] = useState(false);
+  const [floaters, setFloaters] = useState<
+    { id: number; side: "player" | "enemy"; delta: number }[]
+  >([]);
   const logRef = useRef<HTMLDivElement>(null);
+  const prevHpRef = useRef({
+    player: battle.player.hp,
+    enemy: battle.enemy.hp,
+  });
 
   const tick = () => setBattle((b) => ({ ...b }));
 
@@ -90,6 +97,38 @@ export function BattleClient({
     const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [battle.log.length]);
+
+  // Emit damage / heal floaters on HP changes
+  useEffect(() => {
+    const p = battle.player.hp;
+    const e = battle.enemy.hp;
+    const pd = p - prevHpRef.current.player;
+    const ed = e - prevHpRef.current.enemy;
+    const next: { id: number; side: "player" | "enemy"; delta: number }[] = [];
+    if (pd !== 0) {
+      next.push({
+        id: Date.now() + Math.random(),
+        side: "player",
+        delta: pd,
+      });
+    }
+    if (ed !== 0) {
+      next.push({
+        id: Date.now() + Math.random() + 1,
+        side: "enemy",
+        delta: ed,
+      });
+    }
+    prevHpRef.current = { player: p, enemy: e };
+    if (next.length > 0) {
+      setFloaters((f) => [...f, ...next]);
+      const ids = next.map((n) => n.id);
+      setTimeout(
+        () => setFloaters((f) => f.filter((x) => !ids.includes(x.id))),
+        1600,
+      );
+    }
+  }, [battle.player.hp, battle.enemy.hp]);
 
   // Enemy turn runner
   useEffect(() => {
@@ -221,6 +260,9 @@ export function BattleClient({
           background: `radial-gradient(ellipse at top, ${bg.main}44, transparent 55%)`,
         }}
       />
+
+      {/* Floating damage/heal numbers */}
+      <FloaterLayer floaters={floaters} />
 
       {/* Top bar */}
       <div className="relative flex items-center justify-between px-4 py-3 border-b border-parchment/10 bg-veil/60 backdrop-blur">
@@ -676,6 +718,42 @@ function Hand({
       {hand.length === 0 && (
         <div className="text-parchment/30 text-xs">手牌為空</div>
       )}
+    </div>
+  );
+}
+
+function FloaterLayer({
+  floaters,
+}: {
+  floaters: { id: number; side: "player" | "enemy"; delta: number }[];
+}) {
+  return (
+    <div className="absolute inset-0 pointer-events-none z-20">
+      <AnimatePresence>
+        {floaters.map((f) => {
+          const isHeal = f.delta > 0;
+          const topCls = f.side === "enemy" ? "top-[10%]" : "bottom-[30%]";
+          return (
+            <motion.div
+              key={f.id}
+              initial={{ opacity: 0, y: 0, scale: 0.8 }}
+              animate={{ opacity: 1, y: -40, scale: 1.3 }}
+              exit={{ opacity: 0, y: -80 }}
+              transition={{ duration: 1.4, ease: "easeOut" }}
+              className={`absolute left-1/2 -translate-x-1/2 ${topCls}`}
+            >
+              <span
+                className={`display-serif text-3xl font-bold drop-shadow-[0_0_10px_rgba(0,0,0,0.6)] ${
+                  isHeal ? "text-success" : "text-danger"
+                }`}
+              >
+                {isHeal ? "+" : ""}
+                {f.delta}
+              </span>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
     </div>
   );
 }
