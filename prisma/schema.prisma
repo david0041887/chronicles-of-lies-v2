@@ -54,6 +54,11 @@ model User {
   councilRank  Int      @default(0)
   totalSpent   Int      @default(0)
 
+  // Gacha pity counters
+  pitySR       Int      @default(0)  // rolls since last SR+
+  pitySSR      Int      @default(0)  // rolls since last SSR+
+  totalPulls   Int      @default(0)
+
   // Timestamps
   createdAt    DateTime @default(now())
   lastLoginAt  DateTime @default(now())
@@ -92,19 +97,36 @@ model Coven {
 model Card {
   id          String   @id // e.g. "ssr_egypt_001_anubis"
   name        String
+  nameEn      String?
   title       String?  // 稱號
   eraId       String   // E01..E15 or R01..R03
   rarity      Rarity
   element     Element
+  type        CardType @default(attack)
   faction     Faction?
   power       Int
   cost        Int      @default(1)
+  keywords    String[] @default([])
+  flavor      String?  // 卡面下方風味文字
   description String?
   lore        String?  // 典藏故事
   imageUrl    String?
   createdAt   DateTime @default(now())
 
   ownedBy     OwnedCard[]
+
+  @@index([rarity])
+  @@index([eraId])
+}
+
+enum CardType {
+  attack
+  spread
+  heal
+  confuse
+  buff
+  debuff
+  ritual
 }
 
 enum Rarity {
