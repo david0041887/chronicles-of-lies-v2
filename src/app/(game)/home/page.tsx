@@ -1,16 +1,34 @@
 import { HomeHud } from "@/components/game/HomeHud";
+import { MilestonePanel } from "@/components/game/MilestonePanel";
 import { requireOnboarded } from "@/lib/auth-helpers";
+import { evaluate } from "@/lib/milestones";
+import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 
 const QUICK_ACTIONS = [
-  { href: "/world", label: "進入世界", desc: "4 個時代等待編織", emoji: "🌍" },
+  { href: "/world", label: "進入世界", desc: "10 個時代 30 關卡", emoji: "🌍" },
   { href: "/gacha", label: "召喚儀式", desc: "抽卡 / 十連", emoji: "🎴" },
   { href: "/collection", label: "卡牌圖鑑", desc: "我的收藏", emoji: "📚" },
   { href: "/deck", label: "牌組編制", desc: "組 30 張牌組", emoji: "🃏" },
+  { href: "/forge", label: "鍛造所", desc: "升星 / 融合", emoji: "⚒️" },
 ];
 
 export default async function HomePage() {
   const user = await requireOnboarded();
+
+  const bossesCleared = await prisma.eraProgress.count({
+    where: { userId: user.id, bossCleared: true },
+  });
+
+  const milestones = evaluate(
+    {
+      level: user.level,
+      battlesWon: user.battlesWon,
+      bossesCleared,
+      eraClearCount: 0,
+    },
+    user.claimedMilestones,
+  );
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-8">
@@ -30,9 +48,26 @@ export default async function HomePage() {
         veilEnergy={user.veilEnergy}
       />
 
+      {user.freePulls > 0 && (
+        <Link
+          href="/gacha"
+          className="block p-4 rounded-xl border-2 border-gold bg-gold/10 hover:bg-gold/15 transition-colors"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="display-serif text-gold text-lg">🎁 您有 {user.freePulls} 次免費抽卡</div>
+              <div className="text-xs text-parchment/60 mt-0.5">前往召喚儀式使用</div>
+            </div>
+            <span className="text-parchment/60 text-lg">→</span>
+          </div>
+        </Link>
+      )}
+
+      <MilestonePanel milestones={milestones} />
+
       <section>
         <h3 className="display-serif text-xl text-sacred mb-4">今日行動</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {QUICK_ACTIONS.map((a) => (
             <Link
               key={a.href}

@@ -27,16 +27,12 @@ export async function requireAdmin() {
 
 /**
  * Gate for main game pages. Redirects to /welcome if the user
- * has not yet completed the opening ritual.
+ * has not yet completed the tutorial.
  * Admins bypass the gate (so they can test any page directly).
  */
 export async function requireOnboarded() {
   const user = await requireUser();
   if (user.role === "ADMIN") return user;
-  const reward = await prisma.startingReward.findUnique({
-    where: { userId: user.id },
-    select: { claimedAt: true },
-  });
-  if (!reward?.claimedAt) redirect("/welcome");
+  if (!user.tutorialDone) redirect("/welcome");
   return user;
 }

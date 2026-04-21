@@ -48,11 +48,21 @@ interface Props {
   playerName: string;
   playerDeck: BattleCard[];
   enemyDeck: BattleCard[];
+  /** If true, this is the onboarding tutorial — uses /api/tutorial/complete
+   *  and auto-leaves to /home with a starter-grant message. */
+  tutorialMode?: boolean;
 }
 
 const AUTO_LEAVE_MS = 4200;
 
-export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: Props) {
+export function BattleClient({
+  stage,
+  era,
+  playerName,
+  playerDeck,
+  enemyDeck,
+  tutorialMode = false,
+}: Props) {
   const router = useRouter();
   const { push } = useToast();
 
@@ -116,7 +126,10 @@ export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: 
     setReportSent(true);
     (async () => {
       try {
-        const res = await fetch("/api/battle/complete", {
+        const url = tutorialMode
+          ? "/api/tutorial/complete"
+          : "/api/battle/complete";
+        const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -142,7 +155,8 @@ export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: 
   // Auto-leave after win/loss
   useEffect(() => {
     if (battle.phase !== "won" && battle.phase !== "lost") return;
-    const t = setTimeout(() => router.push(`/era/${stage.eraId}`), AUTO_LEAVE_MS);
+    const dest = tutorialMode ? "/home" : `/era/${stage.eraId}`;
+    const t = setTimeout(() => router.push(dest), AUTO_LEAVE_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battle.phase]);
@@ -322,40 +336,60 @@ export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: 
               className="rounded-2xl border border-parchment/20 bg-veil/90 p-8 max-w-md w-[92vw] text-center"
             >
               <div className="text-6xl mb-2">
-                {battle.phase === "won" ? "🏆" : "💀"}
+                {tutorialMode
+                  ? "✨"
+                  : battle.phase === "won"
+                    ? "🏆"
+                    : "💀"}
               </div>
               <h2
                 className={cn(
                   "display-serif text-3xl mb-1",
-                  battle.phase === "won" ? "text-sacred" : "text-blood",
+                  tutorialMode
+                    ? "text-sacred"
+                    : battle.phase === "won"
+                      ? "text-sacred"
+                      : "text-blood",
                 )}
               >
-                {battle.phase === "won" ? "勝利" : "失敗"}
+                {tutorialMode
+                  ? "教學完成"
+                  : battle.phase === "won"
+                    ? "勝利"
+                    : "失敗"}
               </h2>
-              {firstClear && battle.phase === "won" && (
+              {!tutorialMode && firstClear && battle.phase === "won" && (
                 <div className="inline-block text-[10px] tracking-[0.3em] px-2 py-0.5 rounded mb-2 border border-gold text-gold uppercase">
                   First Clear · 首通
                 </div>
               )}
               <p className="text-parchment/60 text-sm mb-6">
-                {battle.phase === "won"
-                  ? `經過 ${battle.turn} 回合,你的帷幕穿透了對手。`
-                  : "帷幕崩壞。"}
+                {tutorialMode
+                  ? "你已理解帷幕的韻律。歡迎禮正在送達。"
+                  : battle.phase === "won"
+                    ? `經過 ${battle.turn} 回合,你的帷幕穿透了對手。`
+                    : "帷幕崩壞。"}
               </p>
-              {rewards && battle.phase === "won" && (
+              {tutorialMode && (
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  <Reward label="🎴 起始牌組" value={30} />
+                  <Reward label="🎯 免費十連" value={10} />
+                </div>
+              )}
+              {!tutorialMode && rewards && battle.phase === "won" && (
                 <div className="grid grid-cols-3 gap-2 mb-4">
                   <Reward label="💎 水晶" value={rewards.crystals} />
                   <Reward label="EXP" value={rewards.exp} />
                   <Reward label="🪙 信徒" value={rewards.believers} />
                 </div>
               )}
-              {rewards && rewards.levelAfter > rewards.levelBefore && (
+              {!tutorialMode && rewards && rewards.levelAfter > rewards.levelBefore && (
                 <div className="mb-4 py-2 rounded border border-gold/40 bg-gold/10 text-gold text-sm">
                   🎉 升級 Lv.{rewards.levelBefore} → Lv.{rewards.levelAfter}
                 </div>
               )}
               <p className="text-[11px] text-parchment/40 tracking-widest">
-                即將返回…
+                {tutorialMode ? "即將進入主頁…" : "即將返回…"}
               </p>
               <motion.div
                 className="mt-3 h-0.5 bg-gold rounded-full"

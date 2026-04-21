@@ -14,6 +14,7 @@ import { pullGacha, type CardWithImage } from "./actions";
 
 interface Props {
   initialCrystals: number;
+  initialFreePulls: number;
   initialPitySR: number;
   initialPitySSR: number;
   initialPityUR: number;
@@ -33,6 +34,7 @@ function highestRarity(cards: CardWithImage[]): Rarity {
 
 export function GachaClient({
   initialCrystals,
+  initialFreePulls,
   initialPitySR,
   initialPitySSR,
   initialPityUR,
@@ -44,6 +46,7 @@ export function GachaClient({
   const { push } = useToast();
   const [pending, startTransition] = useTransition();
   const [crystals, setCrystals] = useState(initialCrystals);
+  const [freePulls, setFreePulls] = useState(initialFreePulls);
   const [pitySR, setPitySR] = useState(initialPitySR);
   const [pitySSR, setPitySSR] = useState(initialPitySSR);
   const [pityUR, setPityUR] = useState(initialPityUR);
@@ -60,6 +63,7 @@ export function GachaClient({
         return;
       }
       setCrystals(res.data.crystalsLeft);
+      setFreePulls(res.data.freePullsLeft);
       setPitySR(res.data.pitySR);
       setPitySSR(res.data.pitySSR);
       setPityUR(res.data.pityUR);
@@ -77,6 +81,9 @@ export function GachaClient({
     });
   };
 
+  const canSingleFree = freePulls >= 1;
+  const canTenFree = freePulls >= 10;
+
   return (
     <>
       <SummonAnimation
@@ -89,7 +96,12 @@ export function GachaClient({
         }}
       />
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-6">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-6">
+        <Stat
+          label="🎁 免費抽"
+          value={freePulls}
+          tint={freePulls > 0 ? "text-gold" : "text-parchment/50"}
+        />
         <Stat label="💎 水晶" value={crystals} tint="text-rarity-super" />
         <Stat label="總抽數" value={totalPulls} />
         <Stat label="保底 SR" value={`${Math.max(0, PITY_SR - pitySR)}`} />
@@ -97,20 +109,28 @@ export function GachaClient({
         <Stat label="保底 UR" value={`${Math.max(0, PITY_UR - pityUR)}`} />
       </div>
 
+      {freePulls > 0 && (
+        <div className="mb-4 p-3 rounded-lg border border-gold/40 bg-gold/5 text-xs text-gold tracking-wider">
+          ⭐ 您有 {freePulls} 次免費抽卡,抽卡時會優先扣除
+        </div>
+      )}
+
       <div className="grid sm:grid-cols-2 gap-4">
         <PullPanel
           title="單抽"
-          desc="從帷幕召喚一名存在。"
-          cost={costSingle}
-          disabled={pending || showAnimation || crystals < costSingle}
+          desc={canSingleFree ? "使用免費抽卡 ×1" : "從帷幕召喚一名存在。"}
+          cost={canSingleFree ? 0 : costSingle}
+          free={canSingleFree}
+          disabled={pending || showAnimation || (!canSingleFree && crystals < costSingle)}
           onPull={() => doPull(1)}
         />
         <PullPanel
           title="十連抽"
-          desc="必出 2 張 SR 以上,SSR 機率加成。"
-          cost={costTen}
+          desc={canTenFree ? "使用免費抽卡 ×10" : "必出 2 張 SR 以上,SSR 機率加成。"}
+          cost={canTenFree ? 0 : costTen}
+          free={canTenFree}
           variant="sacred"
-          disabled={pending || showAnimation || crystals < costTen}
+          disabled={pending || showAnimation || (!canTenFree && crystals < costTen)}
           onPull={() => doPull(10)}
         />
       </div>
@@ -192,6 +212,7 @@ function PullPanel({
   title,
   desc,
   cost,
+  free,
   variant = "primary",
   disabled,
   onPull,
@@ -199,16 +220,26 @@ function PullPanel({
   title: string;
   desc: string;
   cost: number;
+  free?: boolean;
   variant?: "primary" | "sacred";
   disabled: boolean;
   onPull: () => void;
 }) {
+  const label = free
+    ? "🎁 免費"
+    : disabled && cost > 0
+      ? "水晶不足"
+      : `💎 ${cost.toLocaleString()}`;
   return (
-    <div className="p-6 rounded-xl border border-parchment/10 bg-veil/40 flex flex-col">
+    <div
+      className={`p-6 rounded-xl border flex flex-col ${
+        free ? "border-gold/50 bg-gold/5" : "border-parchment/10 bg-veil/40"
+      }`}
+    >
       <h3 className="display-serif text-2xl text-sacred mb-1">{title}</h3>
       <p className="text-sm text-parchment/60 mb-4 flex-1">{desc}</p>
       <Button variant={variant} size="lg" disabled={disabled} onClick={onPull}>
-        {disabled && cost > 0 ? "水晶不足" : `💎 ${cost.toLocaleString()}`}
+        {label}
       </Button>
     </div>
   );

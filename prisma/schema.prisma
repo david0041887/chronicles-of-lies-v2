@@ -64,6 +64,11 @@ model User {
   deviceId     String?  @unique
   isGuest      Boolean  @default(false)
 
+  // Tutorial & milestone rewards
+  tutorialDone      Boolean  @default(false)
+  freePulls         Int      @default(0)
+  claimedMilestones String[] @default([])
+
   // Timestamps
   createdAt    DateTime @default(now())
   lastLoginAt  DateTime @default(now())

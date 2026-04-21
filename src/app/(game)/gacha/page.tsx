@@ -21,6 +21,7 @@ export default async function GachaPage() {
 
       <GachaClient
         initialCrystals={user.crystals}
+        initialFreePulls={user.freePulls}
         initialPitySR={user.pitySR}
         initialPitySSR={user.pitySSR}
         initialPityUR={user.pityUR}

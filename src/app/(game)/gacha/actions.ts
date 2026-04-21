@@ -12,10 +12,13 @@ export type CardWithImage = Card & { hasImage: boolean };
 export type PullResult = {
   cards: CardWithImage[];
   crystalsLeft: number;
+  freePullsLeft: number;
   pitySR: number;
   pitySSR: number;
   pityUR: number;
   totalPulls: number;
+  /** "free" = used free pulls, "crystal" = paid with crystals */
+  paidWith: "free" | "crystal";
 };
 
 export async function pullGacha(
@@ -24,8 +27,13 @@ export async function pullGacha(
   const user = await requireUser();
   const cost = count === 10 ? COST_TEN : COST_SINGLE;
 
-  if (user.crystals < cost) {
-    return { ok: false, error: `水晶不足(需 ${cost},目前 ${user.crystals})` };
+  // Use free pulls if available and enough to cover the count
+  const useFree = user.freePulls >= count;
+  if (!useFree && user.crystals < cost) {
+    return {
+      ok: false,
+      error: `水晶不足(需 ${cost},目前 ${user.crystals}) · 可用免費 ${user.freePulls}`,
+    };
   }
 
   const { rarities, finalPity } = pullRarities(count, {
@@ -57,13 +65,21 @@ export async function pullGacha(
   const [updatedUser] = await prisma.$transaction([
     prisma.user.update({
       where: { id: user.id },
-      data: {
-        crystals: { decrement: cost },
-        pitySR: finalPity.pitySR,
-        pitySSR: finalPity.pitySSR,
-        pityUR: finalPity.pityUR,
-        totalPulls: { increment: count },
-      },
+      data: useFree
+        ? {
+            freePulls: { decrement: count },
+            pitySR: finalPity.pitySR,
+            pitySSR: finalPity.pitySSR,
+            pityUR: finalPity.pityUR,
+            totalPulls: { increment: count },
+          }
+        : {
+            crystals: { decrement: cost },
+            pitySR: finalPity.pitySR,
+            pitySSR: finalPity.pitySSR,
+            pityUR: finalPity.pityUR,
+            totalPulls: { increment: count },
+          },
     }),
     prisma.ownedCard.createMany({
       data: drawn.map((c) => ({ userId: user.id, cardId: c.id })),
@@ -79,10 +95,12 @@ export async function pullGacha(
     data: {
       cards: drawn,
       crystalsLeft: updatedUser.crystals,
+      freePullsLeft: updatedUser.freePulls,
       pitySR: updatedUser.pitySR,
       pitySSR: updatedUser.pitySSR,
       pityUR: updatedUser.pityUR,
       totalPulls: updatedUser.totalPulls,
+      paidWith: useFree ? "free" : "crystal",
     },
   };
 }
