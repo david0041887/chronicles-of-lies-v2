@@ -1,3 +1,4 @@
+import { VeilBackdrop } from "@/components/fx/VeilBackdrop";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 
@@ -43,28 +44,25 @@ export default function Home() {
     <main className="flex-1">
       {/* Hero */}
       <section className="relative min-h-[88vh] flex flex-col items-center justify-center px-6 text-center overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none opacity-50">
-          <div className="veil-shimmer absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-ichor/20 blur-3xl" />
-          <div className="veil-shimmer absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-gold/10 blur-3xl" />
-        </div>
+        <VeilBackdrop intensity="high" />
 
-        <p className="relative font-[family-name:var(--font-cinzel)] text-gold/70 tracking-[0.35em] text-xs sm:text-sm uppercase mb-8">
+        <p className="relative font-[family-name:var(--font-cinzel)] text-gold/70 tracking-[0.35em] text-xs sm:text-sm uppercase mb-8 animate-hero animate-hero-delay-1">
           Chronicles of Lies · The Veil War
         </p>
 
-        <h1 className="relative display-serif text-5xl sm:text-7xl lg:text-8xl font-bold text-sacred leading-[1.05] mb-6">
-          謊言編年者
+        <h1 className="relative display-serif text-5xl sm:text-7xl lg:text-8xl font-bold leading-[1.05] mb-6 animate-hero animate-hero-delay-2">
+          <span className="title-sheen">謊言編年者</span>
         </h1>
 
-        <p className="relative max-w-2xl text-parchment/80 text-lg sm:text-xl leading-relaxed mb-4">
+        <p className="relative max-w-2xl text-parchment/80 text-lg sm:text-xl leading-relaxed mb-4 animate-hero animate-hero-delay-3">
           你相信的一切,可能都是你自己造成的。
         </p>
 
-        <p className="relative max-w-2xl text-parchment/50 text-sm sm:text-base leading-relaxed mb-12 font-[family-name:var(--font-noto-serif)]">
+        <p className="relative max-w-2xl text-parchment/50 text-sm sm:text-base leading-relaxed mb-12 font-[family-name:var(--font-noto-serif)] animate-hero animate-hero-delay-3">
           在帷幕撕裂之前,決定誰是神。
         </p>
 
-        <div className="relative flex flex-col sm:flex-row gap-4">
+        <div className="relative flex flex-col sm:flex-row gap-4 animate-hero animate-hero-delay-4">
           <Link href="/home">
             <Button size="lg" variant="primary">
               進入帷幕
@@ -77,8 +75,8 @@ export default function Home() {
           </Link>
         </div>
 
-        <p className="relative mt-16 text-parchment/30 text-xs tracking-widest">
-          Phase 0 — 基礎建置已上線
+        <p className="relative mt-16 text-parchment/30 text-xs tracking-widest animate-hero animate-hero-delay-4">
+          Phase 1.3 — 召喚系統已上線
         </p>
       </section>
 

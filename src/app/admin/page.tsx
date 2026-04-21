@@ -39,9 +39,17 @@ export default async function AdminPage() {
           </p>
           <h1 className="display-serif text-3xl text-parchment">編織者議會 · 後台</h1>
         </div>
-        <span className="text-xs text-parchment/40 tracking-widest">
-          ADMIN ONLY
-        </span>
+        <div className="flex gap-2">
+          <a
+            href="/admin/ai"
+            className="text-xs px-3 py-1.5 rounded border border-gold/50 text-gold hover:bg-gold/10 tracking-widest"
+          >
+            🎨 卡面生成
+          </a>
+          <span className="text-xs text-parchment/40 tracking-widest self-center">
+            ADMIN
+          </span>
+        </div>
       </div>
 
       {/* Stats */}

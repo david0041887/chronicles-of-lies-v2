@@ -92,3 +92,43 @@ body {
   font-family: var(--font-display);
   letter-spacing: 0.02em;
 }
+
+/* Hero entrance animation */
+@keyframes hero-rise {
+  0%   { opacity: 0; transform: translateY(20px); filter: blur(8px); }
+  100% { opacity: 1; transform: translateY(0);    filter: blur(0); }
+}
+.animate-hero {
+  animation: hero-rise 1.2s var(--ease-fluid) both;
+}
+.animate-hero-delay-1 { animation-delay: 0.15s; }
+.animate-hero-delay-2 { animation-delay: 0.45s; }
+.animate-hero-delay-3 { animation-delay: 0.75s; }
+.animate-hero-delay-4 { animation-delay: 1.05s; }
+
+/* Title sheen — gold gradient sweeping across text */
+@keyframes title-sheen {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.title-sheen {
+  background: linear-gradient(100deg,
+    #D4A84B 0%,
+    #D4A84B 40%,
+    #FFF2C4 50%,
+    #D4A84B 60%,
+    #D4A84B 100%);
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: title-sheen 7s linear infinite;
+  filter: drop-shadow(0 0 16px rgba(212, 168, 75, 0.35));
+}
+
+/* Fade-in for modal content */
+@keyframes fadeIn {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}

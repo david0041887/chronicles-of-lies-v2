@@ -1,10 +1,12 @@
 "use client";
 
 import { CardTile } from "@/components/game/CardTile";
+import { SummonAnimation } from "@/components/fx/SummonAnimation";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import type { Card } from "@prisma/client";
+import type { Card, Rarity } from "@prisma/client";
+import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { pullGacha } from "./actions";
@@ -16,6 +18,14 @@ interface Props {
   initialTotalPulls: number;
   costSingle: number;
   costTen: number;
+}
+
+function highestRarity(cards: Card[]): Rarity {
+  const order: Record<Rarity, number> = { R: 0, SR: 1, SSR: 2, UR: 3 };
+  return cards.reduce<Rarity>(
+    (best, c) => (order[c.rarity] > order[best] ? c.rarity : best),
+    "R",
+  );
 }
 
 export function GachaClient({
@@ -33,6 +43,8 @@ export function GachaClient({
   const [pitySR, setPitySR] = useState(initialPitySR);
   const [pitySSR, setPitySSR] = useState(initialPitySSR);
   const [totalPulls, setTotalPulls] = useState(initialTotalPulls);
+  const [pendingResult, setPendingResult] = useState<Card[] | null>(null);
+  const [showAnimation, setShowAnimation] = useState(false);
   const [result, setResult] = useState<Card[] | null>(null);
 
   const doPull = (count: 1 | 10) => {
@@ -46,21 +58,32 @@ export function GachaClient({
       setPitySR(res.data.pitySR);
       setPitySSR(res.data.pitySSR);
       setTotalPulls(res.data.totalPulls);
-      setResult(res.data.cards);
-      const best = res.data.cards.reduce((a, b) => {
-        const order = { R: 0, SR: 1, SSR: 2, UR: 3 };
-        return order[b.rarity] > order[a.rarity] ? b : a;
-      });
-      if (best.rarity === "SSR" || best.rarity === "UR") {
-        push(`✨ ${best.rarity} — ${best.name}!`, "success");
+      setPendingResult(res.data.cards);
+      setShowAnimation(true);
+      const best = highestRarity(res.data.cards);
+      if (best === "SSR" || best === "UR") {
+        // Delay toast until after animation
+        setTimeout(() => {
+          const hit = res.data.cards.find((c) => c.rarity === best);
+          if (hit) push(`✨ ${best} — ${hit.name}!`, "success");
+        }, 2500);
       }
-      // refresh server-side data (HUD crystal counts, etc.)
       router.refresh();
     });
   };
 
   return (
     <>
+      <SummonAnimation
+        active={showAnimation}
+        highestRarity={pendingResult ? highestRarity(pendingResult) : "R"}
+        onComplete={() => {
+          setShowAnimation(false);
+          setResult(pendingResult);
+          setPendingResult(null);
+        }}
+      />
+
       {/* Stats HUD */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <Stat label="💎 水晶" value={crystals} tint="text-rarity-super" />
@@ -75,7 +98,7 @@ export function GachaClient({
           title="單抽"
           desc="從帷幕召喚一名存在。"
           cost={costSingle}
-          disabled={pending || crystals < costSingle}
+          disabled={pending || showAnimation || crystals < costSingle}
           onPull={() => doPull(1)}
         />
         <PullPanel
@@ -83,7 +106,7 @@ export function GachaClient({
           desc="十次召喚,保底至少一張 SR。"
           cost={costTen}
           variant="sacred"
-          disabled={pending || crystals < costTen}
+          disabled={pending || showAnimation || crystals < costTen}
           onPull={() => doPull(10)}
         />
       </div>
@@ -99,13 +122,24 @@ export function GachaClient({
           <>
             <div
               className={`grid gap-3 ${
-                result.length === 10 ? "grid-cols-5" : "grid-cols-1"
+                result.length === 10 ? "grid-cols-5" : "grid-cols-1 place-items-center"
               }`}
             >
               {result.map((c, i) => (
-                <div key={`${c.id}-${i}`} className="flex justify-center">
-                  <CardTile card={c} size={result.length === 10 ? "sm" : "md"} />
-                </div>
+                <motion.div
+                  key={`${c.id}-${i}`}
+                  className="flex justify-center"
+                  initial={{ rotateY: 180, opacity: 0, scale: 0.8 }}
+                  animate={{ rotateY: 0, opacity: 1, scale: 1 }}
+                  transition={{
+                    delay: i * 0.08,
+                    duration: 0.45,
+                    ease: [0.68, -0.55, 0.27, 1.55],
+                  }}
+                  style={{ transformStyle: "preserve-3d" }}
+                >
+                  <CardTile card={c} size={result.length === 10 ? "sm" : "md"} tilt />
+                </motion.div>
               ))}
             </div>
             <div className="mt-6 flex justify-between items-center">

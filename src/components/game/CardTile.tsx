@@ -1,8 +1,9 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { ERAS } from "@/lib/constants/eras";
+import { motion, useMotionTemplate, useMotionValue, useSpring } from "framer-motion";
 import type { Rarity } from "@prisma/client";
+import { CardArt } from "./CardArt";
 
 interface Card {
   id: string;
@@ -15,19 +16,21 @@ interface Card {
   power: number;
   keywords: string[];
   flavor?: string | null;
+  imageUrl?: string | null;
 }
 
 interface CardTileProps {
   card: Card;
   ownedCount?: number;
-  revealed?: boolean;         // false shows card back (for gacha flip)
+  revealed?: boolean;
   size?: "sm" | "md" | "lg";
+  tilt?: boolean;
   onClick?: () => void;
 }
 
 const RARITY_GLOW: Record<Rarity, string> = {
   R: "shadow-[0_0_12px_rgba(74,144,226,0.35)]",
-  SR: "shadow-[0_0_20px_rgba(184,127,235,0.5)]",
+  SR: "shadow-[0_0_20px_rgba(184,127,235,0.55)]",
   SSR: "shadow-[var(--shadow-glow-gold)]",
   UR: "shadow-[var(--shadow-glow-gold)]",
 };
@@ -64,26 +67,76 @@ export function CardTile({
   ownedCount,
   revealed = true,
   size = "md",
+  tilt = false,
   onClick,
 }: CardTileProps) {
-  const era = ERAS.find((e) => e.id === card.eraId);
   const notOwned = typeof ownedCount === "number" && ownedCount === 0;
+
+  const rx = useMotionValue(0);
+  const ry = useMotionValue(0);
+  const srx = useSpring(rx, { stiffness: 200, damping: 20 });
+  const sry = useSpring(ry, { stiffness: 200, damping: 20 });
+  const transform = useMotionTemplate`perspective(900px) rotateX(${srx}deg) rotateY(${sry}deg)`;
+
+  const onMove = (e: React.MouseEvent<HTMLElement>) => {
+    if (!tilt) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width - 0.5;
+    const py = (e.clientY - r.top) / r.height - 0.5;
+    rx.set(-py * 14);
+    ry.set(px * 18);
+  };
+  const onLeave = () => {
+    rx.set(0);
+    ry.set(0);
+  };
 
   if (!revealed) {
     return (
       <div
         className={cn(
-          "aspect-[3/4] rounded-xl border-2 border-gold/50 bg-gradient-to-br from-[#2a1b4a] to-veil relative overflow-hidden",
+          "aspect-[3/4] rounded-xl border-2 border-gold/60 relative overflow-hidden",
+          "bg-gradient-to-br from-[#2a1b4a] via-veil to-[#0a0612]",
           "flex items-center justify-center",
           SIZES[size],
         )}
       >
-        <div className="text-gold/40 display-serif text-4xl">謊</div>
+        <div
+          className="absolute inset-0 opacity-30"
+          style={{
+            background:
+              "radial-gradient(circle at 50% 50%, #D4A84B22, transparent 60%)",
+          }}
+        />
+        <div
+          className="text-gold/70 display-serif text-5xl select-none"
+          style={{ textShadow: "0 0 18px #D4A84B88" }}
+        >
+          謊
+        </div>
       </div>
     );
   }
 
   const Wrapper: React.ElementType = onClick ? "button" : "div";
+
+  const artLayer = card.imageUrl ? (
+    <img
+      src={card.imageUrl}
+      alt={card.name}
+      className="w-full h-full object-cover"
+      draggable={false}
+    />
+  ) : (
+    <CardArt
+      cardId={card.id}
+      eraId={card.eraId}
+      type={card.type}
+      rarity={card.rarity}
+      name={card.name}
+      className="w-full h-full"
+    />
+  );
 
   return (
     <Wrapper
@@ -97,48 +150,46 @@ export function CardTile({
         notOwned && "opacity-40 grayscale",
         SIZES[size],
       )}
-      style={{
-        background: era
-          ? `linear-gradient(135deg, ${era.palette.dark} 0%, ${era.palette.main}30 100%)`
-          : undefined,
-      }}
     >
-      {/* Header */}
-      <div className="flex items-start justify-between p-2">
-        <div className="flex items-center gap-1">
-          <span className="font-[family-name:var(--font-mono)] font-bold text-parchment bg-black/40 px-1.5 rounded">
-            {card.cost}
-          </span>
-        </div>
-        <span className={cn("text-xs font-bold tracking-wider", RARITY_TINT[card.rarity])}>
+      {tilt ? (
+        <motion.div
+          className="absolute inset-0"
+          style={{ transform, transformStyle: "preserve-3d" }}
+          onMouseMove={onMove}
+          onMouseLeave={onLeave}
+        >
+          {artLayer}
+        </motion.div>
+      ) : (
+        <div className="absolute inset-0">{artLayer}</div>
+      )}
+
+      {/* Overlays */}
+      <div className="relative flex items-start justify-between p-2">
+        <span className="font-[family-name:var(--font-mono)] font-bold text-parchment bg-black/60 px-1.5 rounded">
+          {card.cost}
+        </span>
+        <span className={cn("text-xs font-bold tracking-wider drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]", RARITY_TINT[card.rarity])}>
           {card.rarity}
         </span>
       </div>
 
-      {/* Center — art placeholder */}
-      <div className="flex-1 flex items-center justify-center relative">
-        <div
-          className="text-5xl sm:text-6xl select-none"
-          style={{ filter: "drop-shadow(0 0 12px rgba(0,0,0,0.5))" }}
-        >
-          {era?.emoji ?? "🎴"}
-        </div>
-        {card.keywords.length > 0 && (
-          <div className="absolute bottom-0 left-0 right-0 flex flex-wrap gap-0.5 justify-center px-1">
-            {card.keywords.slice(0, 3).map((k) => (
-              <span
-                key={k}
-                className="text-[9px] tracking-widest px-1 py-0.5 rounded bg-black/50 text-parchment/90"
-              >
-                {k}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
+      <div className="relative flex-1" />
 
-      {/* Footer */}
-      <div className="p-2 border-t border-black/40 bg-black/30 backdrop-blur">
+      {card.keywords.length > 0 && (
+        <div className="relative flex flex-wrap gap-0.5 justify-center px-1 pb-1">
+          {card.keywords.slice(0, 3).map((k) => (
+            <span
+              key={k}
+              className="text-[9px] tracking-widest px-1 py-0.5 rounded bg-black/60 text-parchment/90 backdrop-blur-sm"
+            >
+              {k}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="relative p-2 border-t border-black/40 bg-gradient-to-t from-black/75 to-black/35 backdrop-blur">
         <div className="flex items-center justify-between">
           <span className="display-serif truncate text-parchment">
             {card.name}
@@ -158,7 +209,7 @@ export function CardTile({
       </div>
 
       {typeof ownedCount === "number" && (
-        <div className="absolute top-1.5 right-1.5 text-[10px] font-bold bg-gold text-veil px-1.5 py-0.5 rounded-full shadow">
+        <div className="absolute top-1.5 right-1.5 text-[10px] font-bold bg-gold text-veil px-1.5 py-0.5 rounded-full shadow z-10">
           ×{ownedCount}
         </div>
       )}

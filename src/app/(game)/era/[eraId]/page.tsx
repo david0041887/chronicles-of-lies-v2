@@ -1,3 +1,4 @@
+import { VeilBackdrop } from "@/components/fx/VeilBackdrop";
 import { requireUser } from "@/lib/auth-helpers";
 import { getEra } from "@/lib/constants/eras";
 import Link from "next/link";
@@ -17,7 +18,14 @@ export default async function EraPage({ params }: Props) {
   const believers = progress?.believers ?? 0;
 
   return (
-    <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+    <div className="relative">
+      <VeilBackdrop
+        main={era.palette.main}
+        accent={era.palette.accent}
+        dark={era.palette.dark}
+        intensity="medium"
+      />
+      <main className="relative max-w-5xl mx-auto px-4 sm:px-6 py-10">
       {/* Hero */}
       <div
         className="relative rounded-3xl border border-parchment/10 p-8 sm:p-12 mb-8 overflow-hidden"
@@ -109,6 +117,7 @@ export default async function EraPage({ params }: Props) {
           </p>
         </div>
       </section>
-    </main>
+      </main>
+    </div>
   );
 }
