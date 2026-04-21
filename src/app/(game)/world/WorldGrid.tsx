@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 interface Tile {
   era: Era;
   believers: number;
+  dailyLegendName?: string;
 }
 
 export function WorldGrid({ tiles }: { tiles: Tile[] }) {
@@ -24,7 +25,11 @@ export function WorldGrid({ tiles }: { tiles: Tile[] }) {
           }}
           whileHover={{ y: -4, transition: { duration: 0.2 } }}
         >
-          <EraCard era={t.era} believers={t.believers} />
+          <EraCard
+            era={t.era}
+            believers={t.believers}
+            dailyLegendName={t.dailyLegendName}
+          />
         </motion.div>
       ))}
     </div>

@@ -23,7 +23,8 @@ export interface SideState {
   hp: number;                 // 信徒 (believers)
   hpMax: number;
   mana: number;
-  manaMax: number;            // grows each turn up to 10
+  manaMax: number;            // grows each turn up to manaCeiling
+  manaCeiling: number;        // hard cap on manaMax (10 base, + weaver perk)
   deck: BattleCard[];
   hand: BattleCard[];
   discard: BattleCard[];
@@ -41,6 +42,8 @@ export interface BattleState {
   player: SideState;
   enemy: SideState;
   log: LogEntry[];
+  /** Player-played card template ids, in order. Used post-battle for auto-spread accounting. */
+  playerPlays: string[];
   /** Monotonic random seed for deterministic replays (client seeds server validation) */
   seed: number;
 }

@@ -3,6 +3,7 @@
 import { requireOnboarded } from "@/lib/auth-helpers";
 import { copiesNeeded, FUSION_INPUTS, MAX_STARS, NEXT_RARITY } from "@/lib/forge";
 import { prisma } from "@/lib/prisma";
+import { perksForLevel, weaverLevel } from "@/lib/weaver";
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
 
@@ -28,12 +29,17 @@ export async function upgradeCardStars(
     return { ok: false, error: `已達最高星級 ${MAX_STARS}★` };
   }
 
-  const needed = copiesNeeded(best.stars);
+  // Weaver discount (Lv.8: -25%, Lv.28: -50%)
+  const perks = perksForLevel(weaverLevel(user.totalBelievers));
+  const baseNeed = copiesNeeded(best.stars);
+  const needed = Math.max(1, Math.ceil(baseNeed * (1 - perks.forgeDiscount)));
   const available = copies.length - 1; // minus best
   if (available < needed) {
     return {
       ok: false,
-      error: `升到 ${best.stars + 1}★ 需要 ${needed} 張同名卡(目前另有 ${available} 張可餵)`,
+      error: `升到 ${best.stars + 1}★ 需要 ${needed} 張同名卡${
+        perks.forgeDiscount > 0 ? `(原 ${baseNeed},編織者折扣後)` : ""
+      }(目前另有 ${available} 張可餵)`,
     };
   }
 

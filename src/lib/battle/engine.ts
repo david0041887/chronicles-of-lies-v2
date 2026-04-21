@@ -1,17 +1,36 @@
 import type { BattleCard, BattleState, LogEntry, SideState } from "./types";
 
-const HAND_CAP = 5;
-const MANA_CAP = 10;
+const BASE_HAND_CAP = 5;
+const BASE_MANA_CAP = 10;
 const INITIAL_HP = 50;
-const INITIAL_DRAW = 5;
+const BASE_INITIAL_DRAW = 5;
 
-function makeSide(name: string, deck: BattleCard[]): SideState {
+export interface PlayerPerks {
+  startHandBonus: number;  // +1 at weaver Lv.5
+  startManaBonus: number;  // +1 at weaver Lv.10
+  maxManaBonus: number;    // +2 at weaver Lv.20
+}
+
+const ZERO_PERKS: PlayerPerks = {
+  startHandBonus: 0,
+  startManaBonus: 0,
+  maxManaBonus: 0,
+};
+
+function makeSide(
+  name: string,
+  deck: BattleCard[],
+  perks: PlayerPerks = ZERO_PERKS,
+): SideState {
+  const startMana = 1 + perks.startManaBonus;
+  const manaCeiling = BASE_MANA_CAP + perks.maxManaBonus;
   return {
     name,
     hp: INITIAL_HP,
     hpMax: INITIAL_HP,
-    mana: 1,
-    manaMax: 1,
+    mana: startMana,
+    manaMax: Math.min(manaCeiling, startMana),
+    manaCeiling,
     deck: shuffle(deck),
     hand: [],
     discard: [],
@@ -33,7 +52,7 @@ function shuffle<T>(arr: T[]): T[] {
 
 function draw(side: SideState, n: number, log: LogEntry[], turn: number, sideName: "player" | "enemy") {
   for (let i = 0; i < n; i++) {
-    if (side.hand.length >= HAND_CAP) break;
+    if (side.hand.length >= BASE_HAND_CAP) break;
     if (side.deck.length === 0) {
       // Shuffle discard back
       side.deck = shuffle(side.discard);
@@ -52,18 +71,30 @@ export function createBattle(
   enemyName: string,
   enemyDeck: BattleCard[],
   enemyHp = INITIAL_HP,
+  playerPerks: PlayerPerks = ZERO_PERKS,
 ): BattleState {
   const state: BattleState = {
     phase: "starting",
     turn: 1,
-    player: makeSide(playerName, playerDeck),
+    player: makeSide(playerName, playerDeck, playerPerks),
     enemy: { ...makeSide(enemyName, enemyDeck), hp: enemyHp, hpMax: enemyHp },
     log: [],
+    playerPlays: [],
     seed: Date.now() >>> 0,
   };
 
-  draw(state.player, INITIAL_DRAW, state.log, 1, "player");
-  draw(state.enemy, INITIAL_DRAW, state.log, 1, "enemy");
+  const initialDraw = BASE_INITIAL_DRAW + playerPerks.startHandBonus;
+  draw(state.player, initialDraw, state.log, 1, "player");
+  draw(state.enemy, BASE_INITIAL_DRAW, state.log, 1, "enemy");
+
+  if (playerPerks.startHandBonus > 0 || playerPerks.startManaBonus > 0) {
+    state.log.push({
+      turn: 1,
+      side: "player",
+      kind: "buff",
+      text: `編織者加成:+${playerPerks.startHandBonus} 手牌 · +${playerPerks.startManaBonus} 信仰池`,
+    });
+  }
 
   state.phase = "player_turn";
   state.log.push({ turn: 1, side: "player", kind: "phase", text: "第 1 回合 · 你的回合" });
@@ -129,6 +160,11 @@ export function playCard(state: BattleState, sideName: "player" | "enemy", handI
   self.mana -= card.cost;
   self.hand.splice(handIndex, 1);
   self.discard.push(card);
+
+  // Track for post-battle legend auto-spread (player only)
+  if (sideName === "player") {
+    state.playerPlays.push(card.id);
+  }
 
   const basePower = card.power * self.buffNextCard;
   const hasPierce = card.keywords.includes("pierce");
@@ -249,7 +285,7 @@ function applyStartOfTurnEffects(state: BattleState, sideName: "player" | "enemy
   }
 
   // Mana refill + cap grow
-  self.manaMax = Math.min(MANA_CAP, self.manaMax + 1);
+  self.manaMax = Math.min(self.manaCeiling, self.manaMax + 1);
   self.mana = self.manaMax;
 
   // Draw 1

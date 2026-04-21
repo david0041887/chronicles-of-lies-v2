@@ -1,13 +1,11 @@
 import { auth } from "@/auth";
+import { cardLegendIndex } from "@/lib/legend-cards";
 import { prisma } from "@/lib/prisma";
+import { ensureLegendCounts, dominantIndex as computeDominant } from "@/lib/spread";
 import { NextResponse } from "next/server";
 
-function expNeededForLevel(level: number): number {
-  return level * 100;
-}
-
-// Repeat clears give 7% of first-clear rewards (middle of 5-10% window).
-const REPEAT_MULT = 0.07;
+// Repeat clears give 15% of first-clear rewards.
+const REPEAT_MULT = 0.15;
 
 function scale(amount: number, first: boolean): number {
   return first ? amount : Math.max(1, Math.floor(amount * REPEAT_MULT));
@@ -26,12 +24,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { stageId, won, turnsElapsed, playerHpEnd, enemyHpEnd } =
-    (body as Record<string, unknown>) ?? {};
-
+  const { stageId, won, playerPlays } = (body as Record<string, unknown>) ?? {};
   if (typeof stageId !== "string" || typeof won !== "boolean") {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
+  const plays = Array.isArray(playerPlays) ? (playerPlays as string[]) : [];
 
   const stage = await prisma.stage.findUnique({ where: { id: stageId } });
   if (!stage) {
@@ -48,35 +45,38 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, rewards: null, firstClear: false });
   }
 
-  // Has this user cleared this stage before?
+  // First clear?
   const existing = await prisma.stageClear.findUnique({
     where: { userId_stageId: { userId, stageId } },
   });
   const isFirstClear = !existing;
 
   const crystals = scale(stage.rewardCrystals, isFirstClear);
-  const exp = scale(stage.rewardExp, isFirstClear);
   const believers = scale(stage.rewardBelievers, isFirstClear);
 
-  // Compute level-up(s)
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { level: true, exp: true },
-  });
-  let newLevel = user?.level ?? 1;
-  let newExp = (user?.exp ?? 0) + exp;
-  while (newExp >= expNeededForLevel(newLevel) && newLevel < 100) {
-    newExp -= expNeededForLevel(newLevel);
-    newLevel += 1;
+  // Compute auto-spread increments for this stage's era based on played cards
+  const spreadGained: number[] = [0, 0, 0, 0];
+  for (const cardId of plays) {
+    const legendIdx = cardLegendIndex(stage.eraId, cardId);
+    if (legendIdx !== null) spreadGained[legendIdx] += 1;
   }
+  const totalSpreadDelta = spreadGained.reduce((s, x) => s + x, 0);
+
+  // Apply spread to EraProgress
+  const existingProgress = await prisma.eraProgress.findUnique({
+    where: { userId_eraId: { userId, eraId: stage.eraId } },
+  });
+  const mergedCounts = ensureLegendCounts(existingProgress?.legendCounts ?? []);
+  for (let i = 0; i < mergedCounts.length; i++) {
+    mergedCounts[i] = (mergedCounts[i] ?? 0) + (spreadGained[i] ?? 0);
+  }
+  const newDominant = computeDominant(mergedCounts);
 
   await prisma.$transaction([
     prisma.user.update({
       where: { id: userId },
       data: {
         crystals: { increment: crystals },
-        exp: newExp,
-        level: newLevel,
         battlesWon: { increment: 1 },
         totalBelievers: { increment: believers },
       },
@@ -85,8 +85,13 @@ export async function POST(req: Request) {
       where: { userId_eraId: { userId, eraId: stage.eraId } },
       update: {
         believers: { increment: believers },
-        highestStage: stage.orderNum,
-        bossCleared: stage.isBoss ? true : undefined,
+        highestStage: Math.max(existingProgress?.highestStage ?? 0, stage.orderNum),
+        bossCleared: stage.isBoss
+          ? true
+          : (existingProgress?.bossCleared ?? false),
+        legendCounts: { set: mergedCounts },
+        spreadsTotal: { increment: totalSpreadDelta },
+        dominantLegend: newDominant,
       },
       create: {
         userId,
@@ -94,6 +99,9 @@ export async function POST(req: Request) {
         believers,
         highestStage: stage.orderNum,
         bossCleared: stage.isBoss,
+        legendCounts: mergedCounts,
+        spreadsTotal: totalSpreadDelta,
+        dominantLegend: newDominant,
       },
     }),
     prisma.stageClear.upsert({
@@ -110,12 +118,16 @@ export async function POST(req: Request) {
     ok: true,
     rewards: {
       crystals,
-      exp,
       believers,
-      levelBefore: user?.level ?? 1,
-      levelAfter: newLevel,
+      exp: 0, // deprecated, kept for UI compatibility
+      levelBefore: 0,
+      levelAfter: 0,
     },
     firstClear: isFirstClear,
-    meta: { turnsElapsed, playerHpEnd, enemyHpEnd },
+    spread: {
+      eraId: stage.eraId,
+      gained: spreadGained,
+      totalDelta: totalSpreadDelta,
+    },
   });
 }

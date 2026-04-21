@@ -3,6 +3,7 @@
 import { requireUser } from "@/lib/auth-helpers";
 import { COST_SINGLE, COST_TEN, pullRarities } from "@/lib/gacha";
 import { prisma } from "@/lib/prisma";
+import { perksForLevel, weaverLevel } from "@/lib/weaver";
 import type { Card } from "@prisma/client";
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
@@ -36,11 +37,18 @@ export async function pullGacha(
     };
   }
 
-  const { rarities, finalPity } = pullRarities(count, {
-    pitySR: user.pitySR,
-    pitySSR: user.pitySSR,
-    pityUR: user.pityUR,
-  });
+  // Weaver-level perk: SSR rate bonus (Lv.15+)
+  const perks = perksForLevel(weaverLevel(user.totalBelievers));
+
+  const { rarities, finalPity } = pullRarities(
+    count,
+    {
+      pitySR: user.pitySR,
+      pitySSR: user.pitySSR,
+      pityUR: user.pityUR,
+    },
+    perks.ssrRateBonus,
+  );
 
   const poolByRarity = new Map<string, CardWithImage[]>();
   for (const rarity of new Set(rarities)) {

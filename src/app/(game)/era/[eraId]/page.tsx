@@ -1,12 +1,15 @@
 import { VeilBackdrop } from "@/components/fx/VeilBackdrop";
 import { requireOnboarded } from "@/lib/auth-helpers";
 import { getEra, type EraId } from "@/lib/constants/eras";
+import { dailyLegendIndex, msUntilNextRotation } from "@/lib/daily-legend";
+import { cardsForLegend } from "@/lib/legend-cards";
 import { prisma } from "@/lib/prisma";
-import { cooldownLeft, ensureLegendCounts } from "@/lib/spread";
+import { ensureLegendCounts } from "@/lib/spread";
 import { getChapters } from "@/lib/story";
+import { perksForLevel, weaverLevel } from "@/lib/weaver";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { SpreadLegends } from "./SpreadLegends";
+import { LegendsPanel } from "./LegendsPanel";
 import { StoryChapters } from "./StoryChapters";
 
 interface Props {
@@ -29,11 +32,22 @@ export default async function EraPage({ params }: Props) {
   const spreadsTotal = progress?.spreadsTotal ?? 0;
   const dominantLegend = progress?.dominantLegend ?? null;
 
-  const freshUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { lastSpreadAt: true },
-  });
-  const cooldownSec = cooldownLeft(freshUser?.lastSpreadAt);
+  const level = weaverLevel(user.totalBelievers);
+  const perks = perksForLevel(level);
+  const dailyIdx = perks.dailyLegendActive
+    ? dailyLegendIndex(era.id)
+    : -1;
+  const boundCardIds =
+    dailyIdx >= 0 ? cardsForLegend(era.id, dailyIdx) : [];
+  // Look up bound cards with rarity and image for preview
+  const boundCards =
+    boundCardIds.length > 0
+      ? await prisma.card.findMany({
+          where: { id: { in: boundCardIds } },
+          include: { image: { select: { cardId: true } } },
+          orderBy: [{ rarity: "desc" }, { cost: "desc" }],
+        })
+      : [];
 
   const stages = await prisma.stage.findMany({
     where: { eraId: era.id },
@@ -53,6 +67,7 @@ export default async function EraPage({ params }: Props) {
   });
 
   const chapters = getChapters(era.id as EraId);
+  const rotationMs = msUntilNextRotation();
 
   return (
     <div className="relative">
@@ -107,13 +122,57 @@ export default async function EraPage({ params }: Props) {
               </div>
             </div>
             <div>
-              <div className="text-xs text-parchment/50 tracking-wider">傳播次數</div>
+              <div className="text-xs text-parchment/50 tracking-wider">傳播累積</div>
               <div className="font-[family-name:var(--font-mono)] text-3xl text-parchment tabular-nums">
                 {spreadsTotal}
               </div>
             </div>
           </div>
         </div>
+
+        {/* Daily Legend Banner (if active) */}
+        {dailyIdx >= 0 && (
+          <section className="mb-8">
+            <div
+              className="p-5 rounded-2xl border-2 border-gold/60 bg-gradient-to-br from-gold/10 via-veil/40 to-veil/20"
+              style={{ backgroundColor: `${era.palette.main}0a` }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] text-gold tracking-[0.3em] uppercase">
+                  ✨ Today&apos;s Legend
+                </p>
+                <p className="text-[10px] text-parchment/40 tabular-nums">
+                  {Math.floor(rotationMs / 3600000)}h {Math.floor((rotationMs % 3600000) / 60000)}m 後輪替
+                </p>
+              </div>
+              <h3 className="display-serif text-2xl text-sacred mb-1">
+                {era.legends[dailyIdx].name}
+              </h3>
+              <p className="text-sm text-parchment/60 italic font-[family-name:var(--font-noto-serif)] mb-3">
+                {era.legends[dailyIdx].desc}
+              </p>
+              <div className="text-xs text-parchment/70 mb-2">
+                <span className="text-gold">+2 Power</span> to these cards today
+                (SSR+ also gets <span className="text-gold">haste</span>):
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {boundCards.map((c) => (
+                  <span
+                    key={c.id}
+                    className={`text-xs px-2 py-1 rounded border ${
+                      c.rarity === "UR" || c.rarity === "SSR"
+                        ? "border-gold/60 text-gold bg-gold/5"
+                        : "border-parchment/20 text-parchment/70"
+                    }`}
+                  >
+                    {c.name}
+                    <span className="ml-1 text-[9px] opacity-70">{c.rarity}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Story Chapters */}
         {chapters.length > 0 && (
@@ -128,21 +187,19 @@ export default async function EraPage({ params }: Props) {
           </section>
         )}
 
-        {/* Spread Lies */}
+        {/* 4 Legends — passive display only, no click to spread */}
         <section className="mb-8">
           <h2 className="display-serif text-2xl text-sacred mb-1">📢 四大傳說</h2>
           <p className="text-xs text-parchment/50 tracking-wider mb-4">
-            每 30 秒可傳播一次 · 每次獲得 30-80 信徒 · 被傳最多的成為該時代主導
+            在戰鬥中打出綁定卡 → 該傳說進度自動 +1。被傳最多的會成為該時代主導。
           </p>
-          <SpreadLegends
-            eraId={era.id}
+          <LegendsPanel
             legends={era.legends}
+            eraId={era.id}
             paletteMain={era.palette.main}
-            initialCounts={legendCounts}
-            initialBelievers={believers}
-            initialSpreadsTotal={spreadsTotal}
-            initialDominantIdx={dominantLegend}
-            initialCooldownSec={cooldownSec}
+            counts={legendCounts}
+            dominantIdx={dominantLegend}
+            dailyIdx={dailyIdx}
           />
         </section>
 

@@ -1,8 +1,36 @@
 import { prisma } from "@/lib/prisma";
 import { effectivePower } from "@/lib/forge";
+import { dailyLegendIndex } from "@/lib/daily-legend";
+import { cardLegendIndex } from "@/lib/legend-cards";
+import type { Rarity } from "@prisma/client";
 import type { BattleCard } from "./types";
 
 const RANK: Record<string, number> = { R: 0, SR: 1, SSR: 2, UR: 3 };
+
+/** Apply today's legend buff to cards matching the battle's era. */
+export function applyDailyLegendBuff(
+  deck: BattleCard[],
+  battleEraId: string,
+  now: Date = new Date(),
+): { deck: BattleCard[]; legendIdx: number; boostedCards: string[] } {
+  const legendIdx = dailyLegendIndex(battleEraId, now);
+  const boostedCards: string[] = [];
+  const out = deck.map((card) => {
+    if (card.eraId !== battleEraId) return card;
+    const idx = cardLegendIndex(battleEraId, card.id);
+    if (idx !== legendIdx) return card;
+    boostedCards.push(card.id);
+    const isSSRplus = card.rarity === "SSR" || card.rarity === "UR";
+    return {
+      ...card,
+      power: card.power + 2,
+      keywords: isSSRplus && !card.keywords.includes("haste")
+        ? [...card.keywords, "haste"]
+        : card.keywords,
+    };
+  });
+  return { deck: out, legendIdx, boostedCards };
+}
 
 /**
  * Build a 30-card battle deck for a user.

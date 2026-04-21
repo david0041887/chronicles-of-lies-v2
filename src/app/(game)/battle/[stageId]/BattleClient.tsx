@@ -42,6 +42,18 @@ interface EraMeta {
   emoji: string;
 }
 
+interface PlayerPerks {
+  startHandBonus: number;
+  startManaBonus: number;
+  maxManaBonus: number;
+}
+
+interface DailyLegendMeta {
+  index: number;
+  name: string;
+  boostedCardNames: string[];
+}
+
 interface Props {
   stage: StageData;
   era: EraMeta | null;
@@ -51,9 +63,18 @@ interface Props {
   /** If true, this is the onboarding tutorial — uses /api/tutorial/complete
    *  and auto-leaves to /home with a starter-grant message. */
   tutorialMode?: boolean;
+  /** Weaver-level perks applied to player (hand / mana / max mana). */
+  playerPerks?: PlayerPerks;
+  /** Today's daily legend for this era (if active). Null if weaver < Lv.3. */
+  dailyLegend?: DailyLegendMeta | null;
 }
 
 const AUTO_LEAVE_MS = 4200;
+const ZERO_PERKS: PlayerPerks = {
+  startHandBonus: 0,
+  startManaBonus: 0,
+  maxManaBonus: 0,
+};
 
 export function BattleClient({
   stage,
@@ -62,12 +83,21 @@ export function BattleClient({
   playerDeck,
   enemyDeck,
   tutorialMode = false,
+  playerPerks = ZERO_PERKS,
+  dailyLegend = null,
 }: Props) {
   const router = useRouter();
   const { push } = useToast();
 
   const [battle, setBattle] = useState<BattleState>(() =>
-    createBattle(playerName, playerDeck, stage.enemyName, enemyDeck, stage.enemyHp),
+    createBattle(
+      playerName,
+      playerDeck,
+      stage.enemyName,
+      enemyDeck,
+      stage.enemyHp,
+      playerPerks,
+    ),
   );
   const [reportSent, setReportSent] = useState(false);
   const [enemyThinking, setEnemyThinking] = useState(false);
@@ -177,6 +207,7 @@ export function BattleClient({
             turnsElapsed: battle.turn,
             playerHpEnd: battle.player.hp,
             enemyHpEnd: battle.enemy.hp,
+            playerPlays: battle.playerPlays,
           }),
         });
         const body = await res.json();
@@ -263,6 +294,15 @@ export function BattleClient({
 
       {/* Floating damage/heal numbers */}
       <FloaterLayer floaters={floaters} />
+
+      {/* Daily Legend Banner */}
+      {dailyLegend && dailyLegend.boostedCardNames.length > 0 && (
+        <div className="relative z-10 px-4 py-2 border-b border-gold/40 bg-gold/10 backdrop-blur text-center">
+          <span className="text-[11px] text-gold tracking-widest">
+            ✨ 今日傳說 · {dailyLegend.name} · 加成 {dailyLegend.boostedCardNames.length} 張卡
+          </span>
+        </div>
+      )}
 
       {/* Top bar */}
       <div className="relative flex items-center justify-between px-4 py-3 border-b border-parchment/10 bg-veil/60 backdrop-blur">

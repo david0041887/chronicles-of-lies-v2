@@ -1,15 +1,22 @@
 import { VeilBackdrop } from "@/components/fx/VeilBackdrop";
 import { ERAS } from "@/lib/constants/eras";
 import { requireOnboarded } from "@/lib/auth-helpers";
+import { dailyLegendIndex } from "@/lib/daily-legend";
+import { perksForLevel, weaverLevel } from "@/lib/weaver";
 import { WorldGrid } from "./WorldGrid";
 
 export default async function WorldPage() {
   const user = await requireOnboarded();
   const progressByEra = new Map(user.eraProgress.map((p) => [p.eraId, p]));
 
+  const perks = perksForLevel(weaverLevel(user.totalBelievers));
+
   const tiles = ERAS.map((era) => ({
     era,
     believers: progressByEra.get(era.id)?.believers ?? 0,
+    dailyLegendName: perks.dailyLegendActive
+      ? era.legends[dailyLegendIndex(era.id)]?.name
+      : undefined,
   }));
 
   return (
@@ -23,7 +30,9 @@ export default async function WorldPage() {
           </p>
           <h1 className="display-serif text-4xl text-sacred mb-2">世界之帷</h1>
           <p className="text-parchment/60 text-sm max-w-lg mx-auto">
-            選擇一個時代傳播謊言。信徒越多,你的帷幕越厚。
+            {perks.dailyLegendActive
+              ? "每個時代每日輪替一個今日傳說 — 選對時代,牌組發揮極致。"
+              : "達到編織者 Lv.3 可啟動「每日傳說」系統。"}
           </p>
         </div>
 

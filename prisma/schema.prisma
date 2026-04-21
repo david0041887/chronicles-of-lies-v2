@@ -127,6 +127,7 @@ model Card {
   imageUrl    String?
   createdAt   DateTime @default(now())
 
+  corrupted   Boolean  @default(false)  // 黑化神話:覺醒版變體(scaffold)
   ownedBy     OwnedCard[]
   image       CardImage?
 
@@ -233,12 +234,20 @@ model Stage {
   enemyName       String
   enemyDeck       String[]                // card ids, size 15-30
   rewardCrystals  Int      @default(50)
-  rewardExp       Int      @default(100)
+  rewardExp       Int      @default(0)    // DEPRECATED: weaver level now driven by believers only
   rewardBelievers Int      @default(200)
   isBoss          Boolean  @default(false)
+  mode            StageMode @default(normal)   // scaffold: normal / prime / hunt
   createdAt       DateTime @default(now())
 
   @@index([eraId, orderNum])
+  @@index([mode])
+}
+
+enum StageMode {
+  normal
+  prime  // 二週目 / Prime Mode (harder variant)
+  hunt   // 守真者獵殺 (Veritas Hunt)
 }
 
 // ============================================================

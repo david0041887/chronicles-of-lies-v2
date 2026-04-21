@@ -3,6 +3,7 @@ import { MilestonePanel } from "@/components/game/MilestonePanel";
 import { requireOnboarded } from "@/lib/auth-helpers";
 import { evaluate } from "@/lib/milestones";
 import { prisma } from "@/lib/prisma";
+import { levelProgress, weaverLevel } from "@/lib/weaver";
 import Link from "next/link";
 
 const QUICK_ACTIONS = [
@@ -20,9 +21,11 @@ export default async function HomePage() {
     where: { userId: user.id, bossCleared: true },
   });
 
+  const weaver = levelProgress(user.totalBelievers);
+
   const milestones = evaluate(
     {
-      level: user.level,
+      level: weaverLevel(user.totalBelievers),
       battlesWon: user.battlesWon,
       bossesCleared,
       eraClearCount: 0,
@@ -34,9 +37,6 @@ export default async function HomePage() {
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-8">
       <HomeHud
         username={user.username}
-        title={user.title}
-        level={user.level}
-        exp={user.exp}
         faction={user.faction}
         currencies={{
           crystals: user.crystals,
@@ -46,6 +46,7 @@ export default async function HomePage() {
           scrolls: user.scrolls,
         }}
         veilEnergy={user.veilEnergy}
+        weaver={weaver}
       />
 
       {user.freePulls > 0 && (
@@ -55,8 +56,12 @@ export default async function HomePage() {
         >
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="display-serif text-gold text-lg">🎁 您有 {user.freePulls} 次免費抽卡</div>
-              <div className="text-xs text-parchment/60 mt-0.5">前往召喚儀式使用</div>
+              <div className="display-serif text-gold text-lg">
+                🎁 您有 {user.freePulls} 次免費抽卡
+              </div>
+              <div className="text-xs text-parchment/60 mt-0.5">
+                前往召喚儀式使用
+              </div>
             </div>
             <span className="text-parchment/60 text-lg">→</span>
           </div>

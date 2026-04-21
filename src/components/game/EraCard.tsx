@@ -6,9 +6,10 @@ interface EraCardProps {
   believers: number;
   locked?: boolean;
   comingSoon?: boolean;
+  dailyLegendName?: string;
 }
 
-export function EraCard({ era, believers, locked, comingSoon }: EraCardProps) {
+export function EraCard({ era, believers, locked, comingSoon, dailyLegendName }: EraCardProps) {
   const content = (
     <>
       <div
@@ -54,6 +55,11 @@ export function EraCard({ era, believers, locked, comingSoon }: EraCardProps) {
           </span>
           <span className="text-3xl">{era.emoji}</span>
         </div>
+        {dailyLegendName && (
+          <div className="text-[10px] text-gold tracking-widest mb-2">
+            ✨ 今日 · {dailyLegendName}
+          </div>
+        )}
         <h3 className="display-serif text-2xl text-parchment mb-1">{era.name}</h3>
         <p className="text-xs text-parchment/50 tracking-wider mb-4">
           {era.theme}

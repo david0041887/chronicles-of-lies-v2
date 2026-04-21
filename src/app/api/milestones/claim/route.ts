@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { getMilestoneDef } from "@/lib/milestones";
 import { prisma } from "@/lib/prisma";
+import { weaverLevel } from "@/lib/weaver";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
     where: { userId: user.id, bossCleared: true },
   });
   const snap = {
-    level: user.level,
+    level: weaverLevel(user.totalBelievers),
     battlesWon: user.battlesWon,
     bossesCleared: bossCleared,
     eraClearCount: 0, // not used by current milestones

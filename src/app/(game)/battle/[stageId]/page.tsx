@@ -1,7 +1,8 @@
 import { requireOnboarded } from "@/lib/auth-helpers";
-import { buildPlayerDeck, buildStageDeck } from "@/lib/battle/deck";
+import { applyDailyLegendBuff, buildPlayerDeck, buildStageDeck } from "@/lib/battle/deck";
 import { prisma } from "@/lib/prisma";
 import { getEra } from "@/lib/constants/eras";
+import { perksForLevel, weaverLevel } from "@/lib/weaver";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BattleClient } from "./BattleClient";
@@ -21,17 +22,17 @@ export default async function BattlePage({ params }: Props) {
 
   const era = getEra(stage.eraId);
 
-  const [playerDeck, enemyDeck] = await Promise.all([
+  const [rawPlayerDeck, enemyDeck] = await Promise.all([
     buildPlayerDeck(user.id),
     buildStageDeck(stage.enemyDeck),
   ]);
 
-  if (playerDeck.length < 15) {
+  if (rawPlayerDeck.length < 15) {
     return (
       <main className="max-w-xl mx-auto px-6 py-16 text-center">
         <h1 className="display-serif text-2xl text-parchment mb-3">卡牌不足</h1>
         <p className="text-parchment/60 mb-6 text-sm">
-          您目前只有 {playerDeck.length} 張卡,至少需要 15 張才能進入戰場。
+          您目前只有 {rawPlayerDeck.length} 張卡,至少需要 15 張才能進入戰場。
           <br />
           先到 <Link href="/gacha" className="text-gold underline">召喚</Link>{" "}
           多抽幾張,或返回{" "}
@@ -43,6 +44,15 @@ export default async function BattlePage({ params }: Props) {
       </main>
     );
   }
+
+  // Compute weaver-level perks
+  const level = weaverLevel(user.totalBelievers);
+  const perks = perksForLevel(level);
+
+  // Apply daily legend buff (only if the player's weaver level is Lv.3+)
+  const buffed = perks.dailyLegendActive
+    ? applyDailyLegendBuff(rawPlayerDeck, stage.eraId)
+    : { deck: rawPlayerDeck, legendIdx: -1, boostedCards: [] as string[] };
 
   return (
     <BattleClient
@@ -56,7 +66,7 @@ export default async function BattlePage({ params }: Props) {
         isBoss: stage.isBoss,
         eraId: stage.eraId,
         rewardCrystals: stage.rewardCrystals,
-        rewardExp: stage.rewardExp,
+        rewardExp: 0,
         rewardBelievers: stage.rewardBelievers,
       }}
       era={
@@ -70,8 +80,24 @@ export default async function BattlePage({ params }: Props) {
           : null
       }
       playerName={user.username}
-      playerDeck={playerDeck}
+      playerDeck={buffed.deck}
       enemyDeck={enemyDeck}
+      playerPerks={{
+        startHandBonus: perks.startHandBonus,
+        startManaBonus: perks.startManaBonus,
+        maxManaBonus: perks.maxManaBonus,
+      }}
+      dailyLegend={
+        perks.dailyLegendActive && era && buffed.legendIdx >= 0
+          ? {
+              index: buffed.legendIdx,
+              name: era.legends[buffed.legendIdx].name,
+              boostedCardNames: buffed.deck
+                .filter((c) => buffed.boostedCards.includes(c.id))
+                .map((c) => c.name),
+            }
+          : null
+      }
     />
   );
 }

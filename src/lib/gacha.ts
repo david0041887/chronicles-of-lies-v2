@@ -21,10 +21,11 @@ const BASE_RATES: { rarity: Rarity; weight: number }[] = [
 ];
 
 const TEN_PULL_RATES: { rarity: Rarity; weight: number }[] = [
-  // 10-pull: SSR 8% (+3), UR 2% (+1) vs base single-pull rates
-  { rarity: "R", weight: 700 },
+  // 10-pull: SSR 10% (+5), UR 2% (+1) vs base single-pull rates.
+  // Additionally the 10-pull costs 10% less (COST_TEN below).
+  { rarity: "R", weight: 680 },
   { rarity: "SR", weight: 200 },
-  { rarity: "SSR", weight: 80 },
+  { rarity: "SSR", weight: 100 },
   { rarity: "UR", weight: 20 },
 ];
 
@@ -34,7 +35,7 @@ export const PITY_UR = 150;
 export const TEN_PULL_SR_GUARANTEE = 2;
 
 export const COST_SINGLE = 150;
-export const COST_TEN = 1500;
+export const COST_TEN = 1350; // 10% discount vs 10 × single (1500)
 
 const RANK: Record<Rarity, number> = { R: 0, SR: 1, SSR: 2, UR: 3 };
 
@@ -87,14 +88,27 @@ export function rollOne(
 /**
  * Pull N cards. If N===10, guarantees at least TEN_PULL_SR_GUARANTEE SR+.
  * When promoting, we bump the *lowest-rarity* entries first.
+ *
+ * @param ssrBonus Additional SSR weight to add to the base table (in 1/1000 units).
+ *                 Used for Weaver Lv.15 perk (+10 = +1% SSR).
  */
 export function pullRarities(
   count: number,
   startPity: RollState,
+  ssrBonus = 0,
 ): { rarities: Rarity[]; finalPity: RollState } {
   const state: RollState = { ...startPity };
   const rarities: Rarity[] = [];
-  const table = count === 10 ? TEN_PULL_RATES : BASE_RATES;
+  const baseTable = count === 10 ? TEN_PULL_RATES : BASE_RATES;
+  const table = ssrBonus > 0
+    ? baseTable.map((r) =>
+        r.rarity === "SSR"
+          ? { ...r, weight: r.weight + ssrBonus }
+          : r.rarity === "R"
+            ? { ...r, weight: Math.max(1, r.weight - ssrBonus) }
+            : r,
+      )
+    : baseTable;
 
   for (let i = 0; i < count; i++) {
     rarities.push(rollOne(state, table));
