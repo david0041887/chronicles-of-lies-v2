@@ -14,6 +14,7 @@ export type PullResult = {
   crystalsLeft: number;
   pitySR: number;
   pitySSR: number;
+  pityUR: number;
   totalPulls: number;
 };
 
@@ -30,6 +31,7 @@ export async function pullGacha(
   const { rarities, finalPity } = pullRarities(count, {
     pitySR: user.pitySR,
     pitySSR: user.pitySSR,
+    pityUR: user.pityUR,
   });
 
   const poolByRarity = new Map<string, CardWithImage[]>();
@@ -59,6 +61,7 @@ export async function pullGacha(
         crystals: { decrement: cost },
         pitySR: finalPity.pitySR,
         pitySSR: finalPity.pitySSR,
+        pityUR: finalPity.pityUR,
         totalPulls: { increment: count },
       },
     }),
@@ -78,6 +81,7 @@ export async function pullGacha(
       crystalsLeft: updatedUser.crystals,
       pitySR: updatedUser.pitySR,
       pitySSR: updatedUser.pitySSR,
+      pityUR: updatedUser.pityUR,
       totalPulls: updatedUser.totalPulls,
     },
   };

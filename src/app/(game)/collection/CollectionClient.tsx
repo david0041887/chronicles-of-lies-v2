@@ -1,5 +1,6 @@
 "use client";
 
+import { CardDetailModal } from "@/components/game/CardDetailModal";
 import { CardTile } from "@/components/game/CardTile";
 import { ERAS } from "@/lib/constants/eras";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ export function CollectionClient({ cards, ownedMap }: Props) {
   const [rarity, setRarity] = useState<RarityFilter>("ALL");
   const [era, setEra] = useState<EraFilter>("ALL");
   const [ownedOnly, setOwnedOnly] = useState(false);
+  const [selected, setSelected] = useState<CardWithImage | null>(null);
 
   const filtered = useMemo(() => {
     return cards.filter((c) => {
@@ -113,10 +115,17 @@ export function CollectionClient({ cards, ownedMap }: Props) {
               card={c}
               ownedCount={ownedMap[c.id] ?? 0}
               size="sm"
+              onClick={() => setSelected(c)}
             />
           ))}
         </div>
       )}
+
+      <CardDetailModal
+        card={selected}
+        ownedCount={selected ? (ownedMap[selected.id] ?? 0) : 0}
+        onClose={() => setSelected(null)}
+      />
     </div>
   );
 }

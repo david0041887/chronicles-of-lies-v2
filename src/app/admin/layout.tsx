@@ -7,7 +7,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   return (
     <>
       <Navbar isAdmin />
-      <div className="flex-1">{children}</div>
+      <div className="flex-1 pb-20">{children}</div>
     </>
   );
 }

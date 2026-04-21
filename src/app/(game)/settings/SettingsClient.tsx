@@ -1,0 +1,226 @@
+"use client";
+
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { useToast } from "@/components/ui/Toast";
+import { getStoredLocale, LOCALE_KEY, setStoredLocale, t, type Locale } from "@/lib/i18n";
+import { signOut } from "next-auth/react";
+import { FormEvent, useEffect, useState } from "react";
+
+const VOLUME_KEY = "chronicles.volume";
+const MUTED_KEY = "chronicles.muted";
+
+interface Props {
+  user: {
+    id: string;
+    username: string;
+    email: string;
+    isGuest: boolean;
+    createdAt: string;
+  };
+}
+
+export function SettingsClient({ user }: Props) {
+  const { push } = useToast();
+  const [locale, setLocale] = useState<Locale>("zh");
+  const [volume, setVolume] = useState(70);
+  const [muted, setMuted] = useState(false);
+  const [binding, setBinding] = useState(false);
+
+  useEffect(() => {
+    setLocale(getStoredLocale());
+    const v = Number(localStorage.getItem(VOLUME_KEY));
+    if (!isNaN(v) && v >= 0 && v <= 100) setVolume(v);
+    setMuted(localStorage.getItem(MUTED_KEY) === "1");
+  }, []);
+
+  const onLocaleChange = (l: Locale) => {
+    setLocale(l);
+    setStoredLocale(l);
+    document.documentElement.lang = l === "zh" ? "zh-Hant" : "en";
+  };
+
+  const onVolumeChange = (v: number) => {
+    setVolume(v);
+    localStorage.setItem(VOLUME_KEY, String(v));
+    window.dispatchEvent(new CustomEvent("chronicles:volume", { detail: { volume: v } }));
+  };
+
+  const onMutedChange = (m: boolean) => {
+    setMuted(m);
+    localStorage.setItem(MUTED_KEY, m ? "1" : "0");
+    window.dispatchEvent(new CustomEvent("chronicles:muted", { detail: { muted: m } }));
+  };
+
+  const onClearLocal = () => {
+    if (!confirm(t("settings.clearConfirm", locale))) return;
+    // Whitelist: only remove our own keys
+    const keys = [VOLUME_KEY, MUTED_KEY, LOCALE_KEY, "chronicles.deviceId"];
+    for (const k of keys) localStorage.removeItem(k);
+    push("本機資料已清除", "success");
+    setVolume(70);
+    setMuted(false);
+    setLocale("zh");
+  };
+
+  const onBind = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setBinding(true);
+    const data = new FormData(e.currentTarget);
+    const r = await fetch("/api/bind-account", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: data.get("username"),
+        email: data.get("email"),
+        password: data.get("password"),
+      }),
+    });
+    const body = await r.json().catch(() => ({}));
+    setBinding(false);
+    if (!r.ok) {
+      push(body?.error ?? "綁定失敗", "danger");
+      return;
+    }
+    push("帳號綁定成功,請重新登入", "success");
+    setTimeout(() => signOut({ callbackUrl: "/login" }), 1200);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Account */}
+      <section className="rounded-xl border border-parchment/10 bg-veil/40 p-5">
+        <h2 className="text-xs text-parchment/50 tracking-widest mb-3 font-[family-name:var(--font-cinzel)]">
+          {t("settings.account", locale)}
+        </h2>
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <Info label="使用者名稱" value={user.username} />
+          <Info label="Email" value={user.isGuest ? "—" : user.email} />
+          <Info
+            label="類型"
+            value={user.isGuest ? t("settings.guest", locale) : "正式帳號"}
+            tint={user.isGuest ? "text-warning" : "text-success"}
+          />
+          <Info
+            label="建立於"
+            value={user.createdAt.slice(0, 10)}
+          />
+        </div>
+      </section>
+
+      {/* Bind (guest only) */}
+      {user.isGuest && (
+        <section className="rounded-xl border border-gold/40 bg-gold/5 p-5">
+          <h2 className="display-serif text-lg text-sacred mb-1">
+            {t("settings.bindAccount", locale)}
+          </h2>
+          <p className="text-xs text-parchment/60 mb-4">
+            {t("settings.bindHint", locale)}
+          </p>
+          <form onSubmit={onBind} className="space-y-3">
+            <Input name="username" placeholder="使用者名稱" required minLength={2} maxLength={16} />
+            <Input name="email" type="email" placeholder="Email" required />
+            <Input name="password" type="password" placeholder="密碼(至少 6 字)" required minLength={6} />
+            <Button type="submit" variant="primary" size="md" className="w-full" disabled={binding}>
+              {binding ? "綁定中…" : "綁定帳號"}
+            </Button>
+          </form>
+        </section>
+      )}
+
+      {/* Audio */}
+      <section className="rounded-xl border border-parchment/10 bg-veil/40 p-5">
+        <h2 className="text-xs text-parchment/50 tracking-widest mb-3 font-[family-name:var(--font-cinzel)]">
+          音訊
+        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <label className="text-sm text-parchment">
+            {t("settings.volume", locale)}
+          </label>
+          <span className="font-[family-name:var(--font-mono)] text-parchment/70 text-sm tabular-nums w-12 text-right">
+            {muted ? "靜音" : `${volume}%`}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={volume}
+          onChange={(e) => onVolumeChange(Number(e.target.value))}
+          className="w-full accent-gold"
+          disabled={muted}
+        />
+        <label className="flex items-center gap-2 mt-4 text-sm text-parchment/70 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={muted}
+            onChange={(e) => onMutedChange(e.target.checked)}
+            className="accent-gold"
+          />
+          全部靜音
+        </label>
+        <p className="text-[11px] text-parchment/40 mt-3">
+          背景音樂系統預定於 Phase C 上線。
+        </p>
+      </section>
+
+      {/* Language */}
+      <section className="rounded-xl border border-parchment/10 bg-veil/40 p-5">
+        <h2 className="text-xs text-parchment/50 tracking-widest mb-3 font-[family-name:var(--font-cinzel)]">
+          {t("settings.language", locale)}
+        </h2>
+        <div className="flex gap-2">
+          {(["zh", "en"] as const).map((l) => (
+            <button
+              key={l}
+              onClick={() => onLocaleChange(l)}
+              className={`flex-1 px-4 py-2.5 rounded-lg border text-sm transition-colors ${
+                locale === l
+                  ? "bg-gold/20 border-gold text-gold"
+                  : "border-parchment/20 text-parchment/60 hover:border-gold/40"
+              }`}
+            >
+              {l === "zh" ? "繁體中文" : "English"}
+            </button>
+          ))}
+        </div>
+        <p className="text-[11px] text-parchment/40 mt-3">
+          目前僅設定頁完整翻譯,其餘介面陸續補上。
+        </p>
+      </section>
+
+      {/* Danger zone */}
+      <section className="rounded-xl border border-blood/30 bg-blood/5 p-5 space-y-3">
+        <h2 className="text-xs text-blood/80 tracking-widest mb-3 font-[family-name:var(--font-cinzel)]">
+          危險區
+        </h2>
+        <Button
+          variant="ghost"
+          size="md"
+          className="w-full"
+          onClick={onClearLocal}
+        >
+          {t("settings.clearLocal", locale)}
+        </Button>
+        <Button
+          variant="danger"
+          size="md"
+          className="w-full"
+          onClick={() => signOut({ callbackUrl: "/" })}
+        >
+          {t("settings.logout", locale)}
+        </Button>
+      </section>
+    </div>
+  );
+}
+
+function Info({ label, value, tint }: { label: string; value: string; tint?: string }) {
+  return (
+    <div>
+      <div className="text-[10px] text-parchment/50 tracking-wider">{label}</div>
+      <div className={`text-sm ${tint ?? "text-parchment"}`}>{value}</div>
+    </div>
+  );
+}

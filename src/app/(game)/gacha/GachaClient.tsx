@@ -5,6 +5,7 @@ import { SummonAnimation } from "@/components/fx/SummonAnimation";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import { PITY_SR, PITY_SSR, PITY_UR } from "@/lib/gacha";
 import type { Rarity } from "@prisma/client";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -15,15 +16,17 @@ interface Props {
   initialCrystals: number;
   initialPitySR: number;
   initialPitySSR: number;
+  initialPityUR: number;
   initialTotalPulls: number;
   costSingle: number;
   costTen: number;
 }
 
+const RANK: Record<Rarity, number> = { R: 0, SR: 1, SSR: 2, UR: 3 };
+
 function highestRarity(cards: CardWithImage[]): Rarity {
-  const order: Record<Rarity, number> = { R: 0, SR: 1, SSR: 2, UR: 3 };
   return cards.reduce<Rarity>(
-    (best, c) => (order[c.rarity] > order[best] ? c.rarity : best),
+    (best, c) => (RANK[c.rarity] > RANK[best] ? c.rarity : best),
     "R",
   );
 }
@@ -32,6 +35,7 @@ export function GachaClient({
   initialCrystals,
   initialPitySR,
   initialPitySSR,
+  initialPityUR,
   initialTotalPulls,
   costSingle,
   costTen,
@@ -42,6 +46,7 @@ export function GachaClient({
   const [crystals, setCrystals] = useState(initialCrystals);
   const [pitySR, setPitySR] = useState(initialPitySR);
   const [pitySSR, setPitySSR] = useState(initialPitySSR);
+  const [pityUR, setPityUR] = useState(initialPityUR);
   const [totalPulls, setTotalPulls] = useState(initialTotalPulls);
   const [pendingResult, setPendingResult] = useState<CardWithImage[] | null>(null);
   const [showAnimation, setShowAnimation] = useState(false);
@@ -57,16 +62,16 @@ export function GachaClient({
       setCrystals(res.data.crystalsLeft);
       setPitySR(res.data.pitySR);
       setPitySSR(res.data.pitySSR);
+      setPityUR(res.data.pityUR);
       setTotalPulls(res.data.totalPulls);
       setPendingResult(res.data.cards);
       setShowAnimation(true);
       const best = highestRarity(res.data.cards);
       if (best === "SSR" || best === "UR") {
-        // Delay toast until after animation
         setTimeout(() => {
           const hit = res.data.cards.find((c) => c.rarity === best);
           if (hit) push(`✨ ${best} — ${hit.name}!`, "success");
-        }, 2500);
+        }, 1800);
       }
       router.refresh();
     });
@@ -84,15 +89,14 @@ export function GachaClient({
         }}
       />
 
-      {/* Stats HUD */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-6">
         <Stat label="💎 水晶" value={crystals} tint="text-rarity-super" />
         <Stat label="總抽數" value={totalPulls} />
-        <Stat label="距保底 SR" value={`${Math.max(0, 50 - pitySR)}`} />
-        <Stat label="距保底 SSR" value={`${Math.max(0, 90 - pitySSR)}`} />
+        <Stat label="保底 SR" value={`${Math.max(0, PITY_SR - pitySR)}`} />
+        <Stat label="保底 SSR" value={`${Math.max(0, PITY_SSR - pitySSR)}`} />
+        <Stat label="保底 UR" value={`${Math.max(0, PITY_UR - pityUR)}`} />
       </div>
 
-      {/* Pull buttons */}
       <div className="grid sm:grid-cols-2 gap-4">
         <PullPanel
           title="單抽"
@@ -103,7 +107,7 @@ export function GachaClient({
         />
         <PullPanel
           title="十連抽"
-          desc="十次召喚,保底至少一張 SR。"
+          desc="必出 2 張 SR 以上,SSR 機率加成。"
           cost={costTen}
           variant="sacred"
           disabled={pending || showAnimation || crystals < costTen}
@@ -111,7 +115,6 @@ export function GachaClient({
         />
       </div>
 
-      {/* Result modal */}
       <Modal
         open={!!result}
         onClose={() => setResult(null)}
@@ -129,12 +132,12 @@ export function GachaClient({
                 <motion.div
                   key={`${c.id}-${i}`}
                   className="flex justify-center"
-                  initial={{ rotateY: 180, opacity: 0, scale: 0.8 }}
+                  initial={{ rotateY: 180, opacity: 0, scale: 0.75 }}
                   animate={{ rotateY: 0, opacity: 1, scale: 1 }}
                   transition={{
-                    delay: i * 0.08,
-                    duration: 0.45,
-                    ease: [0.68, -0.55, 0.27, 1.55],
+                    delay: i * 0.05,
+                    duration: 0.35,
+                    ease: [0.22, 0.97, 0.32, 1.08],
                   }}
                   style={{ transformStyle: "preserve-3d" }}
                 >
@@ -144,9 +147,8 @@ export function GachaClient({
             </div>
             <div className="mt-6 flex justify-between items-center">
               <div className="text-xs text-parchment/50 space-x-3">
-                <span>
-                  SSR × {result.filter((c) => c.rarity === "SSR").length}
-                </span>
+                <span>UR × {result.filter((c) => c.rarity === "UR").length}</span>
+                <span>SSR × {result.filter((c) => c.rarity === "SSR").length}</span>
                 <span>SR × {result.filter((c) => c.rarity === "SR").length}</span>
                 <span>R × {result.filter((c) => c.rarity === "R").length}</span>
               </div>

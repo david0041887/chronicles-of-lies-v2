@@ -10,15 +10,12 @@ interface Props {
   onComplete: () => void;
 }
 
-const PHASE_DURATION = 2400; // total ms before calling onComplete
-
 /**
- * 7-phase summon animation per spec A25/A26/A28:
- *   1. Magic circle appears + rotates
- *   2. Runes ignite
- *   3. Light column bursts
- *   4. Rarity flash (gold for SSR, rainbow for UR, purple for SR, blue for R)
- *   5. onComplete → parent reveals cards
+ * Tightened summon animation — 1600ms total.
+ * Phase 1 (0 → 500)  magic circle fades + scales in, rotation engaged
+ * Phase 2 (500 → 900) runes ignite + sparks emit
+ * Phase 3 (900 → 1400) rarity light column bursts
+ * Phase 4 (1400 → 1600) fade out, reveal cards
  */
 export function SummonAnimation({ active, highestRarity, onComplete }: Props) {
   const [phase, setPhase] = useState(0);
@@ -29,9 +26,9 @@ export function SummonAnimation({ active, highestRarity, onComplete }: Props) {
       return;
     }
     setPhase(1);
-    const t1 = setTimeout(() => setPhase(2), 800);
-    const t2 = setTimeout(() => setPhase(3), 1400);
-    const t3 = setTimeout(() => onComplete(), PHASE_DURATION);
+    const t1 = setTimeout(() => setPhase(2), 500);
+    const t2 = setTimeout(() => setPhase(3), 900);
+    const t3 = setTimeout(() => onComplete(), 1600);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
@@ -56,27 +53,25 @@ export function SummonAnimation({ active, highestRarity, onComplete }: Props) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.25 }}
+          transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
         >
           <div className="absolute inset-0 bg-veil/85 backdrop-blur-md" />
 
-          {/* Magic circle */}
           <motion.svg
             viewBox="0 0 400 400"
-            className="w-[80vmin] h-[80vmin] relative"
-            initial={{ scale: 0.4, opacity: 0, rotate: 0 }}
+            className="w-[70vmin] h-[70vmin] relative"
+            initial={{ scale: 0.5, opacity: 0 }}
             animate={{
-              scale: phase >= 1 ? 1 : 0.4,
+              scale: phase >= 1 ? 1 : 0.5,
               opacity: phase >= 1 ? 1 : 0,
-              rotate: phase >= 1 ? 360 : 0,
+              rotate: phase >= 1 ? 180 : 0,
             }}
             transition={{
-              scale: { duration: 0.5, ease: [0.34, 1.56, 0.64, 1] },
-              opacity: { duration: 0.3 },
-              rotate: { duration: 10, ease: "linear", repeat: Infinity },
+              scale: { duration: 0.55, ease: [0.22, 0.97, 0.32, 1.08] },
+              opacity: { duration: 0.35 },
+              rotate: { duration: 1.5, ease: "linear" },
             }}
           >
-            {/* Outer ring */}
             <circle
               cx="200"
               cy="200"
@@ -96,7 +91,6 @@ export function SummonAnimation({ active, highestRarity, onComplete }: Props) {
               strokeDasharray="10 6"
               opacity="0.6"
             />
-            {/* Hexagram */}
             <polygon
               points="200,60 320,280 80,280"
               fill="none"
@@ -111,23 +105,30 @@ export function SummonAnimation({ active, highestRarity, onComplete }: Props) {
               strokeWidth="1.2"
               opacity="0.7"
             />
-            {/* Inner runes */}
             {Array.from({ length: 12 }).map((_, i) => {
               const angle = (i * 30 * Math.PI) / 180;
               const x = 200 + Math.cos(angle) * 140;
               const y = 200 + Math.sin(angle) * 140;
               return (
-                <circle
+                <motion.circle
                   key={i}
                   cx={x}
                   cy={y}
                   r="4"
-                  fill={phase >= 2 ? "#FFD29C" : "#4A3F2D"}
-                  opacity={phase >= 2 ? 0.9 : 0.4}
+                  fill="#FFD29C"
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{
+                    opacity: phase >= 2 ? 0.9 : 0,
+                    scale: phase >= 2 ? 1 : 0,
+                  }}
+                  transition={{
+                    duration: 0.3,
+                    delay: phase >= 2 ? (i * 0.025) : 0,
+                    ease: "easeOut",
+                  }}
                 />
               );
             })}
-            {/* Center sigil */}
             <g transform="translate(200, 200)">
               <circle r="40" fill="none" stroke="#D4A84B" strokeWidth="1" opacity="0.8" />
               <text
@@ -143,13 +144,12 @@ export function SummonAnimation({ active, highestRarity, onComplete }: Props) {
             </g>
           </motion.svg>
 
-          {/* Light column burst */}
           {phase >= 3 && (
             <motion.div
               className="absolute w-full h-full"
-              initial={{ opacity: 0, scale: 0.1 }}
-              animate={{ opacity: [0, 1, 0], scale: [0.2, 2, 3] }}
-              transition={{ duration: 0.9, ease: [0.7, 0, 0.3, 1] }}
+              initial={{ opacity: 0, scale: 0.2 }}
+              animate={{ opacity: [0, 1, 0], scale: [0.4, 1.8, 2.6] }}
+              transition={{ duration: 0.7, ease: [0.22, 0.97, 0.32, 1.08] }}
             >
               <div
                 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[60vmin] h-[60vmin] rounded-full blur-2xl"
@@ -162,25 +162,22 @@ export function SummonAnimation({ active, highestRarity, onComplete }: Props) {
             </motion.div>
           )}
 
-          {/* Particle sparks */}
           {phase >= 2 && (
             <div className="absolute inset-0 pointer-events-none">
-              {Array.from({ length: 32 }).map((_, i) => {
-                const angle = (i * 360) / 32;
+              {Array.from({ length: 24 }).map((_, i) => {
+                const angle = (i * 360) / 24;
                 return (
                   <motion.span
                     key={i}
                     className="absolute left-1/2 top-1/2 w-1 h-1 rounded-full bg-gold"
-                    style={{
-                      boxShadow: "0 0 10px #D4A84B",
-                    }}
+                    style={{ boxShadow: "0 0 10px #D4A84B" }}
                     initial={{ x: 0, y: 0, opacity: 0 }}
                     animate={{
-                      x: Math.cos((angle * Math.PI) / 180) * 320,
-                      y: Math.sin((angle * Math.PI) / 180) * 320,
+                      x: Math.cos((angle * Math.PI) / 180) * 300,
+                      y: Math.sin((angle * Math.PI) / 180) * 300,
                       opacity: [0, 1, 0],
                     }}
-                    transition={{ duration: 1, ease: "easeOut" }}
+                    transition={{ duration: 0.8, ease: [0.22, 0.97, 0.32, 1] }}
                   />
                 );
               })}

@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth-helpers";
-import { COST_SINGLE, COST_TEN } from "@/lib/gacha";
+import { COST_SINGLE, COST_TEN, PITY_SR, PITY_SSR, PITY_UR } from "@/lib/gacha";
 import { GachaClient } from "./GachaClient";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +23,7 @@ export default async function GachaPage() {
         initialCrystals={user.crystals}
         initialPitySR={user.pitySR}
         initialPitySSR={user.pitySSR}
+        initialPityUR={user.pityUR}
         initialTotalPulls={user.totalPulls}
         costSingle={COST_SINGLE}
         costTen={COST_TEN}
@@ -31,10 +32,11 @@ export default async function GachaPage() {
       <section className="mt-10 rounded-xl border border-parchment/10 bg-veil/30 p-5 text-xs text-parchment/60">
         <h3 className="display-serif text-base text-sacred mb-3">機率與保底</h3>
         <ul className="space-y-1.5 leading-relaxed">
-          <li>• R {`85%`} / SR {`12%`} / SSR {`3%`}(MVP 池無 UR)</li>
-          <li>• 50 連內未出 SR → 下次保底 SR 以上</li>
-          <li>• 90 連內未出 SSR → 下次保底 SSR</li>
-          <li>• 十連抽保底至少 1 張 SR 以上</li>
+          <li>• 基礎:R 75% / SR 19% / SSR 5% / UR 1%</li>
+          <li>• 十連抽:SSR +2%、必出至少 2 張 SR 以上</li>
+          <li>• {PITY_SR} 連內未出 SR → 下次保底 SR+</li>
+          <li>• {PITY_SSR} 連內未出 SSR → 下次保底 SSR+</li>
+          <li>• {PITY_UR} 連內未出 UR → 下次必出 UR</li>
         </ul>
       </section>
     </main>

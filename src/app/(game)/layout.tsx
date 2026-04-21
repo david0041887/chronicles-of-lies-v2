@@ -7,7 +7,7 @@ export default async function GameLayout({ children }: { children: ReactNode }) 
   return (
     <>
       <Navbar isAdmin={user.role === "ADMIN"} />
-      <div className="flex-1">{children}</div>
+      <div className="flex-1 pb-20">{children}</div>
     </>
   );
 }

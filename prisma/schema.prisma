@@ -57,7 +57,12 @@ model User {
   // Gacha pity counters
   pitySR       Int      @default(0)  // rolls since last SR+
   pitySSR      Int      @default(0)  // rolls since last SSR+
+  pityUR       Int      @default(0)  // rolls since last UR
   totalPulls   Int      @default(0)
+
+  // Guest / device binding
+  deviceId     String?  @unique
+  isGuest      Boolean  @default(false)
 
   // Timestamps
   createdAt    DateTime @default(now())
