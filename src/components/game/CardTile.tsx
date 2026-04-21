@@ -33,19 +33,19 @@ const RARITY_GLOW: Record<Rarity, string> = {
   R: "shadow-[0_0_12px_rgba(74,144,226,0.35)]",
   SR: "shadow-[0_0_20px_rgba(184,127,235,0.55)]",
   SSR: "shadow-[var(--shadow-glow-gold)]",
-  UR: "shadow-[var(--shadow-glow-gold)]",
+  UR: "shadow-[0_0_32px_rgba(255,215,0,0.7),0_0_64px_rgba(184,127,235,0.35),0_0_96px_rgba(6,182,212,0.25)]",
 };
 const RARITY_BORDER: Record<Rarity, string> = {
   R: "border-rarity-rare",
   SR: "border-rarity-super",
   SSR: "border-rarity-legend",
-  UR: "border-gold",
+  UR: "ur-rainbow-border",
 };
 const RARITY_TINT: Record<Rarity, string> = {
   R: "text-rarity-rare",
   SR: "text-rarity-super",
   SSR: "text-rarity-legend",
-  UR: "text-gold",
+  UR: "title-sheen",
 };
 const TYPE_ICON: Record<string, string> = {
   attack: "⚔️",

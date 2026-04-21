@@ -228,6 +228,59 @@ const CARDS: Seed[] = [
   { id: "r_se_007", name: "骸骨武士", nameEn: "Skeleton Samurai", eraId: "sengoku", rarity: "R", type: "attack", element: "end", cost: 2, power: 4, flavor: "戰死沙場的武士,不願離去。" },
   { id: "r_se_008", name: "井戶姬", nameEn: "Well Maiden", eraId: "sengoku", rarity: "R", type: "debuff", element: "dark", cost: 2, power: 3, keywords: ["curse"], flavor: "井底的女鬼,叫喚路人名字。" },
   { id: "r_se_009", name: "牛鬼", nameEn: "Ushi-oni", eraId: "sengoku", rarity: "R", type: "attack", element: "dark", cost: 3, power: 5, flavor: "牛頭鬼身,出沒於海岸與山寺。" },
+
+  // =========================================================
+  // UR — 原質 Primes (3 per era × 10 = 30)
+  // =========================================================
+  // E01 原始
+  { id: "ur_pr_001", name: "原初者之影", nameEn: "The First Shadow", eraId: "primitive", rarity: "UR", type: "ritual", element: "end", cost: 10, power: 20, keywords: ["ritual", "echo", "resonance"], flavor: "說出『這裡有光』之前的那一刻,黑暗本身。" },
+  { id: "ur_pr_002", name: "洪荒母神", nameEn: "Abyssal Mother", eraId: "primitive", rarity: "UR", type: "spread", element: "flux", cost: 8, power: 16, keywords: ["resonance", "echo"], flavor: "第一個子宮,孕育出整個世界。" },
+  { id: "ur_pr_003", name: "第一個說謊者", nameEn: "The First Liar", eraId: "primitive", rarity: "UR", type: "confuse", element: "illusion", cost: 9, power: 18, keywords: ["charm", "whisper", "ritual"], flavor: "說出『那不是真的』的人,撕開了第一道帷幕。" },
+
+  // E02 美索不達米亞
+  { id: "ur_me_001", name: "恩基", nameEn: "Enki", eraId: "mesopotamia", rarity: "UR", type: "buff", element: "order", cost: 8, power: 0, keywords: ["resonance", "shield", "echo"], flavor: "智慧之主,教人以泥造身。" },
+  { id: "ur_me_002", name: "提亞馬特", nameEn: "Tiamat", eraId: "mesopotamia", rarity: "UR", type: "attack", element: "end", cost: 9, power: 19, keywords: ["pierce", "curse"], flavor: "第一位母神,其軀體化為天地。" },
+  { id: "ur_me_003", name: "安努", nameEn: "Anu", eraId: "mesopotamia", rarity: "UR", type: "buff", element: "light", cost: 8, power: 15, keywords: ["resonance", "shield"], flavor: "天空之父,眾神之王。" },
+
+  // E03 古埃及
+  { id: "ur_eg_001", name: "奧西里斯", nameEn: "Osiris", eraId: "egypt", rarity: "UR", type: "heal", element: "end", cost: 8, power: 17, keywords: ["resonance", "shield"], flavor: "被兄弟殺死,以冥界之王之姿復生。" },
+  { id: "ur_eg_002", name: "托特", nameEn: "Thoth", eraId: "egypt", rarity: "UR", type: "ritual", element: "illusion", cost: 7, power: 14, keywords: ["ritual", "whisper", "echo"], flavor: "所有文字的發明者,書寫了宇宙。" },
+  { id: "ur_eg_003", name: "阿蒙-拉", nameEn: "Amun-Ra", eraId: "egypt", rarity: "UR", type: "attack", element: "light", cost: 9, power: 19, keywords: ["pierce", "resonance"], flavor: "隱匿與太陽合一,至高無名之神。" },
+
+  // E04 古希臘
+  { id: "ur_gr_001", name: "宙斯", nameEn: "Zeus", eraId: "greek", rarity: "UR", type: "attack", element: "light", cost: 9, power: 19, keywords: ["pierce", "resonance"], flavor: "雷霆之王,奧林帕斯的獨裁者。" },
+  { id: "ur_gr_002", name: "克羅諾斯", nameEn: "Kronos", eraId: "greek", rarity: "UR", type: "debuff", element: "end", cost: 10, power: 20, keywords: ["curse", "pierce", "ritual"], flavor: "吞食自己孩子的時間之父。" },
+  { id: "ur_gr_003", name: "冥王黑帝斯", nameEn: "Hades", eraId: "greek", rarity: "UR", type: "ritual", element: "dark", cost: 8, power: 16, keywords: ["ritual", "curse"], flavor: "冥府之主,掌管死者與財寶。" },
+
+  // E05 大漢
+  { id: "ur_ha_001", name: "女媧", nameEn: "Nüwa", eraId: "han", rarity: "UR", type: "heal", element: "light", cost: 8, power: 17, keywords: ["resonance", "shield"], flavor: "補天的手,以泥造就人類。" },
+  { id: "ur_ha_002", name: "伏羲", nameEn: "Fuxi", eraId: "han", rarity: "UR", type: "buff", element: "order", cost: 8, power: 0, keywords: ["resonance", "echo"], flavor: "觀天象、創八卦,人文之始祖。" },
+  { id: "ur_ha_003", name: "盤古", nameEn: "Pangu", eraId: "han", rarity: "UR", type: "attack", element: "end", cost: 10, power: 22, keywords: ["pierce", "resonance"], flavor: "以斧開天,以身化萬物。" },
+
+  // E06 北歐
+  { id: "ur_no_001", name: "尤彌爾", nameEn: "Ymir", eraId: "norse", rarity: "UR", type: "attack", element: "end", cost: 9, power: 18, keywords: ["pierce", "curse"], flavor: "最初的霜巨人,諸神以其屍建世界。" },
+  { id: "ur_no_002", name: "諸神黃昏", nameEn: "Ragnarok", eraId: "norse", rarity: "UR", type: "debuff", element: "end", cost: 10, power: 20, keywords: ["curse", "pierce", "echo"], flavor: "預言中的終局,諸神與世界的結算日。" },
+  { id: "ur_no_003", name: "米米爾之首", nameEn: "Mimir's Head", eraId: "norse", rarity: "UR", type: "buff", element: "illusion", cost: 7, power: 14, keywords: ["whisper", "ritual", "resonance"], flavor: "砍下的智者之首,在井底低語未來。" },
+
+  // E07 中世紀
+  { id: "ur_md_001", name: "路西法", nameEn: "Lucifer", eraId: "medieval", rarity: "UR", type: "attack", element: "dark", cost: 10, power: 20, keywords: ["pierce", "curse"], flavor: "晨星之主,第一個說不的天使。" },
+  { id: "ur_md_002", name: "聖杯", nameEn: "Holy Grail", eraId: "medieval", rarity: "UR", type: "heal", element: "light", cost: 8, power: 16, keywords: ["resonance", "shield"], flavor: "盛過神血的器皿,連煉金術都無法複製。" },
+  { id: "ur_md_003", name: "亞瑟王", nameEn: "King Arthur", eraId: "medieval", rarity: "UR", type: "attack", element: "order", cost: 9, power: 18, keywords: ["pierce", "shield"], flavor: "拔出石中劍的王,沉睡於阿瓦隆等待。" },
+
+  // E08 戰國
+  { id: "ur_se_001", name: "天照大神", nameEn: "Amaterasu", eraId: "sengoku", rarity: "UR", type: "attack", element: "light", cost: 9, power: 18, keywords: ["pierce", "resonance"], flavor: "太陽之主神,皇室之祖。" },
+  { id: "ur_se_002", name: "須佐之男", nameEn: "Susano-o", eraId: "sengoku", rarity: "UR", type: "attack", element: "dark", cost: 8, power: 17, keywords: ["pierce", "curse"], flavor: "暴風之神,斬殺八岐大蛇。" },
+  { id: "ur_se_003", name: "大天狗", nameEn: "Great Tengu", eraId: "sengoku", rarity: "UR", type: "confuse", element: "illusion", cost: 7, power: 15, keywords: ["charm", "echo", "haste"], flavor: "山林之王,武藝與兵法的秘傳者。" },
+
+  // E09 明朝
+  { id: "ur_mg_001", name: "無相天尊", nameEn: "Formless One", eraId: "ming", rarity: "UR", type: "ritual", element: "illusion", cost: 10, power: 20, keywords: ["ritual", "whisper", "echo"], flavor: "道之體,無形無名,包含萬有。" },
+  { id: "ur_mg_002", name: "東嶽大帝", nameEn: "Eastern Peak Emperor", eraId: "ming", rarity: "UR", type: "debuff", element: "end", cost: 9, power: 18, keywords: ["curse", "ritual"], flavor: "五嶽之首,掌管生死簿。" },
+  { id: "ur_mg_003", name: "太白金星", nameEn: "Venus Star Lord", eraId: "ming", rarity: "UR", type: "buff", element: "order", cost: 7, power: 0, keywords: ["whisper", "resonance"], flavor: "西方金星之靈,天庭的調停者。" },
+
+  // E12 現代
+  { id: "ur_mo_001", name: "原初謊言", nameEn: "The Primordial Lie", eraId: "modern", rarity: "UR", type: "ritual", element: "illusion", cost: 10, power: 22, keywords: ["ritual", "echo", "resonance"], flavor: "「那裡有光。」 — 宇宙第一句話。" },
+  { id: "ur_mo_002", name: "帷幕之眼", nameEn: "Eye of the Veil", eraId: "modern", rarity: "UR", type: "ritual", element: "illusion", cost: 9, power: 18, keywords: ["ritual", "whisper", "echo"], flavor: "凝視者之眼,一旦對視就開始改寫。" },
+  { id: "ur_mo_003", name: "集體無意識", nameEn: "Collective Unconscious", eraId: "modern", rarity: "UR", type: "spread", element: "flux", cost: 8, power: 16, keywords: ["resonance", "echo", "charm"], flavor: "七十億人同時作的夢,有時真的成真。" },
 ];
 
 async function main() {

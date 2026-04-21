@@ -151,3 +151,26 @@ body {
   50%      { opacity: 0.85; }
 }
 .era-card-glow { animation: era-glow-pulse 6s ease-in-out infinite; }
+
+/* UR rainbow border */
+@keyframes ur-border-shift {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.ur-rainbow-border {
+  border-width: 2px;
+  border-style: solid;
+  border-color: transparent;
+  background-image:
+    linear-gradient(var(--color-veil), var(--color-veil)),
+    linear-gradient(90deg,
+      #FFD700 0%,
+      #B87FEB 25%,
+      #06B6D4 50%,
+      #EC4899 75%,
+      #FFD700 100%);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  background-size: 100% 100%, 200% 100%;
+  animation: ur-border-shift 4s linear infinite;
+}

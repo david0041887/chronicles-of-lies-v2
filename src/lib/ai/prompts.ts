@@ -148,6 +148,137 @@ const CARD_HOOKS: Record<string, string> = {
     "Shuten Doji the oni king, massive horned red-skinned demon, wild black mane, " +
     "holding an enormous sake cup and a rusty iron club, mountain fortress at night, " +
     "severed samurai helmets at his feet",
+
+  // =========================================================
+  // UR — Primes (apex mythic beings)
+  // =========================================================
+  ur_pr_001:
+    "primordial shadow entity, formless silhouette made of infinite black void, " +
+    "faint golden cracks of first light breaking through its edges, cosmic backdrop of unborn stars, " +
+    "reality bending inward towards it, overwhelming void aura",
+  ur_pr_002:
+    "colossal primordial mother goddess rising from flooded primordial waters, " +
+    "nebula inside her body, cosmic pregnancy aura, waves crashing around her, " +
+    "emerging continents beneath, divine twilight",
+  ur_pr_003:
+    "tricky mesmerizing figure wreathed in a fractured mirror cloak, pointing finger towards viewer, " +
+    "reality tearing along its hands, overlapping silhouettes of dozens of faces behind, " +
+    "cave paintings flickering in recognition, eerie purple glow",
+
+  ur_me_001:
+    "Enki Sumerian god of wisdom, bearded man in blue-green water scales, flowing rivers from shoulders, " +
+    "holding a jar overflowing with water of life, ziggurat and Mesopotamian sky behind, divine calm",
+  ur_me_002:
+    "Tiamat the primordial chaos dragon goddess, enormous serpentine body with five heads, " +
+    "iridescent scales, cosmic storm and primal chaos swirling around her, " +
+    "Mesopotamian heavens shattering, divine terror",
+  ur_me_003:
+    "Anu the Sumerian sky father god, regal figure in gold and lapis horned crown, " +
+    "seated on starry throne above clouds, scepter of authority, Mesopotamian zodiac behind",
+
+  ur_eg_001:
+    "Osiris Egyptian god of the afterlife, green-skinned king with atef crown, " +
+    "wrapped in white mummy linens, holding crook and flail, rising from sarcophagus, " +
+    "nile reeds and underworld glow, divine resurrection aura",
+  ur_eg_002:
+    "Thoth Egyptian god of writing, ibis-headed man in gold and blue regalia, " +
+    "holding a reed pen and infinite scroll of hieroglyphs, stars and moon motifs, " +
+    "library of eternity behind him",
+  ur_eg_003:
+    "Amun-Ra hidden-sun king of gods, double crown with sun disc, rams horns, " +
+    "radiant solar halo, throne of gold between colossal pillars, " +
+    "Karnak temple at blinding noon, ultimate divine authority",
+
+  ur_gr_001:
+    "Zeus king of Olympian gods, muscular bearded titan hurling lightning bolts, " +
+    "storm clouds breaking open, eagle companion, white marble palace of Olympus, " +
+    "divine wrath and awe",
+  ur_gr_002:
+    "Kronos titan of time devouring a star, enormous old man with sickle, " +
+    "swallowing cosmos itself, hourglasses shattered around him, " +
+    "Greek myth dark atmosphere, tragic grandeur",
+  ur_gr_003:
+    "Hades Greek god of the underworld, dark-haired stern king in black robes edged with ghostfire, " +
+    "holding bident, seated on obsidian throne, Cerberus at his feet, " +
+    "river Styx behind him, somber underworld grandeur",
+
+  ur_ha_001:
+    "Nüwa Chinese creator goddess, serpent lower body with human upper body, " +
+    "holding a shining gem patching a colored sky-crack, colorful nebula background, " +
+    "mythic Chinese artwork, life-giving aura",
+  ur_ha_002:
+    "Fuxi Chinese primordial sage-king, serpent lower body paired with Nüwa motif, " +
+    "holding a carpenter's square and the Bagua trigram circle glowing in air, " +
+    "ancient sky observatory, calligraphic aura",
+  ur_ha_003:
+    "Pangu the primordial cosmic giant cleaving heaven and earth with an axe, " +
+    "colossal muscular figure, his body becoming mountains and rivers, " +
+    "cosmic explosion of form from chaos, Chinese mythic scale",
+
+  ur_no_001:
+    "Ymir the primordial frost giant, colossal blue-white skinned being, " +
+    "ice crystals for beard, seas of molten cosmos flowing from his wounds, " +
+    "Norse cosmic creation scene, sublime horror",
+  ur_no_002:
+    "Ragnarok personified, dark armored rider atop Fenrir, sky cracking with lightning, " +
+    "burning Yggdrasil and falling stars, serpent coiling around Midgard, " +
+    "apocalyptic Norse mythic end-times",
+  ur_no_003:
+    "Mimir's severed head floating above a well of glowing dark water, " +
+    "ancient bearded sage with closed eyes speaking prophecy, " +
+    "runic ribbons of words emitting from mouth, Norse twilight mystery",
+
+  ur_md_001:
+    "Lucifer fallen morning star, beautiful angelic figure with black feathered wings on fire, " +
+    "crown of light, holding a broken sword, cathedral ruins and blood moon behind, " +
+    "majestic tragic rebellion",
+  ur_md_002:
+    "Holy Grail chalice, ornate golden cup emitting radiant divine light, " +
+    "cathedral altar, angels' wings manifesting around it, ancient texts floating, " +
+    "baroque miracle aura",
+  ur_md_003:
+    "King Arthur in full Excalibur armor, lifting the glowing silver-blue sword aloft, " +
+    "heraldic crown, lake of Avalon and floating mists, knights in formation behind, " +
+    "epic medieval sovereign",
+
+  ur_se_001:
+    "Amaterasu Japanese sun goddess emerging from cave, radiant golden-white hair, " +
+    "flowing silk robes of silver and gold, eight-bead magatama necklace, " +
+    "sacred mirror, shrine torii in distance, divine dawn",
+  ur_se_002:
+    "Susano-o Japanese storm god in black armor, wild dark hair, " +
+    "holding Kusanagi sword slashing through the eight-headed Yamata-no-Orochi dragon, " +
+    "storm clouds and rain of sparks, heroic wrath",
+  ur_se_003:
+    "Great Tengu mountain king, tall red-faced long-nosed entity with black wings, " +
+    "yamabushi ascetic robe, feathered fan, mountain temple on moonlit cliff, " +
+    "arcane martial mastery",
+
+  ur_mg_001:
+    "Formless Taoist supreme being, silhouette dissolving into mist and calligraphy strokes, " +
+    "yin-yang at center of the void, mountains and constellations coexisting inside him, " +
+    "pure Daoist abstraction",
+  ur_mg_002:
+    "Eastern Peak Emperor Dongyue, stern deity in black imperial robes with red trim, " +
+    "holding ledger of life and death, Mount Tai behind him shrouded in clouds, " +
+    "ghostly attendants carrying scrolls",
+  ur_mg_003:
+    "Taibai Venus star lord, elderly sage in flowing white-gold robes, " +
+    "riding a celestial crane, Venus star gleaming above his head, " +
+    "diplomatic gentle expression, Chinese heavenly palace",
+
+  ur_mo_001:
+    "The Primordial Lie manifesting as a luminous spoken sentence, " +
+    "floating golden Chinese characters 「這裡有光」 in midair breaking through black void, " +
+    "entire universe unfolding from the words, divine cosmic abstraction",
+  ur_mo_002:
+    "The Eye of the Veil, massive cosmic eye opening in the sky above modern city, " +
+    "iris composed of swirling galaxy, buildings bending reality, " +
+    "surveillance horror, cinematic scale",
+  ur_mo_003:
+    "Collective Unconscious entity, thousands of human faces merging into one dream-being, " +
+    "starry body like a nebula, tendrils of shared imagery flowing, " +
+    "surreal modern subconscious dreamscape",
 };
 
 interface Card {

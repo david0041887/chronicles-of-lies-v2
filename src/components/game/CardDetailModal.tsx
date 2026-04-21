@@ -31,7 +31,7 @@ const RARITY_TINT: Record<Rarity, string> = {
   R: "text-rarity-rare border-rarity-rare",
   SR: "text-rarity-super border-rarity-super",
   SSR: "text-rarity-legend border-rarity-legend",
-  UR: "text-gold border-gold",
+  UR: "title-sheen border-gold",
 };
 
 const TYPE_LABEL: Record<string, { label: string; emoji: string; desc: string }> = {
