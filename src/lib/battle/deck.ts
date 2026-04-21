@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { effectivePower } from "@/lib/forge";
 import type { BattleCard } from "./types";
 
 const RANK: Record<string, number> = { R: 0, SR: 1, SSR: 2, UR: 3 };
@@ -36,8 +37,9 @@ export async function buildPlayerDeck(userId: string): Promise<BattleCard[]> {
   const toBattleCard = (cardId: string, uid: string): BattleCard | null => {
     const instances = ownedById.get(cardId);
     if (!instances || instances.length === 0) return null;
-    const inst = instances[0];
-    const c = inst.card;
+    // Use highest-star copy for effective stats
+    const best = [...instances].sort((a, b) => b.stars - a.stars)[0];
+    const c = best.card;
     return {
       id: c.id,
       uid,
@@ -47,7 +49,7 @@ export async function buildPlayerDeck(userId: string): Promise<BattleCard[]> {
       rarity: c.rarity,
       type: c.type,
       cost: c.cost,
-      power: c.power,
+      power: effectivePower(c.power, best.stars),
       keywords: c.keywords,
       flavor: c.flavor,
       hasImage: c.image !== null,

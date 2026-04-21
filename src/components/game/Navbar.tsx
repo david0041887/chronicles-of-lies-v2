@@ -10,6 +10,7 @@ const TABS = [
   { href: "/world", label: "世界", icon: "🌍" },
   { href: "/collection", label: "圖鑑", icon: "📚" },
   { href: "/deck", label: "牌組", icon: "🃏" },
+  { href: "/forge", label: "鍛造", icon: "⚒️" },
   { href: "/gacha", label: "召喚", icon: "🎴" },
 ] as const;
 
@@ -65,7 +66,7 @@ export function Navbar({ isAdmin }: { isAdmin: boolean }) {
         className="fixed bottom-0 left-0 right-0 z-40 border-t border-parchment/15 bg-veil/95 backdrop-blur-lg"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0)" }}
       >
-        <div className="max-w-6xl mx-auto grid grid-cols-5">
+        <div className="max-w-6xl mx-auto grid grid-cols-6">
           {TABS.map((tab) => {
             const active =
               path === tab.href ||

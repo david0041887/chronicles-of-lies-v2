@@ -2,7 +2,7 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
-const PROTECTED_PREFIXES = ["/home", "/world", "/era", "/battle", "/collection", "/deck", "/gacha", "/profile", "/settings", "/welcome"];
+const PROTECTED_PREFIXES = ["/home", "/world", "/era", "/battle", "/collection", "/deck", "/forge", "/gacha", "/profile", "/settings", "/welcome"];
 const ADMIN_PREFIXES = ["/admin"];
 
 export default auth((req) => {
