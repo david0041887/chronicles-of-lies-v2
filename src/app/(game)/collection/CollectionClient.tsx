@@ -9,8 +9,10 @@ import { useMemo, useState } from "react";
 type RarityFilter = "ALL" | Rarity;
 type EraFilter = "ALL" | string;
 
+type CardWithImage = Omit<Card, "imageBytes" | never> & { hasImage: boolean };
+
 interface Props {
-  cards: Card[];
+  cards: CardWithImage[];
   ownedMap: Record<string, number>;
 }
 

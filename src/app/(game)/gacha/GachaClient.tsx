@@ -5,11 +5,11 @@ import { SummonAnimation } from "@/components/fx/SummonAnimation";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import type { Card, Rarity } from "@prisma/client";
+import type { Rarity } from "@prisma/client";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { pullGacha } from "./actions";
+import { pullGacha, type CardWithImage } from "./actions";
 
 interface Props {
   initialCrystals: number;
@@ -20,7 +20,7 @@ interface Props {
   costTen: number;
 }
 
-function highestRarity(cards: Card[]): Rarity {
+function highestRarity(cards: CardWithImage[]): Rarity {
   const order: Record<Rarity, number> = { R: 0, SR: 1, SSR: 2, UR: 3 };
   return cards.reduce<Rarity>(
     (best, c) => (order[c.rarity] > order[best] ? c.rarity : best),
@@ -43,9 +43,9 @@ export function GachaClient({
   const [pitySR, setPitySR] = useState(initialPitySR);
   const [pitySSR, setPitySSR] = useState(initialPitySSR);
   const [totalPulls, setTotalPulls] = useState(initialTotalPulls);
-  const [pendingResult, setPendingResult] = useState<Card[] | null>(null);
+  const [pendingResult, setPendingResult] = useState<CardWithImage[] | null>(null);
   const [showAnimation, setShowAnimation] = useState(false);
-  const [result, setResult] = useState<Card[] | null>(null);
+  const [result, setResult] = useState<CardWithImage[] | null>(null);
 
   const doPull = (count: 1 | 10) => {
     startTransition(async () => {

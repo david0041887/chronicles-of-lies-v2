@@ -16,7 +16,8 @@ interface Card {
   power: number;
   keywords: string[];
   flavor?: string | null;
-  imageUrl?: string | null;
+  imageUrl?: string | null;  // external (e.g. Replicate URL)
+  hasImage?: boolean;        // internal CardImage via /api/cards/:id/art
 }
 
 interface CardTileProps {
@@ -120,9 +121,10 @@ export function CardTile({
 
   const Wrapper: React.ElementType = onClick ? "button" : "div";
 
-  const artLayer = card.imageUrl ? (
+  const artUrl = card.imageUrl || (card.hasImage ? `/api/cards/${card.id}/art` : null);
+  const artLayer = artUrl ? (
     <img
-      src={card.imageUrl}
+      src={artUrl}
       alt={card.name}
       className="w-full h-full object-cover"
       draggable={false}

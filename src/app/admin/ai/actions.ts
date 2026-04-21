@@ -1,37 +1,60 @@
 "use server";
 
 import { requireAdmin } from "@/lib/auth-helpers";
+import { cloudflareConfigured, generateImageCF } from "@/lib/ai/cloudflare";
 import { buildPrompt } from "@/lib/ai/prompts";
-import { generateImage, replicateConfigured } from "@/lib/ai/replicate";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
 export async function generateCardArt(
   cardId: string,
-): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   await requireAdmin();
 
-  if (!replicateConfigured()) {
+  if (!cloudflareConfigured()) {
     return {
       ok: false,
-      error: "Replicate 未設定。請到 Railway 加環境變數 REPLICATE_API_TOKEN。",
+      error: "CF_ACCOUNT_ID 或 CF_API_TOKEN 未設定",
     };
   }
 
-  const card = await prisma.card.findUnique({ where: { id: cardId } });
+  const card = await prisma.card.findUnique({
+    where: { id: cardId },
+    select: {
+      id: true,
+      name: true,
+      nameEn: true,
+      eraId: true,
+      rarity: true,
+      type: true,
+      flavor: true,
+    },
+  });
   if (!card) return { ok: false, error: "卡牌不存在" };
 
   try {
     const prompt = buildPrompt(card);
-    const url = await generateImage(prompt);
-    await prisma.card.update({
-      where: { id: cardId },
-      data: { imageUrl: url },
+    const { bytes, mime } = await generateImageCF(prompt);
+    await prisma.cardImage.upsert({
+      where: { cardId: card.id },
+      update: {
+        bytes: Buffer.from(bytes),
+        mime,
+        prompt,
+        provider: "cloudflare",
+      },
+      create: {
+        cardId: card.id,
+        bytes: Buffer.from(bytes),
+        mime,
+        prompt,
+        provider: "cloudflare",
+      },
     });
     revalidatePath("/admin/ai");
     revalidatePath("/collection");
     revalidatePath("/gacha");
-    return { ok: true, url };
+    return { ok: true };
   } catch (e) {
     return {
       ok: false,
@@ -44,7 +67,7 @@ export async function clearCardArt(
   cardId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   await requireAdmin();
-  await prisma.card.update({ where: { id: cardId }, data: { imageUrl: null } });
+  await prisma.cardImage.deleteMany({ where: { cardId } });
   revalidatePath("/admin/ai");
   revalidatePath("/collection");
   revalidatePath("/gacha");

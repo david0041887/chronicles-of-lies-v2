@@ -7,8 +7,10 @@ import type { Card } from "@prisma/client";
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
 
+export type CardWithImage = Card & { hasImage: boolean };
+
 export type PullResult = {
-  cards: Card[];
+  cards: CardWithImage[];
   crystalsLeft: number;
   pitySR: number;
   pitySSR: number;
@@ -30,22 +32,26 @@ export async function pullGacha(
     pitySSR: user.pitySSR,
   });
 
-  // Pool cards by rarity
-  const poolByRarity = new Map<string, Card[]>();
+  const poolByRarity = new Map<string, CardWithImage[]>();
   for (const rarity of new Set(rarities)) {
-    const cards = await prisma.card.findMany({ where: { rarity } });
-    if (cards.length === 0) {
+    const raw = await prisma.card.findMany({
+      where: { rarity },
+      include: { image: { select: { cardId: true } } },
+    });
+    if (raw.length === 0) {
       return { ok: false, error: `無法抽卡:${rarity} 池是空的` };
     }
-    poolByRarity.set(rarity, cards);
+    poolByRarity.set(
+      rarity,
+      raw.map(({ image, ...c }) => ({ ...c, hasImage: image !== null })),
+    );
   }
 
-  const drawn: Card[] = rarities.map((r) => {
+  const drawn: CardWithImage[] = rarities.map((r) => {
     const pool = poolByRarity.get(r)!;
     return pool[crypto.randomInt(0, pool.length)];
   });
 
-  // Persist in one transaction
   const [updatedUser] = await prisma.$transaction([
     prisma.user.update({
       where: { id: user.id },

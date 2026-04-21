@@ -9,8 +9,10 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { clearCardArt, generateCardArt } from "./actions";
 
+type CardWithImage = Card & { hasImage: boolean; imageProvider: string | null };
+
 interface Props {
-  cards: Card[];
+  cards: CardWithImage[];
   enabled: boolean;
 }
 
@@ -123,14 +125,14 @@ export function AiClient({ cards, enabled }: Props) {
               <div className="flex gap-1 w-full">
                 <Button
                   size="sm"
-                  variant={c.imageUrl ? "ghost" : "primary"}
+                  variant={c.hasImage ? "ghost" : "primary"}
                   disabled={!enabled || pending}
                   onClick={() => runGenerate(c.id)}
                   className="flex-1 !text-xs"
                 >
-                  {c.imageUrl ? "重生成" : "生成"}
+                  {c.hasImage ? "重生成" : "生成"}
                 </Button>
-                {c.imageUrl && (
+                {c.hasImage && (
                   <Button
                     size="sm"
                     variant="danger"

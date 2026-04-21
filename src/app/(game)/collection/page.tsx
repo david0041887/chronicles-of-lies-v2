@@ -7,9 +7,10 @@ export const dynamic = "force-dynamic";
 export default async function CollectionPage() {
   const user = await requireUser();
 
-  const [allCards, owned] = await Promise.all([
+  const [rawCards, owned] = await Promise.all([
     prisma.card.findMany({
       orderBy: [{ rarity: "desc" }, { eraId: "asc" }, { cost: "asc" }],
+      include: { image: { select: { cardId: true } } },
     }),
     prisma.ownedCard.groupBy({
       by: ["cardId"],
@@ -17,6 +18,12 @@ export default async function CollectionPage() {
       _count: true,
     }),
   ]);
+
+  // Strip image relation + add hasImage flag
+  const allCards = rawCards.map(({ image, ...c }) => ({
+    ...c,
+    hasImage: image !== null,
+  }));
 
   const ownedMap = Object.fromEntries(
     owned.map((o) => [o.cardId, o._count]),

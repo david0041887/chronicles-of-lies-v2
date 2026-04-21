@@ -114,9 +114,22 @@ model Card {
   createdAt   DateTime @default(now())
 
   ownedBy     OwnedCard[]
+  image       CardImage?
 
   @@index([rarity])
   @@index([eraId])
+}
+
+// Separate table so default Card queries don't pull multi-KB image blobs.
+model CardImage {
+  cardId    String   @id
+  bytes     Bytes
+  mime      String   @default("image/jpeg")
+  prompt    String?  // stored for audit / regeneration
+  provider  String   @default("cloudflare")
+  createdAt DateTime @default(now())
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
 }
 
 enum CardType {
