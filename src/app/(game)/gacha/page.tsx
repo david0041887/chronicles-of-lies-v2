@@ -1,11 +1,11 @@
-import { requireUser } from "@/lib/auth-helpers";
+import { requireOnboarded } from "@/lib/auth-helpers";
 import { COST_SINGLE, COST_TEN, PITY_SR, PITY_SSR, PITY_UR } from "@/lib/gacha";
 import { GachaClient } from "./GachaClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function GachaPage() {
-  const user = await requireUser();
+  const user = await requireOnboarded();
 
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10">

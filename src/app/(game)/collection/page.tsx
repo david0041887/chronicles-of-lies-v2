@@ -1,11 +1,11 @@
-import { requireUser } from "@/lib/auth-helpers";
+import { requireOnboarded } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { CollectionClient } from "./CollectionClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function CollectionPage() {
-  const user = await requireUser();
+  const user = await requireOnboarded();
 
   const [rawCards, owned] = await Promise.all([
     prisma.card.findMany({

@@ -14,7 +14,8 @@ export async function generateImagePollinations(
 ): Promise<PollImageResult> {
   const encoded = encodeURIComponent(prompt);
   const s = seed ?? Math.floor(Math.random() * 2 ** 31);
-  const url = `https://image.pollinations.ai/prompt/${encoded}?model=flux&width=768&height=1024&seed=${s}&nologo=true&enhance=true`;
+  // enhance=true adds ~60s latency; disabled for speed. Width/height tuned to 640x864 (still 3:4).
+  const url = `https://image.pollinations.ai/prompt/${encoded}?model=flux&width=640&height=864&seed=${s}&nologo=true`;
 
   const res = await fetch(url, {
     signal: AbortSignal.timeout(90_000),

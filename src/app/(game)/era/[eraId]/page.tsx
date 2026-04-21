@@ -1,5 +1,5 @@
 import { VeilBackdrop } from "@/components/fx/VeilBackdrop";
-import { requireUser } from "@/lib/auth-helpers";
+import { requireOnboarded } from "@/lib/auth-helpers";
 import { getEra } from "@/lib/constants/eras";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -13,7 +13,7 @@ export default async function EraPage({ params }: Props) {
   const era = getEra(eraId);
   if (!era) notFound();
 
-  const user = await requireUser();
+  const user = await requireOnboarded();
   const progress = user.eraProgress.find((p) => p.eraId === era.id);
   const believers = progress?.believers ?? 0;
 

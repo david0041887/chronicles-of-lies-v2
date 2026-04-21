@@ -9,6 +9,7 @@ import { FormEvent, useEffect, useState } from "react";
 
 const VOLUME_KEY = "chronicles.volume";
 const MUTED_KEY = "chronicles.muted";
+const BGM_ENABLED_KEY = "chronicles.bgm_enabled";
 
 interface Props {
   user: {
@@ -25,6 +26,7 @@ export function SettingsClient({ user }: Props) {
   const [locale, setLocale] = useState<Locale>("zh");
   const [volume, setVolume] = useState(70);
   const [muted, setMuted] = useState(false);
+  const [bgmEnabled, setBgmEnabled] = useState(true);
   const [binding, setBinding] = useState(false);
 
   useEffect(() => {
@@ -32,6 +34,8 @@ export function SettingsClient({ user }: Props) {
     const v = Number(localStorage.getItem(VOLUME_KEY));
     if (!isNaN(v) && v >= 0 && v <= 100) setVolume(v);
     setMuted(localStorage.getItem(MUTED_KEY) === "1");
+    const e = localStorage.getItem(BGM_ENABLED_KEY);
+    setBgmEnabled(e === null ? true : e === "1");
   }, []);
 
   const onLocaleChange = (l: Locale) => {
@@ -52,14 +56,20 @@ export function SettingsClient({ user }: Props) {
     window.dispatchEvent(new CustomEvent("chronicles:muted", { detail: { muted: m } }));
   };
 
+  const onBgmChange = (enabled: boolean) => {
+    setBgmEnabled(enabled);
+    localStorage.setItem(BGM_ENABLED_KEY, enabled ? "1" : "0");
+    window.dispatchEvent(new CustomEvent("chronicles:bgm", { detail: { enabled } }));
+  };
+
   const onClearLocal = () => {
     if (!confirm(t("settings.clearConfirm", locale))) return;
-    // Whitelist: only remove our own keys
-    const keys = [VOLUME_KEY, MUTED_KEY, LOCALE_KEY, "chronicles.deviceId"];
+    const keys = [VOLUME_KEY, MUTED_KEY, BGM_ENABLED_KEY, LOCALE_KEY, "chronicles.deviceId"];
     for (const k of keys) localStorage.removeItem(k);
     push("本機資料已清除", "success");
     setVolume(70);
     setMuted(false);
+    setBgmEnabled(true);
     setLocale("zh");
   };
 
@@ -160,8 +170,17 @@ export function SettingsClient({ user }: Props) {
           />
           全部靜音
         </label>
+        <label className="flex items-center gap-2 mt-2 text-sm text-parchment/70 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={bgmEnabled}
+            onChange={(e) => onBgmChange(e.target.checked)}
+            className="accent-gold"
+          />
+          播放背景音樂(BGM)
+        </label>
         <p className="text-[11px] text-parchment/40 mt-3">
-          背景音樂系統預定於 Phase C 上線。
+          進入時代會自動切換不同 BGM,首次互動後(點一下任意處)自動啟動。
         </p>
       </section>
 

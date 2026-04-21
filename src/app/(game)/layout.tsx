@@ -1,3 +1,4 @@
+import { BgmPlayer } from "@/components/fx/BgmPlayer";
 import { Navbar } from "@/components/game/Navbar";
 import { requireUser } from "@/lib/auth-helpers";
 import { ReactNode } from "react";
@@ -8,6 +9,7 @@ export default async function GameLayout({ children }: { children: ReactNode }) 
     <>
       <Navbar isAdmin={user.role === "ADMIN"} />
       <div className="flex-1 pb-20">{children}</div>
+      <BgmPlayer />
     </>
   );
 }

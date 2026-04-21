@@ -10,7 +10,8 @@ import { buildPrompt } from "../src/lib/ai/prompts";
 const prisma = new PrismaClient();
 
 const CONCURRENCY = 1;
-const DELAY_MS = 3000; // Pollinations anon tier: 1 queued request/IP, serialize with breathing room
+const DELAY_MS = 30000; // Pollinations anon tier processes ~30s/image and allows
+// max 1 queued request per IP. Submit slower than processing time to avoid 429.
 
 async function runOne(cardId: string) {
   const start = Date.now();

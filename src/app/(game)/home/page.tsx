@@ -1,5 +1,5 @@
 import { HomeHud } from "@/components/game/HomeHud";
-import { requireUser } from "@/lib/auth-helpers";
+import { requireOnboarded } from "@/lib/auth-helpers";
 import Link from "next/link";
 
 const QUICK_ACTIONS = [
@@ -10,7 +10,7 @@ const QUICK_ACTIONS = [
 ];
 
 export default async function HomePage() {
-  const user = await requireUser();
+  const user = await requireOnboarded();
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-8">

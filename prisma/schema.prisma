@@ -69,9 +69,10 @@ model User {
   lastLoginAt  DateTime @default(now())
 
   // Relations
-  ownedCards   OwnedCard[]
-  decks        Deck[]
-  eraProgress  EraProgress[]
+  ownedCards     OwnedCard[]
+  decks          Deck[]
+  eraProgress    EraProgress[]
+  startingReward StartingReward?
 }
 
 enum Faction {
@@ -193,6 +194,23 @@ model Deck {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// ============================================================
+// StartingReward — new-user 200-pull gift (5 rounds × 4 choices)
+// ============================================================
+model StartingReward {
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  // rolls: 5 rounds, each with 4 choices, each choice = 10 card ids
+  // Serialized as JSON: string[][][] shape [5][4][10]
+  rolls     Json
+  // picks[round] = chosen choice index (0-3); length grows 0→5
+  picks     Int[]     @default([])
+  claimedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ============================================================

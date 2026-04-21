@@ -1,10 +1,10 @@
 import { VeilBackdrop } from "@/components/fx/VeilBackdrop";
 import { ERAS } from "@/lib/constants/eras";
-import { requireUser } from "@/lib/auth-helpers";
+import { requireOnboarded } from "@/lib/auth-helpers";
 import { WorldGrid } from "./WorldGrid";
 
 export default async function WorldPage() {
-  const user = await requireUser();
+  const user = await requireOnboarded();
   const progressByEra = new Map(user.eraProgress.map((p) => [p.eraId, p]));
 
   const tiles = ERAS.map((era) => ({
