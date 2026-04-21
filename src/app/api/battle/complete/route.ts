@@ -6,6 +6,13 @@ function expNeededForLevel(level: number): number {
   return level * 100;
 }
 
+// Repeat clears give 7% of first-clear rewards (middle of 5-10% window).
+const REPEAT_MULT = 0.07;
+
+function scale(amount: number, first: boolean): number {
+  return first ? amount : Math.max(1, Math.floor(amount * REPEAT_MULT));
+}
+
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -19,13 +26,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const {
-    stageId,
-    won,
-    turnsElapsed,
-    playerHpEnd,
-    enemyHpEnd,
-  } = (body as Record<string, unknown>) ?? {};
+  const { stageId, won, turnsElapsed, playerHpEnd, enemyHpEnd } =
+    (body as Record<string, unknown>) ?? {};
 
   if (typeof stageId !== "string" || typeof won !== "boolean") {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
@@ -39,21 +41,30 @@ export async function POST(req: Request) {
   const userId = session.user.id;
 
   if (!won) {
-    // Just increment loss counter
     await prisma.user.update({
       where: { id: userId },
       data: { battlesLost: { increment: 1 } },
     });
-    return NextResponse.json({ ok: true, rewards: null });
+    return NextResponse.json({ ok: true, rewards: null, firstClear: false });
   }
 
-  // Rewards
-  const { rewardCrystals, rewardExp, rewardBelievers, eraId } = stage;
+  // Has this user cleared this stage before?
+  const existing = await prisma.stageClear.findUnique({
+    where: { userId_stageId: { userId, stageId } },
+  });
+  const isFirstClear = !existing;
+
+  const crystals = scale(stage.rewardCrystals, isFirstClear);
+  const exp = scale(stage.rewardExp, isFirstClear);
+  const believers = scale(stage.rewardBelievers, isFirstClear);
 
   // Compute level-up(s)
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { level: true, exp: true } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { level: true, exp: true },
+  });
   let newLevel = user?.level ?? 1;
-  let newExp = (user?.exp ?? 0) + rewardExp;
+  let newExp = (user?.exp ?? 0) + exp;
   while (newExp >= expNeededForLevel(newLevel) && newLevel < 100) {
     newExp -= expNeededForLevel(newLevel);
     newLevel += 1;
@@ -63,39 +74,48 @@ export async function POST(req: Request) {
     prisma.user.update({
       where: { id: userId },
       data: {
-        crystals: { increment: rewardCrystals },
+        crystals: { increment: crystals },
         exp: newExp,
         level: newLevel,
         battlesWon: { increment: 1 },
-        totalBelievers: { increment: rewardBelievers },
+        totalBelievers: { increment: believers },
       },
     }),
     prisma.eraProgress.upsert({
-      where: { userId_eraId: { userId, eraId } },
+      where: { userId_eraId: { userId, eraId: stage.eraId } },
       update: {
-        believers: { increment: rewardBelievers },
+        believers: { increment: believers },
         highestStage: stage.orderNum,
         bossCleared: stage.isBoss ? true : undefined,
       },
       create: {
         userId,
-        eraId,
-        believers: rewardBelievers,
+        eraId: stage.eraId,
+        believers,
         highestStage: stage.orderNum,
         bossCleared: stage.isBoss,
       },
+    }),
+    prisma.stageClear.upsert({
+      where: { userId_stageId: { userId, stageId } },
+      update: {
+        lastClearedAt: new Date(),
+        clearCount: { increment: 1 },
+      },
+      create: { userId, stageId },
     }),
   ]);
 
   return NextResponse.json({
     ok: true,
     rewards: {
-      crystals: rewardCrystals,
-      exp: rewardExp,
-      believers: rewardBelievers,
+      crystals,
+      exp,
+      believers,
       levelBefore: user?.level ?? 1,
       levelAfter: newLevel,
     },
+    firstClear: isFirstClear,
     meta: { turnsElapsed, playerHpEnd, enemyHpEnd },
   });
 }

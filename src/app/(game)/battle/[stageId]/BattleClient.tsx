@@ -1,5 +1,6 @@
 "use client";
 
+import { CardDetailModal } from "@/components/game/CardDetailModal";
 import { CardTile } from "@/components/game/CardTile";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -49,6 +50,8 @@ interface Props {
   enemyDeck: BattleCard[];
 }
 
+const AUTO_LEAVE_MS = 4200;
+
 export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: Props) {
   const router = useRouter();
   const { push } = useToast();
@@ -62,12 +65,17 @@ export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: 
     crystals: number;
     exp: number;
     believers: number;
+    levelBefore: number;
+    levelAfter: number;
   } | null>(null);
+  const [firstClear, setFirstClear] = useState(false);
+  const [previewIdx, setPreviewIdx] = useState<number | null>(null);
+  const [surrenderOpen, setSurrenderOpen] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
 
   const tick = () => setBattle((b) => ({ ...b }));
 
-  // Auto-scroll log
+  // Log auto-scroll
   useEffect(() => {
     const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -79,7 +87,6 @@ export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: 
     setEnemyThinking(true);
 
     const runAsync = async () => {
-      // Pause briefly for pacing
       await new Promise((r) => setTimeout(r, 700));
 
       if (isConfused(battle, "enemy")) {
@@ -107,7 +114,7 @@ export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: 
     if (reportSent) return;
     if (battle.phase !== "won" && battle.phase !== "lost") return;
     setReportSent(true);
-    const report = async () => {
+    (async () => {
       try {
         const res = await fetch("/api/battle/complete", {
           method: "POST",
@@ -121,24 +128,41 @@ export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: 
           }),
         });
         const body = await res.json();
-        if (body?.ok && body.rewards) setRewards(body.rewards);
+        if (body?.ok) {
+          if (body.rewards) setRewards(body.rewards);
+          setFirstClear(!!body.firstClear);
+        }
       } catch {
         push("結算失敗(無連線)", "danger");
       }
-    };
-    report();
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battle.phase, reportSent]);
 
-  const onPlayCard = (handIdx: number) => {
+  // Auto-leave after win/loss
+  useEffect(() => {
+    if (battle.phase !== "won" && battle.phase !== "lost") return;
+    const t = setTimeout(() => router.push(`/era/${stage.eraId}`), AUTO_LEAVE_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [battle.phase]);
+
+  const openPreview = (handIdx: number) => {
     if (battle.phase !== "player_turn") return;
-    const c = battle.player.hand[handIdx];
+    setPreviewIdx(handIdx);
+  };
+
+  const playFromPreview = () => {
+    if (previewIdx === null) return;
+    if (battle.phase !== "player_turn") return;
+    const c = battle.player.hand[previewIdx];
     if (!c) return;
     if (c.cost > battle.player.mana) {
       push("信仰池不足", "warning");
       return;
     }
-    playCard(battle, "player", handIdx);
+    playCard(battle, "player", previewIdx);
+    setPreviewIdx(null);
     tick();
   };
 
@@ -148,7 +172,27 @@ export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: 
     tick();
   };
 
+  const onSurrender = () => {
+    if (battle.phase === "won" || battle.phase === "lost") return;
+    battle.player.hp = 0;
+    battle.phase = "lost";
+    battle.log.push({
+      turn: battle.turn,
+      side: "player",
+      kind: "phase",
+      text: "你選擇撤下信仰 — 帷幕散去",
+    });
+    setSurrenderOpen(false);
+    tick();
+  };
+
   const bg = era?.palette ?? { main: "#6B2E8A", accent: "#D4A84B", dark: "#0A0612" };
+  const previewCard =
+    previewIdx !== null ? battle.player.hand[previewIdx] : null;
+  const previewPlayable =
+    previewCard !== null &&
+    battle.phase === "player_turn" &&
+    previewCard.cost <= battle.player.mana;
 
   return (
     <div
@@ -157,7 +201,6 @@ export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: 
         background: `linear-gradient(180deg, ${bg.dark}, ${bg.main}22 50%, ${bg.dark})`,
       }}
     >
-      {/* Ambient veil */}
       <div
         className="absolute inset-0 opacity-35 pointer-events-none"
         style={{
@@ -167,12 +210,13 @@ export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: 
 
       {/* Top bar */}
       <div className="relative flex items-center justify-between px-4 py-3 border-b border-parchment/10 bg-veil/60 backdrop-blur">
-        <Link
-          href={`/era/${stage.eraId}`}
-          className="text-xs text-parchment/60 hover:text-parchment tracking-wider"
+        <button
+          onClick={() => setSurrenderOpen(true)}
+          disabled={battle.phase === "won" || battle.phase === "lost"}
+          className="text-xs text-blood/80 hover:text-blood tracking-wider disabled:opacity-30 disabled:cursor-not-allowed"
         >
-          ← 撤退
-        </Link>
+          認輸
+        </button>
         <div className="text-center">
           <div className="display-serif text-sm text-parchment truncate max-w-[60vw]">
             {stage.name}
@@ -188,9 +232,7 @@ export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: 
         </div>
       </div>
 
-      {/* Battle area */}
       <div className="relative flex-1 flex flex-col min-h-0">
-        {/* Enemy area */}
         <EnemyArea
           enemy={battle.enemy}
           emoji={era?.emoji ?? "🎭"}
@@ -198,7 +240,6 @@ export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: 
           confused={battle.enemy.confusedTurns > 0}
         />
 
-        {/* Log */}
         <div
           ref={logRef}
           className="relative mx-4 my-2 rounded-lg border border-parchment/10 bg-black/30 backdrop-blur p-3 max-h-32 overflow-y-auto text-xs space-y-0.5"
@@ -208,7 +249,6 @@ export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: 
           ))}
         </div>
 
-        {/* Player HUD */}
         <PlayerHUD
           player={battle.player}
           phase={battle.phase}
@@ -216,26 +256,69 @@ export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: 
           onEndTurn={onEndTurn}
         />
 
-        {/* Hand */}
         <Hand
           hand={battle.player.hand}
           mana={battle.player.mana}
           phase={battle.phase}
-          onPlay={onPlayCard}
+          onTap={openPreview}
         />
       </div>
 
-      {/* End screen */}
+      {/* Surrender confirm */}
+      <Modal
+        open={surrenderOpen}
+        onClose={() => setSurrenderOpen(false)}
+        title="認輸?"
+        className="max-w-xs"
+      >
+        <p className="text-parchment/70 text-sm mb-4">
+          這場對決將計為失敗,無獎勵。
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setSurrenderOpen(false)}>
+            取消
+          </Button>
+          <Button variant="danger" size="sm" onClick={onSurrender}>
+            撤下信仰
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Card preview — tap hand card */}
+      {previewCard && (
+        <Modal
+          open={true}
+          onClose={() => setPreviewIdx(null)}
+          className="max-w-3xl"
+        >
+          <CardPreviewContent
+            card={previewCard}
+            canPlay={previewPlayable}
+            reason={
+              battle.phase !== "player_turn"
+                ? "敵方回合"
+                : previewCard.cost > battle.player.mana
+                  ? `信仰池不足(需 ${previewCard.cost} / 目前 ${battle.player.mana})`
+                  : ""
+            }
+            onPlay={playFromPreview}
+            onClose={() => setPreviewIdx(null)}
+          />
+        </Modal>
+      )}
+
+      {/* Result overlay */}
       <AnimatePresence>
         {(battle.phase === "won" || battle.phase === "lost") && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="absolute inset-0 z-50 flex items-center justify-center bg-veil/80 backdrop-blur-md"
+            className="absolute inset-0 z-50 flex items-center justify-center bg-veil/85 backdrop-blur-md"
           >
             <motion.div
               initial={{ scale: 0.8, y: 20 }}
               animate={{ scale: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: [0.22, 0.97, 0.32, 1.08] }}
               className="rounded-2xl border border-parchment/20 bg-veil/90 p-8 max-w-md w-[92vw] text-center"
             >
               <div className="text-6xl mb-2">
@@ -243,56 +326,44 @@ export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: 
               </div>
               <h2
                 className={cn(
-                  "display-serif text-3xl mb-2",
+                  "display-serif text-3xl mb-1",
                   battle.phase === "won" ? "text-sacred" : "text-blood",
                 )}
               >
                 {battle.phase === "won" ? "勝利" : "失敗"}
               </h2>
+              {firstClear && battle.phase === "won" && (
+                <div className="inline-block text-[10px] tracking-[0.3em] px-2 py-0.5 rounded mb-2 border border-gold text-gold uppercase">
+                  First Clear · 首通
+                </div>
+              )}
               <p className="text-parchment/60 text-sm mb-6">
                 {battle.phase === "won"
                   ? `經過 ${battle.turn} 回合,你的帷幕穿透了對手。`
-                  : "帷幕崩壞。你可以重整後再試。"}
+                  : "帷幕崩壞。"}
               </p>
               {rewards && battle.phase === "won" && (
-                <div className="grid grid-cols-3 gap-2 mb-6">
+                <div className="grid grid-cols-3 gap-2 mb-4">
                   <Reward label="💎 水晶" value={rewards.crystals} />
                   <Reward label="EXP" value={rewards.exp} />
                   <Reward label="🪙 信徒" value={rewards.believers} />
                 </div>
               )}
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="md"
-                  className="flex-1"
-                  onClick={() => router.push(`/era/${stage.eraId}`)}
-                >
-                  返回時代
-                </Button>
-                <Button
-                  variant="primary"
-                  size="md"
-                  className="flex-1"
-                  onClick={() => {
-                    // Hard reset: re-mount by replacing URL (forces server re-render + fresh state)
-                    router.refresh();
-                    setReportSent(false);
-                    setRewards(null);
-                    setBattle(
-                      createBattle(
-                        playerName,
-                        playerDeck,
-                        stage.enemyName,
-                        enemyDeck,
-                        stage.enemyHp,
-                      ),
-                    );
-                  }}
-                >
-                  再戰
-                </Button>
-              </div>
+              {rewards && rewards.levelAfter > rewards.levelBefore && (
+                <div className="mb-4 py-2 rounded border border-gold/40 bg-gold/10 text-gold text-sm">
+                  🎉 升級 Lv.{rewards.levelBefore} → Lv.{rewards.levelAfter}
+                </div>
+              )}
+              <p className="text-[11px] text-parchment/40 tracking-widest">
+                即將返回…
+              </p>
+              <motion.div
+                className="mt-3 h-0.5 bg-gold rounded-full"
+                initial={{ scaleX: 1 }}
+                animate={{ scaleX: 0 }}
+                transition={{ duration: AUTO_LEAVE_MS / 1000, ease: "linear" }}
+                style={{ transformOrigin: "left" }}
+              />
             </motion.div>
           </motion.div>
         )}
@@ -302,8 +373,149 @@ export function BattleClient({ stage, era, playerName, playerDeck, enemyDeck }: 
 }
 
 // ================================================================
-// Sub-components
-// ================================================================
+
+function CardPreviewContent({
+  card,
+  canPlay,
+  reason,
+  onPlay,
+  onClose,
+}: {
+  card: BattleCard;
+  canPlay: boolean;
+  reason: string;
+  onPlay: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div>
+      <CardDetailModalContent card={card} />
+      <div className="mt-5 flex items-center justify-between gap-3">
+        <div className="text-xs text-parchment/50">
+          {canPlay ? "可使用" : reason}
+        </div>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            關閉
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onPlay}
+            disabled={!canPlay}
+          >
+            打出 ({card.cost}⚡)
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Inline version of CardDetailModal's body (no outer Modal) */
+function CardDetailModalContent({ card }: { card: BattleCard }) {
+  // Delegate to CardDetailModal but render inline — simplest: just copy its layout concept.
+  // We reuse CardDetailModal by rendering it in a wrapper. But CardDetailModal opens its own Modal.
+  // Easier: just render the key sections inline.
+  return <InlineCardDetail card={card} />;
+}
+
+function InlineCardDetail({ card }: { card: BattleCard }) {
+  const artUrl = card.imageUrl || (card.hasImage ? `/api/cards/${card.id}/art` : null);
+  const typeMap: Record<string, { label: string; emoji: string; desc: string }> = {
+    attack: { label: "攻擊", emoji: "⚔️", desc: "削減對手信徒" },
+    spread: { label: "傳播", emoji: "📢", desc: "穩定增加自己信徒 + 抽 1 張" },
+    heal: { label: "恢復", emoji: "💚", desc: "補血並移除負面狀態" },
+    confuse: { label: "困惑", emoji: "🌀", desc: "讓敵人下回合跳過" },
+    buff: { label: "強化", emoji: "⬆️", desc: "下一張牌效果翻倍" },
+    debuff: { label: "削弱", emoji: "⬇️", desc: "攻擊並給敵人詛咒" },
+    ritual: { label: "儀式", emoji: "🔮", desc: "高威力攻擊 + 詛咒 3 疊" },
+  };
+  const kwDesc: Record<string, string> = {
+    whisper: "低語 · 出牌時查看對手 1 張手牌",
+    ritual: "儀式 · 需蓄力發動",
+    charm: "魅惑 · 敵下張攻擊牌自傷",
+    curse: "詛咒 · 對手每回合失血",
+    resonance: "共鳴 · 同時代卡效果 +50%",
+    sacrifice: "獻祭 · 棄 1 張手牌強化此牌",
+    echo: "回響 · 下回合重複 50%",
+    pierce: "穿透 · 無視護盾",
+    shield: "護盾 · 吸收下次傷害",
+    haste: "迅捷 · 出牌後立即抽 1",
+  };
+  const t = typeMap[card.type] ?? { label: card.type, emoji: "?", desc: "" };
+
+  return (
+    <div className="grid md:grid-cols-[180px,1fr] gap-5">
+      <div className="w-[180px] aspect-[3/4] rounded-xl overflow-hidden border-2 border-gold/60 mx-auto md:mx-0">
+        {artUrl ? (
+          <img src={artUrl} alt={card.name} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full bg-veil flex items-center justify-center text-parchment/40">
+            (無圖)
+          </div>
+        )}
+      </div>
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-xs font-bold tracking-wider px-2 py-0.5 rounded border border-gold text-gold">
+            {card.rarity}
+          </span>
+          <span className="text-xs text-parchment/50">{card.eraId}</span>
+        </div>
+        <h2 className="display-serif text-2xl text-sacred mb-1">{card.name}</h2>
+        {card.nameEn && (
+          <p className="font-[family-name:var(--font-cinzel)] text-xs text-parchment/50 tracking-widest mb-3">
+            {card.nameEn}
+          </p>
+        )}
+
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          <MiniStat label="費用" value={card.cost} />
+          <MiniStat label="威力" value={card.power} />
+          <MiniStat label="牌型" value={`${t.emoji} ${t.label}`} />
+        </div>
+
+        <div className="text-xs text-parchment/60 mb-3">
+          <strong className="text-parchment/80">{t.label}:</strong> {t.desc}
+        </div>
+
+        {card.keywords.length > 0 && (
+          <div className="space-y-1">
+            {card.keywords.map((k) => (
+              <div
+                key={k}
+                className="text-[11px] px-2 py-1 rounded bg-veil/60 border border-parchment/10"
+              >
+                <span className="text-gold font-semibold">{k}</span>
+                <span className="text-parchment/60 ml-2">
+                  {(kwDesc[k] ?? "").split("·")[1]?.trim() ?? ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {card.flavor && (
+          <p className="mt-3 text-[11px] text-parchment/40 italic font-[family-name:var(--font-noto-serif)]">
+            「{card.flavor}」
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="p-2 rounded bg-veil/60 border border-parchment/10 text-center">
+      <div className="text-[10px] text-parchment/50">{label}</div>
+      <div className="text-sm text-parchment tabular-nums font-[family-name:var(--font-mono)]">
+        {value}
+      </div>
+    </div>
+  );
+}
 
 function EnemyArea({
   enemy,
@@ -369,8 +581,12 @@ function PlayerHUD({
             <span>⚡ {player.mana}/{player.manaMax}</span>
             <span>牌堆 {player.deck.length}</span>
             {player.shield > 0 && <span className="text-info">🛡 {player.shield}</span>}
-            {player.buffNextCard > 1 && <span className="text-rarity-super">下張×2</span>}
-            {player.curseStacks > 0 && <span className="text-danger">詛咒×{player.curseStacks}</span>}
+            {player.buffNextCard > 1 && (
+              <span className="text-rarity-super">下張×2</span>
+            )}
+            {player.curseStacks > 0 && (
+              <span className="text-danger">詛咒×{player.curseStacks}</span>
+            )}
           </div>
         </div>
         <Button
@@ -390,12 +606,12 @@ function Hand({
   hand,
   mana,
   phase,
-  onPlay,
+  onTap,
 }: {
   hand: BattleCard[];
   mana: number;
   phase: string;
-  onPlay: (idx: number) => void;
+  onTap: (idx: number) => void;
 }) {
   const canPlay = phase === "player_turn";
   return (
@@ -405,20 +621,18 @@ function Hand({
         return (
           <motion.button
             key={c.uid}
-            onClick={() => canPlay && affordable && onPlay(i)}
+            onClick={() => onTap(i)}
             initial={{ y: 30, opacity: 0 }}
             animate={{
               y: canPlay && affordable ? 0 : 10,
               opacity: 1,
               scale: canPlay && affordable ? 1 : 0.92,
             }}
-            exit={{ y: 50, opacity: 0 }}
             transition={{ duration: 0.25, ease: [0.22, 0.97, 0.32, 1.08] }}
-            whileHover={canPlay && affordable ? { y: -12, scale: 1.05 } : undefined}
+            whileHover={{ y: -12, scale: 1.05 }}
             className={cn(
               "shrink-0 w-[22vw] max-w-[112px] min-w-[84px] transition-opacity",
-              !affordable && "opacity-50",
-              !canPlay && "pointer-events-none",
+              !affordable && canPlay && "opacity-60",
             )}
           >
             <CardTile card={c} size="sm" />

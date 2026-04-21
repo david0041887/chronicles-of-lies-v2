@@ -13,6 +13,7 @@ export interface BattleCard {
   cost: number;
   power: number;
   keywords: string[];
+  flavor?: string | null;
   hasImage?: boolean;
   imageUrl?: string | null;
 }

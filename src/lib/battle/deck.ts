@@ -49,6 +49,7 @@ export async function buildPlayerDeck(userId: string): Promise<BattleCard[]> {
       cost: c.cost,
       power: c.power,
       keywords: c.keywords,
+      flavor: c.flavor,
       hasImage: c.image !== null,
       imageUrl: c.imageUrl,
     };
@@ -69,7 +70,7 @@ export async function buildPlayerDeck(userId: string): Promise<BattleCard[]> {
   const uniqueCards = Array.from(ownedById.entries()).map(([cardId, instances]) => ({
     cardId,
     card: instances[0].card,
-    copies: Math.min(2, instances.length),
+    copies: instances.length,
   }));
   uniqueCards.sort((a, b) => {
     const rDiff = RANK[b.card.rarity] - RANK[a.card.rarity];
@@ -81,8 +82,10 @@ export async function buildPlayerDeck(userId: string): Promise<BattleCard[]> {
   let uidCounter = 0;
   for (const u of uniqueCards) {
     if (deck.length >= 30) break;
-    const maxCopies = u.card.rarity === "UR" ? 1 : 2;
-    const copies = Math.min(u.copies, maxCopies, 30 - deck.length);
+    // Max 3 copies per card template (user rule)
+    const maxCopies = 3;
+    const ownedCount = Math.min(maxCopies, u.copies);
+    const copies = Math.min(ownedCount, 30 - deck.length);
     for (let c = 0; c < copies; c++) {
       const bc = toBattleCard(u.cardId, `auto-${uidCounter++}`);
       if (bc) deck.push(bc);
@@ -91,6 +94,9 @@ export async function buildPlayerDeck(userId: string): Promise<BattleCard[]> {
 
   return deck;
 }
+
+export const DECK_SIZE = 30;
+export const MAX_COPIES_PER_CARD = 3;
 
 /**
  * Build the enemy's battle deck from an array of card ids (stage definition).
@@ -117,6 +123,7 @@ export async function buildStageDeck(cardIds: string[]): Promise<BattleCard[]> {
       cost: c.cost,
       power: c.power,
       keywords: c.keywords,
+      flavor: c.flavor,
       hasImage: c.image !== null,
       imageUrl: c.imageUrl,
     });

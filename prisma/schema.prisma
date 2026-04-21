@@ -197,6 +197,21 @@ model Deck {
 }
 
 // ============================================================
+// StageClear — per-user per-stage history (first-clear bonus)
+// ============================================================
+model StageClear {
+  id              String   @id @default(cuid())
+  userId          String
+  stageId         String
+  firstClearedAt  DateTime @default(now())
+  lastClearedAt   DateTime @default(now())
+  clearCount      Int      @default(1)
+
+  @@unique([userId, stageId])
+  @@index([userId])
+}
+
+// ============================================================
 // Stage — PvE battle definitions (per era)
 // ============================================================
 model Stage {
