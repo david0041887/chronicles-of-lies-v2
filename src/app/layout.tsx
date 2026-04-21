@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Noto_Serif_TC, Noto_Sans_TC, Cinzel } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
+import { SessionProvider } from "@/components/ui/SessionProvider";
 
 const notoSerifTC = Noto_Serif_TC({
   variable: "--font-noto-serif",
@@ -46,7 +47,9 @@ export default function RootLayout({
       className={`${notoSerifTC.variable} ${notoSansTC.variable} ${cinzel.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <ToastProvider>{children}</ToastProvider>
+        <SessionProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </SessionProvider>
       </body>
     </html>
   );

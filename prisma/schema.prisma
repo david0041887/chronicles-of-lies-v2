@@ -17,6 +17,8 @@ model User {
   id           String   @id @default(cuid())
   username     String   @unique
   email        String   @unique
+  passwordHash String
+  role         Role     @default(USER)
   avatar       String?
   avatarFrame  String?
 
@@ -66,6 +68,11 @@ enum Faction {
   weavers
   veritas
   faceless
+}
+
+enum Role {
+  USER
+  ADMIN
 }
 
 // ============================================================
