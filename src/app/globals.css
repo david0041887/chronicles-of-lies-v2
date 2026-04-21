@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Chronicles of Lies — Design Tokens v1
+   Source of truth: 《謊言編年者》規格書 §2 Design System
+   Tailwind v4 uses @theme to expose CSS vars as utility classes.
+   ============================================================ */
+
+@theme {
+  /* Brand colors */
+  --color-veil: #0A0612;
+  --color-parchment: #F5E6C8;
+  --color-gold: #D4A84B;
+  --color-blood: #8B1A1A;
+  --color-ichor: #6B2E8A;
+  --color-whisper: #3A5E6A;
+
+  /* Factions */
+  --color-weavers: #D4A84B;
+  --color-veritas: #E8E4D9;
+  --color-faceless: #6B2E8A;
+
+  /* Rarity */
+  --color-rarity-common: #8B95A1;
+  --color-rarity-rare: #4A90E2;
+  --color-rarity-super: #B87FEB;
+  --color-rarity-legend: #F5C242;
+
+  /* Semantic */
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+  --color-info: #3B82F6;
+
+  /* Typography */
+  --font-display: "Cinzel", "Noto Serif TC", serif;
+  --font-body: "Inter", "Noto Sans TC", sans-serif;
+  --font-narrative: "Noto Serif TC", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Radius */
+  --radius-card: 14px;
+
+  /* Shadows & glows */
+  --shadow-glow-gold: 0 0 24px rgba(245, 194, 66, 0.6), 0 0 48px rgba(245, 194, 66, 0.3);
+  --shadow-glow-purple: 0 0 24px rgba(184, 127, 235, 0.6), 0 0 48px rgba(184, 127, 235, 0.3);
+  --shadow-glow-blue: 0 0 24px rgba(74, 144, 226, 0.6), 0 0 48px rgba(74, 144, 226, 0.3);
+  --shadow-glow-red: 0 0 24px rgba(239, 68, 68, 0.8), 0 0 48px rgba(239, 68, 68, 0.4);
+
+  /* Easing */
+  --ease-snap: cubic-bezier(0.68, -0.55, 0.27, 1.55);
+  --ease-heavy: cubic-bezier(0.7, 0, 0.3, 1);
+  --ease-fluid: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+:root {
+  --background: var(--color-veil);
+  --foreground: var(--color-parchment);
+}
+
+html, body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+}
+
+body {
+  background-image:
+    radial-gradient(ellipse at top, rgba(107, 46, 138, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at bottom, rgba(212, 168, 75, 0.08) 0%, transparent 50%);
+  background-attachment: fixed;
+}
+
+/* Golden flow — used in hero + card glows */
+@keyframes veil-shimmer {
+  0%, 100% { opacity: 0.4; transform: translateX(0); }
+  50% { opacity: 0.8; transform: translateX(20px); }
+}
+
+.veil-shimmer {
+  animation: veil-shimmer 4s ease-in-out infinite;
+}
+
+/* Parchment text with soft glow */
+.text-sacred {
+  color: var(--color-gold);
+  text-shadow: 0 0 12px rgba(212, 168, 75, 0.4);
+}
+
+/* Display headline */
+.display-serif {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}

@@ -1,0 +1,167 @@
+// Chronicles of Lies — Prisma Schema (Phase 0 skeleton)
+// Aligned with §3 Data Models in the spec. Will expand per-phase.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// User
+// ============================================================
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  avatar       String?
+  avatarFrame  String?
+
+  // Level & exp
+  level        Int      @default(1)
+  exp          Int      @default(0)
+  title        String   @default("新生編織者")
+
+  // Currencies
+  crystals     Int      @default(300)
+  faith        Int      @default(0)
+  essence      Int      @default(0)
+  masks        Int      @default(0)
+  scrolls      Int      @default(0)
+
+  // Faction
+  faction      Faction  @default(weavers)
+
+  // Global resource
+  veilEnergy   Int      @default(0)
+
+  // Stats
+  battlesWon       Int @default(0)
+  battlesLost      Int @default(0)
+  totalBelievers   Int @default(0)
+  cardsCollected   Int @default(0)
+
+  // Social
+  covenId      String?
+  coven        Coven?   @relation(fields: [covenId], references: [id])
+
+  // IAP
+  councilRank  Int      @default(0)
+  totalSpent   Int      @default(0)
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  lastLoginAt  DateTime @default(now())
+
+  // Relations
+  ownedCards   OwnedCard[]
+  decks        Deck[]
+  eraProgress  EraProgress[]
+}
+
+enum Faction {
+  weavers
+  veritas
+  faceless
+}
+
+// ============================================================
+// Coven (guild)
+// ============================================================
+model Coven {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  emblem    String?
+  createdAt DateTime @default(now())
+  members   User[]
+}
+
+// ============================================================
+// Card (template) + OwnedCard (instance)
+// ============================================================
+model Card {
+  id          String   @id // e.g. "ssr_egypt_001_anubis"
+  name        String
+  title       String?  // 稱號
+  eraId       String   // E01..E15 or R01..R03
+  rarity      Rarity
+  element     Element
+  faction     Faction?
+  power       Int
+  cost        Int      @default(1)
+  description String?
+  lore        String?  // 典藏故事
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+
+  ownedBy     OwnedCard[]
+}
+
+enum Rarity {
+  R
+  SR
+  SSR
+  UR
+}
+
+enum Element {
+  light
+  dark
+  flux
+  order
+  desire
+  illusion
+  end
+}
+
+model OwnedCard {
+  id       String @id @default(cuid())
+  userId   String
+  cardId   String
+  level    Int    @default(1)
+  stars    Int    @default(1)
+  awakened Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card Card @relation(fields: [cardId], references: [id])
+
+  @@index([userId])
+  @@index([cardId])
+}
+
+// ============================================================
+// Deck
+// ============================================================
+model Deck {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  eraId     String?  // dominant era (for resonance)
+  cardIds   String[] // ordered list of OwnedCard ids
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ============================================================
+// Per-era progress
+// ============================================================
+model EraProgress {
+  id             String @id @default(cuid())
+  userId         String
+  eraId          String
+  believers      Int    @default(0)
+  dominantLegend Int?   // 1..4, which legend the player spread most
+  bossCleared    Boolean @default(false)
+  highestStage   Int    @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eraId])
+  @@index([userId])
+}
