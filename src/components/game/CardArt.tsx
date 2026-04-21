@@ -152,6 +152,270 @@ function EraBackdrop({ era, seedN }: { era: EraId | string; seedN: number }) {
         </>
       );
 
+    case "primitive":
+      return (
+        <>
+          {/* cave mouth silhouette */}
+          <path
+            d="M 0 210 Q 90 160 180 210 L 180 240 L 0 240 Z"
+            fill={palette.dark}
+            opacity="0.7"
+          />
+          {/* bonfire */}
+          <g transform="translate(90, 175)" opacity="0.75">
+            <ellipse cx="0" cy="20" rx="22" ry="5" fill={palette.dark} opacity="0.5" />
+            <path d="M -10 20 L 0 -20 L 10 20 Z" fill={palette.accent} />
+            <path d="M -6 20 L 0 -8 L 6 20 Z" fill="#FFD29C" />
+            {Array.from({ length: 6 }).map((_, i) => (
+              <circle
+                key={i}
+                cx={-15 + ((seedN + i * 17) % 30)}
+                cy={-30 - ((seedN + i * 11) % 20)}
+                r="1.2"
+                fill="#FFD29C"
+                opacity="0.7"
+              />
+            ))}
+          </g>
+          {/* cave paintings — stick figures */}
+          {[30, 150].map((x, i) => (
+            <g key={i} transform={`translate(${x}, 90)`} opacity="0.5" stroke={palette.main} strokeWidth="1.2" fill="none">
+              <circle cx="0" cy="-5" r="3" />
+              <line x1="0" y1="-2" x2="0" y2="10" />
+              <line x1="0" y1="2" x2="-5" y2="7" />
+              <line x1="0" y1="2" x2="5" y2="7" />
+              <line x1="0" y1="10" x2="-4" y2="18" />
+              <line x1="0" y1="10" x2="4" y2="18" />
+            </g>
+          ))}
+          {/* handprints */}
+          {Array.from({ length: 3 }).map((_, i) => (
+            <circle
+              key={i}
+              cx={30 + ((seedN + i * 41) % 120)}
+              cy={50 + ((seedN + i * 23) % 20)}
+              r="8"
+              fill={palette.main}
+              opacity="0.2"
+            />
+          ))}
+        </>
+      );
+
+    case "mesopotamia":
+      return (
+        <>
+          {/* ziggurat terraces */}
+          <g opacity="0.7">
+            <rect x="30" y="180" width="120" height="30" fill={palette.dark} />
+            <rect x="45" y="150" width="90" height="30" fill={palette.dark} />
+            <rect x="60" y="120" width="60" height="30" fill={palette.dark} />
+            <rect x="75" y="95" width="30" height="25" fill={palette.accent} opacity="0.6" />
+          </g>
+          {/* winged star of Ishtar */}
+          <g transform="translate(90, 60)" opacity="0.75">
+            <g stroke={palette.accent} strokeWidth="1" fill={palette.accent} opacity="0.6">
+              {Array.from({ length: 8 }).map((_, i) => {
+                const a = (i * 45 * Math.PI) / 180;
+                return (
+                  <polygon
+                    key={i}
+                    points={`0,0 ${Math.cos(a) * 12},${Math.sin(a) * 12} ${Math.cos(a + 0.2) * 4},${Math.sin(a + 0.2) * 4}`}
+                  />
+                );
+              })}
+            </g>
+          </g>
+          {/* cuneiform wedges */}
+          {Array.from({ length: 8 }).map((_, i) => (
+            <polygon
+              key={i}
+              points={`${20 + ((seedN + i * 19) % 140)},${210 - ((seedN + i * 13) % 20)} ${
+                22 + ((seedN + i * 19) % 140)
+              },${216 - ((seedN + i * 13) % 20)} ${
+                18 + ((seedN + i * 19) % 140)
+              },${216 - ((seedN + i * 13) % 20)}`}
+              fill={palette.accent}
+              opacity="0.5"
+            />
+          ))}
+        </>
+      );
+
+    case "greek":
+      return (
+        <>
+          {/* marble columns */}
+          {[35, 80, 130, 155].map((x, i) => (
+            <g key={i} opacity="0.55">
+              <rect x={x} y="75" width="10" height="100" fill={palette.dark} opacity="0.8" />
+              <rect x={x - 3} y="72" width="16" height="6" fill={palette.main} />
+              <rect x={x - 3} y="172" width="16" height="6" fill={palette.main} />
+              <line x1={x + 3} y1="85" x2={x + 3} y2="170" stroke={palette.main} strokeWidth="0.5" opacity="0.6" />
+              <line x1={x + 7} y1="85" x2={x + 7} y2="170" stroke={palette.main} strokeWidth="0.5" opacity="0.6" />
+            </g>
+          ))}
+          {/* laurel wreath */}
+          <g transform="translate(90, 60)" opacity="0.7">
+            <circle r="22" fill="none" stroke={palette.accent} strokeWidth="1" />
+            {Array.from({ length: 12 }).map((_, i) => {
+              const a = (i * 30 * Math.PI) / 180;
+              return (
+                <ellipse
+                  key={i}
+                  cx={Math.cos(a) * 22}
+                  cy={Math.sin(a) * 22}
+                  rx="4"
+                  ry="1.8"
+                  fill={palette.accent}
+                  opacity="0.55"
+                  transform={`rotate(${i * 30 + 90}, ${Math.cos(a) * 22}, ${Math.sin(a) * 22})`}
+                />
+              );
+            })}
+          </g>
+          {/* meander pattern */}
+          <path
+            d="M 10 225 L 10 215 L 20 215 L 20 220 L 15 220 L 15 225 L 30 225 L 30 215 L 40 215"
+            fill="none"
+            stroke={palette.accent}
+            strokeWidth="0.8"
+            opacity="0.5"
+          />
+        </>
+      );
+
+    case "han":
+      return (
+        <>
+          {/* rising red sun */}
+          <circle cx="90" cy="70" r="28" fill={palette.main} opacity="0.55" />
+          <circle cx="90" cy="70" r="20" fill={palette.main} opacity="0.8" />
+          {/* dragon silhouette (stylized curve) */}
+          <path
+            d="M 20 170 Q 50 140 80 170 T 140 170 Q 160 155 170 170"
+            fill="none"
+            stroke={palette.accent}
+            strokeWidth="2.5"
+            opacity="0.6"
+          />
+          {/* dragon scales */}
+          {Array.from({ length: 10 }).map((_, i) => (
+            <circle
+              key={i}
+              cx={25 + i * 15}
+              cy={168 + ((i % 3) - 1) * 4}
+              r="2"
+              fill={palette.accent}
+              opacity="0.5"
+            />
+          ))}
+          {/* ancient coins */}
+          {[40, 140].map((x, i) => (
+            <g key={i} transform={`translate(${x}, 200)`} opacity="0.55">
+              <circle r="8" fill="none" stroke={palette.accent} strokeWidth="1.2" />
+              <rect x="-3" y="-3" width="6" height="6" fill="none" stroke={palette.accent} strokeWidth="0.8" />
+            </g>
+          ))}
+          {/* 漢 character faint */}
+          <text
+            x="90"
+            y="125"
+            textAnchor="middle"
+            fill={palette.accent}
+            opacity="0.2"
+            fontSize="28"
+            fontFamily="serif"
+            fontWeight="700"
+          >
+            漢
+          </text>
+        </>
+      );
+
+    case "norse":
+      return (
+        <>
+          {/* mountain peaks */}
+          <path
+            d="M 0 210 L 40 140 L 70 170 L 100 120 L 130 160 L 160 130 L 180 210 Z"
+            fill={palette.dark}
+            opacity="0.7"
+          />
+          {/* snowfall on peaks */}
+          <path
+            d="M 35 150 L 45 150 M 95 130 L 105 130 M 155 140 L 165 140"
+            stroke={palette.accent}
+            strokeWidth="1.5"
+            opacity="0.7"
+          />
+          {/* runes */}
+          {Array.from({ length: 5 }).map((_, i) => {
+            const x = 25 + i * 32;
+            const y = 65;
+            return (
+              <g key={i} transform={`translate(${x}, ${y})`} opacity="0.6">
+                <line x1="0" y1="0" x2="0" y2="14" stroke={palette.accent} strokeWidth="1.5" />
+                <line x1="0" y1="3" x2="5" y2="0" stroke={palette.accent} strokeWidth="1.5" />
+                <line x1="0" y1="3" x2="5" y2="7" stroke={palette.accent} strokeWidth="1.5" />
+              </g>
+            );
+          })}
+          {/* longship hull */}
+          <g transform="translate(90, 95)" opacity="0.5">
+            <path
+              d="M -35 0 Q 0 8 35 0 L 28 -5 L -28 -5 Z"
+              fill={palette.main}
+            />
+            <line x1="0" y1="-5" x2="0" y2="-18" stroke={palette.main} strokeWidth="1.2" />
+          </g>
+        </>
+      );
+
+    case "sengoku":
+      return (
+        <>
+          {/* torii gate */}
+          <g opacity="0.7">
+            <rect x="35" y="130" width="6" height="80" fill={palette.accent} />
+            <rect x="139" y="130" width="6" height="80" fill={palette.accent} />
+            <rect x="30" y="120" width="120" height="8" fill={palette.accent} />
+            <rect x="40" y="135" width="100" height="4" fill={palette.accent} opacity="0.7" />
+          </g>
+          {/* moon */}
+          <circle cx="140" cy="55" r="14" fill={palette.accent} opacity="0.6" />
+          <circle cx="136" cy="51" r="10" fill={palette.dark} opacity="0.6" />
+          {/* cherry blossoms */}
+          {Array.from({ length: 8 }).map((_, i) => (
+            <g
+              key={i}
+              transform={`translate(${20 + ((seedN + i * 31) % 140)}, ${40 + ((seedN + i * 23) % 80)})`}
+              opacity="0.55"
+            >
+              {Array.from({ length: 5 }).map((_, j) => {
+                const a = (j * 72 * Math.PI) / 180;
+                return (
+                  <ellipse
+                    key={j}
+                    cx={Math.cos(a) * 2.5}
+                    cy={Math.sin(a) * 2.5}
+                    rx="2"
+                    ry="1.2"
+                    fill="#FFC8DD"
+                    transform={`rotate(${j * 72}, ${Math.cos(a) * 2.5}, ${Math.sin(a) * 2.5})`}
+                  />
+                );
+              })}
+            </g>
+          ))}
+          {/* katana */}
+          <g transform="translate(90, 180)" opacity="0.5">
+            <line x1="-25" y1="0" x2="25" y2="0" stroke={palette.accent} strokeWidth="1" />
+            <rect x="-30" y="-1.5" width="6" height="3" fill={palette.accent} />
+          </g>
+        </>
+      );
+
     case "modern":
       return (
         <>

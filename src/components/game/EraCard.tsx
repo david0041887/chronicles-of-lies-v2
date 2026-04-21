@@ -12,9 +12,9 @@ export function EraCard({ era, believers, locked, comingSoon }: EraCardProps) {
   const content = (
     <>
       <div
-        className="absolute inset-0 opacity-60"
+        className="absolute inset-0 opacity-60 era-card-glow"
         style={{
-          background: `radial-gradient(circle at 30% 20%, ${era.palette.main}33, transparent 70%), radial-gradient(circle at 70% 80%, ${era.palette.accent}33, transparent 70%)`,
+          background: `radial-gradient(circle at 30% 20%, ${era.palette.main}44, transparent 70%), radial-gradient(circle at 70% 80%, ${era.palette.accent}33, transparent 70%)`,
         }}
         aria-hidden
       />
@@ -25,6 +25,25 @@ export function EraCard({ era, believers, locked, comingSoon }: EraCardProps) {
         }}
         aria-hidden
       />
+      {/* era motes */}
+      <div className="absolute inset-0 pointer-events-none opacity-70" aria-hidden>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <span
+            key={i}
+            className="era-mote absolute rounded-full"
+            style={{
+              width: 2 + (i % 3),
+              height: 2 + (i % 3),
+              left: `${15 + ((i * 37) % 70)}%`,
+              top: `${20 + ((i * 53) % 60)}%`,
+              backgroundColor: era.palette.accent,
+              boxShadow: `0 0 ${6 + (i % 3) * 3}px ${era.palette.accent}`,
+              animationDelay: `${i * -2.5}s`,
+              animationDuration: `${10 + (i % 4) * 2}s`,
+            }}
+          />
+        ))}
+      </div>
       <div className="relative p-6 flex flex-col h-full">
         <div className="flex items-center justify-between mb-4">
           <span
