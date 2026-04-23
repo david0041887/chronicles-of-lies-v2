@@ -1,5 +1,6 @@
 "use server";
 
+import { audit } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { seedAllStages } from "@/lib/seed-stages";
@@ -23,9 +24,15 @@ export async function toggleRole(
       }
     }
     // Self-demotion should be intentional — allow but require re-login.
+    const nextRole = u.role === "ADMIN" ? "USER" : "ADMIN";
     await prisma.user.update({
       where: { id: userId },
-      data: { role: u.role === "ADMIN" ? "USER" : "ADMIN" },
+      data: { role: nextRole },
+    });
+    await audit({
+      action: "admin.toggleRole",
+      userId: me.id,
+      meta: { targetUserId: userId, from: u.role, to: nextRole },
     });
     revalidatePath("/admin");
     if (userId === me.id && u.role === "ADMIN") {
@@ -44,7 +51,7 @@ export async function grantCrystals(
   amount: number,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    await requireAdmin();
+    const me = await requireAdmin();
     if (!Number.isFinite(amount) || Math.abs(amount) > 100000) {
       return { ok: false, error: "金額超出範圍" };
     }
@@ -56,6 +63,11 @@ export async function grantCrystals(
     await prisma.user.update({
       where: { id: userId },
       data: { crystals: { increment: amount } },
+    });
+    await audit({
+      action: "admin.grantCrystals",
+      userId: me.id,
+      meta: { targetUserId: userId, amount },
     });
     revalidatePath("/admin");
     return { ok: true };
@@ -69,7 +81,7 @@ export async function resetUserStats(
   userId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    await requireAdmin();
+    const me = await requireAdmin();
     const exists = await prisma.user.findUnique({
       where: { id: userId },
       select: { id: true },
@@ -83,6 +95,11 @@ export async function resetUserStats(
         totalBelievers: 0,
         veilEnergy: 0,
       },
+    });
+    await audit({
+      action: "admin.resetUserStats",
+      userId: me.id,
+      meta: { targetUserId: userId },
     });
     revalidatePath("/admin");
     return { ok: true };

@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { audit, clientIpOf } from "@/lib/audit";
 import { csrfGate } from "@/lib/csrf";
 import { prisma } from "@/lib/prisma";
 import { takeBurst } from "@/lib/rate-limit";
@@ -103,7 +104,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = await bcrypt.hash(password, 12);
   await prisma.user.update({
     where: { id: me.id },
     data: {
@@ -112,6 +113,12 @@ export async function POST(req: Request) {
       passwordHash,
       isGuest: false,
     },
+  });
+  await audit({
+    action: "auth.bind",
+    userId: me.id,
+    ip: clientIpOf(req),
+    meta: { username, email: normalizedEmail },
   });
 
   return NextResponse.json({ ok: true });

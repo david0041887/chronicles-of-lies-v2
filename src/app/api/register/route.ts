@@ -105,7 +105,9 @@ export async function POST(req: Request) {
     );
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  // bcrypt cost 12 — ~3x slower than 10, still sub-second per register.
+  // Raises attacker cost for credential-dump rainbow tables.
+  const passwordHash = await bcrypt.hash(password, 12);
   const user = await prisma.user.create({
     data: {
       username,

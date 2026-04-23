@@ -254,6 +254,21 @@ enum StageMode {
 }
 
 // ============================================================
+// AuditLog — append-only security / admin event trail
+// ============================================================
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?  // null for system / anonymous events
+  action    String   // e.g. "admin.grantCrystals", "battle.reject", "bind.attempt"
+  ip        String?  // x-forwarded-for / x-real-ip when available
+  meta      Json?    // action-specific detail (target id, amount, reason)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}
+
+// ============================================================
 // StartingReward — new-user 200-pull gift (5 rounds × 4 choices)
 // ============================================================
 model StartingReward {

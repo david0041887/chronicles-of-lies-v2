@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { audit, clientIpOf } from "@/lib/audit";
 import { verifyResult, verifyTicket } from "@/lib/battle/ticket";
 import { csrfGate } from "@/lib/csrf";
 import { progressMission } from "@/lib/daily-missions";
@@ -64,6 +65,12 @@ export async function POST(req: Request) {
   const ticketStr = typeof ticket === "string" ? ticket : "";
   const ticketCheck = verifyTicket(ticketStr, { userId, stageId });
   if (!ticketCheck.ok) {
+    await audit({
+      action: "battle.reject.ticket",
+      userId,
+      ip: clientIpOf(req),
+      meta: { stageId, reason: ticketCheck.error },
+    });
     return NextResponse.json(
       { error: `Battle ticket rejected: ${ticketCheck.error}` },
       { status: 403 },
@@ -88,6 +95,12 @@ export async function POST(req: Request) {
       sig,
     );
   if (!sigOk) {
+    await audit({
+      action: "battle.reject.signature",
+      userId,
+      ip: clientIpOf(req),
+      meta: { stageId, won: won === true, turnsElapsed },
+    });
     return NextResponse.json(
       { error: "Battle result signature rejected" },
       { status: 403 },
