@@ -930,10 +930,12 @@ function StatusPill({
   };
   return (
     <span
+      role="img"
       title={title}
+      aria-label={`${title}:${value}`}
       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border bg-black/30 backdrop-blur text-[10px] tabular-nums font-[family-name:var(--font-mono)] leading-none ${tones[tone]}`}
     >
-      <span className="text-[12px] leading-none">{icon}</span>
+      <span aria-hidden className="text-[12px] leading-none">{icon}</span>
       <span className="leading-none truncate max-w-[80px]">{value}</span>
     </span>
   );
@@ -1199,6 +1201,16 @@ function Reward({ label, value }: { label: string; value: number }) {
   );
 }
 
+const LOG_KIND_ICON: Record<string, string> = {
+  damage: "⚔",
+  heal: "✚",
+  buff: "⬆︎",
+  debuff: "⬇︎",
+  play: "◆",
+  draw: "⤵︎",
+  phase: "⸻",
+};
+
 function LogLine({ entry }: { entry: LogEntry }) {
   const color = useMemo(() => {
     if (entry.kind === "damage") return entry.side === "player" ? "text-success" : "text-danger";
@@ -1206,13 +1218,36 @@ function LogLine({ entry }: { entry: LogEntry }) {
     if (entry.kind === "buff") return "text-rarity-super";
     if (entry.kind === "debuff") return "text-warning";
     if (entry.kind === "phase") return "text-gold";
-    return "text-parchment/70";
+    if (entry.kind === "draw") return "text-parchment/50";
+    return "text-parchment/80";
   }, [entry]);
-  const prefix = entry.side === "enemy" ? "· " : "▸ ";
+
+  // Phase entries become visual dividers between turns.
+  if (entry.kind === "phase") {
+    return (
+      <div className="flex items-center gap-2 my-1 text-gold/80 tracking-widest text-[10px] font-[family-name:var(--font-cinzel)] uppercase">
+        <span className="flex-1 h-px bg-gold/20" aria-hidden />
+        <span>{entry.text}</span>
+        <span className="flex-1 h-px bg-gold/20" aria-hidden />
+      </div>
+    );
+  }
+
+  const icon = LOG_KIND_ICON[entry.kind] ?? "·";
   return (
-    <div className={cn("leading-tight", color)}>
-      {prefix}
-      {entry.text}
+    <div className={cn("leading-tight flex items-baseline gap-1.5", color)}>
+      <span
+        className={cn(
+          "text-[10px] leading-none shrink-0 w-3 text-center",
+          entry.side === "enemy" ? "opacity-75" : "",
+        )}
+        aria-hidden
+      >
+        {icon}
+      </span>
+      <span className={entry.side === "enemy" ? "opacity-85" : ""}>
+        {entry.text}
+      </span>
     </div>
   );
 }

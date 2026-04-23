@@ -3,9 +3,13 @@
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
-import { getStoredLocale, LOCALE_KEY, setStoredLocale, t, type Locale } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
 import { signOut } from "next-auth/react";
 import { FormEvent, useEffect, useState } from "react";
+
+// i18n is scaffolded for when translations are complete; for now everything
+// uses the zh locale and the language toggle is hidden from the UI.
+const LOCALE = "zh" as const;
 
 const VOLUME_KEY = "chronicles.volume";
 const MUTED_KEY = "chronicles.muted";
@@ -23,26 +27,19 @@ interface Props {
 
 export function SettingsClient({ user }: Props) {
   const { push } = useToast();
-  const [locale, setLocale] = useState<Locale>("zh");
+  const locale = LOCALE;
   const [volume, setVolume] = useState(70);
   const [muted, setMuted] = useState(false);
   const [bgmEnabled, setBgmEnabled] = useState(true);
   const [binding, setBinding] = useState(false);
 
   useEffect(() => {
-    setLocale(getStoredLocale());
     const v = Number(localStorage.getItem(VOLUME_KEY));
     if (!isNaN(v) && v >= 0 && v <= 100) setVolume(v);
     setMuted(localStorage.getItem(MUTED_KEY) === "1");
     const e = localStorage.getItem(BGM_ENABLED_KEY);
     setBgmEnabled(e === null ? true : e === "1");
   }, []);
-
-  const onLocaleChange = (l: Locale) => {
-    setLocale(l);
-    setStoredLocale(l);
-    document.documentElement.lang = l === "zh" ? "zh-Hant" : "en";
-  };
 
   const onVolumeChange = (v: number) => {
     setVolume(v);
@@ -64,13 +61,18 @@ export function SettingsClient({ user }: Props) {
 
   const onClearLocal = () => {
     if (!confirm(t("settings.clearConfirm", locale))) return;
-    const keys = [VOLUME_KEY, MUTED_KEY, BGM_ENABLED_KEY, LOCALE_KEY, "chronicles.deviceId"];
+    const keys = [
+      VOLUME_KEY,
+      MUTED_KEY,
+      BGM_ENABLED_KEY,
+      "chronicles.locale",
+      "chronicles.deviceId",
+    ];
     for (const k of keys) localStorage.removeItem(k);
     push("本機資料已清除", "success");
     setVolume(70);
     setMuted(false);
     setBgmEnabled(true);
-    setLocale("zh");
   };
 
   const onBind = async (e: FormEvent<HTMLFormElement>) => {
@@ -181,31 +183,6 @@ export function SettingsClient({ user }: Props) {
         </label>
         <p className="text-[11px] text-parchment/40 mt-3">
           進入時代會自動切換不同 BGM,首次互動後(點一下任意處)自動啟動。
-        </p>
-      </section>
-
-      {/* Language */}
-      <section className="rounded-xl border border-parchment/10 bg-veil/40 p-5">
-        <h2 className="text-xs text-parchment/50 tracking-widest mb-3 font-[family-name:var(--font-cinzel)]">
-          {t("settings.language", locale)}
-        </h2>
-        <div className="flex gap-2">
-          {(["zh", "en"] as const).map((l) => (
-            <button
-              key={l}
-              onClick={() => onLocaleChange(l)}
-              className={`flex-1 px-4 py-2.5 rounded-lg border text-sm transition-colors ${
-                locale === l
-                  ? "bg-gold/20 border-gold text-gold"
-                  : "border-parchment/20 text-parchment/60 hover:border-gold/40"
-              }`}
-            >
-              {l === "zh" ? "繁體中文" : "English"}
-            </button>
-          ))}
-        </div>
-        <p className="text-[11px] text-parchment/40 mt-3">
-          目前僅設定頁完整翻譯,其餘介面陸續補上。
         </p>
       </section>
 

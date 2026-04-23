@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { keywordTitle } from "@/lib/keyword-meta";
 import { motion, useMotionTemplate, useMotionValue, useSpring } from "framer-motion";
 import type { Rarity } from "@prisma/client";
 import { CardArt } from "./CardArt";
@@ -186,11 +187,20 @@ export function CardTile({
           {card.keywords.slice(0, 3).map((k) => (
             <span
               key={k}
-              className="text-[9px] tracking-widest px-1 py-0.5 rounded bg-black/60 text-parchment/90 backdrop-blur-sm"
+              title={keywordTitle(k)}
+              className="text-[9px] tracking-widest px-1 py-0.5 rounded bg-black/60 text-parchment/90 backdrop-blur-sm cursor-help"
             >
               {k}
             </span>
           ))}
+          {card.keywords.length > 3 && (
+            <span
+              title={card.keywords.slice(3).map(keywordTitle).join("\n")}
+              className="text-[9px] tracking-widest px-1 py-0.5 rounded bg-black/60 text-parchment/60 backdrop-blur-sm cursor-help"
+            >
+              +{card.keywords.length - 3}
+            </span>
+          )}
         </div>
       )}
 
