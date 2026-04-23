@@ -38,9 +38,13 @@ export async function POST(req: Request) {
   const userId = session.user.id;
 
   if (!won) {
+    // Consolation faith so losses aren't a total wash.
     await prisma.user.update({
       where: { id: userId },
-      data: { battlesLost: { increment: 1 } },
+      data: {
+        battlesLost: { increment: 1 },
+        faith: { increment: 8 },
+      },
     });
     return NextResponse.json({ ok: true, rewards: null, firstClear: false });
   }
@@ -53,6 +57,8 @@ export async function POST(req: Request) {
 
   const crystals = scale(stage.rewardCrystals, isFirstClear);
   const believers = scale(stage.rewardBelievers, isFirstClear);
+  // Faith: ~10% of believers reward, minimum 5.
+  const faithReward = Math.max(5, Math.floor(believers * 0.1));
 
   // Compute auto-spread increments for this stage's era based on played cards
   const spreadGained: number[] = [0, 0, 0, 0];
@@ -77,6 +83,7 @@ export async function POST(req: Request) {
       where: { id: userId },
       data: {
         crystals: { increment: crystals },
+        faith: { increment: faithReward },
         battlesWon: { increment: 1 },
         totalBelievers: { increment: believers },
       },
@@ -119,6 +126,7 @@ export async function POST(req: Request) {
     rewards: {
       crystals,
       believers,
+      faith: faithReward,
       exp: 0, // deprecated, kept for UI compatibility
       levelBefore: 0,
       levelAfter: 0,

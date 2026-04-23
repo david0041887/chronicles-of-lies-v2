@@ -92,15 +92,19 @@ export function rollOne(
  *
  * @param ssrBonus Additional SSR weight to add to the base table (in 1/1000 units).
  *                 Used for Weaver Lv.15 perk (+10 = +1% SSR).
+ * @param baseRates / tenPullRates — per-pool overrides. When absent, standard
+ *                                   pool rates are used.
  */
 export function pullRarities(
   count: number,
   startPity: RollState,
   ssrBonus = 0,
+  baseRates: { rarity: Rarity; weight: number }[] = BASE_RATES,
+  tenPullRates: { rarity: Rarity; weight: number }[] = TEN_PULL_RATES,
 ): { rarities: Rarity[]; finalPity: RollState } {
   const state: RollState = { ...startPity };
   const rarities: Rarity[] = [];
-  const baseTable = count === 10 ? TEN_PULL_RATES : BASE_RATES;
+  const baseTable = count === 10 ? tenPullRates : baseRates;
   const table = ssrBonus > 0
     ? baseTable.map((r) =>
         r.rarity === "SSR"

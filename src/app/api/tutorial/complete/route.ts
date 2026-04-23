@@ -35,6 +35,7 @@ export async function POST() {
     data: {
       tutorialDone: true,
       freePulls: { increment: freePulls },
+      faith: { increment: 300 },
       claimedMilestones: { push: "tutorial" },
     },
   });
@@ -44,6 +45,7 @@ export async function POST() {
     rewards: {
       starterCards: 30,
       freePulls,
+      faith: 300,
     },
   });
 }
