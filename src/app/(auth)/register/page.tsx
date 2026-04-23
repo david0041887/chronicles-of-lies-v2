@@ -212,11 +212,21 @@ export default function RegisterPage() {
             <input type="checkbox" required className="accent-gold mt-0.5" />
             <span>
               我已閱讀並同意{" "}
-              <Link href="/terms" target="_blank" className="text-gold hover:underline">
+              <Link
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gold hover:underline"
+              >
                 服務條款
               </Link>{" "}
               與{" "}
-              <Link href="/privacy" target="_blank" className="text-gold hover:underline">
+              <Link
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gold hover:underline"
+              >
                 隱私政策
               </Link>
             </span>

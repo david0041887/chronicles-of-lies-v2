@@ -14,7 +14,7 @@ const QUICK_ACTIONS = [
   {
     href: "/world",
     label: "進入世界",
-    desc: "10 個時代 30 關卡",
+    desc: "10 時代 · 40 主線 · 30 深淵",
     emoji: "🌍",
     tone: "#6B2E8A",
   },

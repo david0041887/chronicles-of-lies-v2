@@ -11,7 +11,9 @@ import crypto from "crypto";
  * TTL: 30 minutes from issuance.
  */
 
-const TTL_MS = 30 * 60 * 1000;
+// 2 hours gives plenty of slack for players who pause mid-battle or go
+// grab a drink — still short enough that leaked tickets aren't long-lived.
+const TTL_MS = 2 * 60 * 60 * 1000;
 
 function getSecret(): string {
   const s = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;

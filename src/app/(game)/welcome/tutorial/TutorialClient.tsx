@@ -73,7 +73,7 @@ export function TutorialClient(props: Props) {
     const tip = TUTORIAL_TIPS[introStep];
     const last = introStep === TUTORIAL_TIPS.length - 1;
     return (
-      <div className="fixed inset-0 z-40 flex items-center justify-center p-6 bg-veil/80 backdrop-blur-md">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-veil/80 backdrop-blur-md">
         <div className="max-w-md w-full rounded-2xl border border-gold/40 bg-gradient-to-b from-veil to-[#120820] p-7 text-center shadow-[0_24px_64px_rgba(0,0,0,0.6)]">
           <div className="text-6xl mb-3">{tip.icon}</div>
           <h2 className="display-serif text-2xl text-sacred mb-2">

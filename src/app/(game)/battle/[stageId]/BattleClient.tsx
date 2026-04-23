@@ -302,6 +302,11 @@ export function BattleClient({
         if (body?.ok) {
           if (body.rewards) setRewards(body.rewards);
           setFirstClear(!!body.firstClear);
+        } else {
+          // 4xx/5xx from the server — surface the reason so the player
+          // isn't silently cheated out of rewards (expired ticket, rate
+          // limit, sanity check rejection).
+          push(body?.error ?? "結算被拒絕", "danger");
         }
       } catch {
         push("結算失敗(無連線)", "danger");
@@ -387,7 +392,7 @@ export function BattleClient({
           : { x: [0, -6, 6, -4, 4, 0], y: [0, 2, -2, 1, 0] }
       }
       transition={{ duration: 0.32 }}
-      className="fixed inset-0 z-30 flex flex-col overflow-hidden"
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden"
       style={{
         background: `linear-gradient(180deg, ${bg.dark}, ${bg.main}22 50%, ${bg.dark})`,
       }}

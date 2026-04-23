@@ -77,7 +77,7 @@ export default async function WorldPage() {
         <WorldGrid tiles={tiles} />
 
         <div className="mt-12 text-center text-xs text-parchment/30 tracking-widest">
-          10 / 15 時代已開啟 · E10-E15 於後續 phase 加入
+          10 個時代 · 每代 4 主線關 + 3 Prime 深淵關
         </div>
       </main>
     </div>
