@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/ui/PageHeader";
 import { requireOnboarded } from "@/lib/auth-helpers";
+import { parseEraTickets } from "@/lib/era-tickets";
 import { PITY_SR, PITY_SSR, PITY_UR } from "@/lib/gacha";
 import { msUntilNextWeekRotation, POOLS } from "@/lib/gacha-pools";
 import { getFeaturedUr } from "./actions";
@@ -24,6 +25,7 @@ export default async function GachaPage() {
       <GachaClient
         initialCrystals={user.crystals}
         initialFaith={user.faith}
+        initialEraTickets={parseEraTickets(user.eraTickets)}
         initialFreePulls={user.freePulls}
         initialPitySR={user.pitySR}
         initialPitySSR={user.pitySSR}
@@ -36,14 +38,21 @@ export default async function GachaPage() {
       <section className="mt-10 rounded-xl border border-parchment/10 bg-veil/30 p-5 text-xs text-parchment/60">
         <h3 className="display-serif text-base text-sacred mb-3">四池與保底</h3>
         <ul className="space-y-1.5 leading-relaxed">
-          {(["standard", "featured", "era", "basic"] as const).map((id) => (
-            <li key={id}>
-              • <span className="text-parchment/80">{POOLS[id].emoji} {POOLS[id].name}</span> — {POOLS[id].rateHint}
-              <span className="text-parchment/40 ml-2">
-                ({POOLS[id].currency === "crystals" ? "💎" : "🕯️"} {POOLS[id].costSingle} / {POOLS[id].costTen})
-              </span>
-            </li>
-          ))}
+          {(["standard", "featured", "era", "basic"] as const).map((id) => {
+            const p = POOLS[id];
+            const currencyIcon =
+              p.currency === "crystals" ? "💎"
+              : p.currency === "faith" ? "🕯️"
+              : "🎟️";
+            return (
+              <li key={id}>
+                • <span className="text-parchment/80">{p.emoji} {p.name}</span> — {p.rateHint}
+                <span className="text-parchment/40 ml-2">
+                  ({currencyIcon} {p.costSingle} / {p.costTen})
+                </span>
+              </li>
+            );
+          })}
           <li className="pt-2 border-t border-parchment/10 mt-2">
             • 保底(四池共用計數):{PITY_SR} 連保 SR / {PITY_SSR} 連保 SSR / {PITY_UR} 連保 UR
           </li>

@@ -72,6 +72,11 @@ model User {
   // Daily missions — JSON: { date: "YYYY-MM-DD", slots: [{id, progress, target, claimed}, ...] }
   dailyMissions     Json     @default("{}")
 
+  // Era-specific gacha tickets — JSON: { [eraId]: count }
+  // Earned via BOSS first-clear (5) and repeat clear (1); spent on era pool
+  // instead of crystals.
+  eraTickets        Json     @default("{}")
+
   // Spread-lies cooldown (global across eras)
   lastSpreadAt      DateTime?
 

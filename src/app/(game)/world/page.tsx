@@ -27,14 +27,25 @@ export default async function WorldPage() {
     stageCounts.map((s) => [s.eraId, s._count._all]),
   );
 
-  const tiles = ERAS.map((era) => {
+  // Progressive unlock chain: era N+1 is locked until era N's BOSS is cleared.
+  // Admins bypass the gate so they can test any era directly.
+  const isAdmin = user.role === "ADMIN";
+  const tiles = ERAS.map((era, idx) => {
     const progress = progressByEra.get(era.id);
+    const prevEra = idx > 0 ? ERAS[idx - 1] : null;
+    const prevProgress = prevEra ? progressByEra.get(prevEra.id) : null;
+    const unlocked =
+      isAdmin ||
+      idx === 0 ||
+      !!prevProgress?.bossCleared;
     return {
       era,
       believers: progress?.believers ?? 0,
       highestStage: progress?.highestStage ?? 0,
       totalStages: stagesByEra.get(era.id) ?? 3,
       bossCleared: progress?.bossCleared ?? false,
+      unlocked,
+      prevEraName: prevEra?.name ?? null,
       dailyLegendName: perks.dailyLegendActive
         ? era.legends[dailyLegendIndex(era.id)]?.name
         : undefined,

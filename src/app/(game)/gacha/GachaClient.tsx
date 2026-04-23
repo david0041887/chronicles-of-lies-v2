@@ -24,6 +24,7 @@ interface FeaturedUr {
 interface Props {
   initialCrystals: number;
   initialFaith: number;
+  initialEraTickets: Record<string, number>;
   initialFreePulls: number;
   initialPitySR: number;
   initialPitySSR: number;
@@ -47,6 +48,7 @@ const TAB_ORDER: PoolId[] = ["standard", "featured", "era", "basic"];
 export function GachaClient({
   initialCrystals,
   initialFaith,
+  initialEraTickets,
   initialFreePulls,
   initialPitySR,
   initialPitySSR,
@@ -60,6 +62,7 @@ export function GachaClient({
   const [pending, startTransition] = useTransition();
   const [crystals, setCrystals] = useState(initialCrystals);
   const [faith, setFaith] = useState(initialFaith);
+  const [eraTickets, setEraTickets] = useState<Record<string, number>>(initialEraTickets);
   const [freePulls, setFreePulls] = useState(initialFreePulls);
   const [pitySR, setPitySR] = useState(initialPitySR);
   const [pitySSR, setPitySSR] = useState(initialPitySSR);
@@ -91,6 +94,7 @@ export function GachaClient({
       }
       setCrystals(res.data.crystalsLeft);
       setFaith(res.data.faithLeft);
+      setEraTickets(res.data.eraTicketsLeft);
       setFreePulls(res.data.freePullsLeft);
       setPitySR(res.data.pitySR);
       setPitySSR(res.data.pitySSR);
@@ -122,7 +126,12 @@ export function GachaClient({
     activePool === "standard" && freePulls >= 1 ? true : false;
   const canTenFreeStandard =
     activePool === "standard" && freePulls >= 10 ? true : false;
-  const balance = config.currency === "crystals" ? crystals : faith;
+  const balance =
+    config.currency === "crystals"
+      ? crystals
+      : config.currency === "faith"
+        ? faith
+        : eraTickets[eraChoice] ?? 0;
   const singleCost = canFreeStandard ? 0 : config.costSingle;
   const tenCost = canTenFreeStandard ? 0 : config.costTen;
   const singleDisabled =
@@ -134,8 +143,18 @@ export function GachaClient({
     showAnimation ||
     (!canTenFreeStandard && balance < config.costTen);
 
-  const currencyEmoji = config.currency === "crystals" ? "💎" : "🕯️";
-  const currencyLabel = config.currency === "crystals" ? "水晶" : "信念幣";
+  const currencyEmoji =
+    config.currency === "crystals"
+      ? "💎"
+      : config.currency === "faith"
+        ? "🕯️"
+        : "🎟️";
+  const currencyLabel =
+    config.currency === "crystals"
+      ? "水晶"
+      : config.currency === "faith"
+        ? "信念幣"
+        : "時代券";
 
   return (
     <>
@@ -150,10 +169,15 @@ export function GachaClient({
       />
 
       {/* Top resource row */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-6">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2 mb-6">
         <Stat label="🎁 免費抽" value={freePulls} tint={freePulls > 0 ? "text-gold" : "text-parchment/50"} />
         <Stat label="💎 水晶" value={crystals} tint="text-rarity-super" />
         <Stat label="🕯️ 信念幣" value={faith} tint="text-weavers" />
+        <Stat
+          label="🎟️ 時代券"
+          value={Object.values(eraTickets).reduce((s, n) => s + n, 0)}
+          tint="text-info"
+        />
         <Stat label="保底 SR" value={`${Math.max(0, PITY_SR - pitySR)}`} />
         <Stat label="保底 SSR" value={`${Math.max(0, PITY_SSR - pitySSR)}`} />
         <Stat label="保底 UR" value={`${Math.max(0, PITY_UR - pityUR)}`} />
@@ -239,11 +263,12 @@ export function GachaClient({
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
               {ERAS.map((era) => {
                 const active = eraChoice === era.id;
+                const tix = eraTickets[era.id] ?? 0;
                 return (
                   <button
                     key={era.id}
                     onClick={() => setEraChoice(era.id)}
-                    className={`p-2 rounded-lg border text-xs transition-all ${
+                    className={`relative p-2 rounded-lg border text-xs transition-all ${
                       active
                         ? "border-gold/70 bg-gold/10 text-gold"
                         : "border-parchment/10 bg-veil/20 text-parchment/70 hover:border-parchment/30"
@@ -254,6 +279,13 @@ export function GachaClient({
                   >
                     <div className="text-xl mb-0.5">{era.emoji}</div>
                     <div className="truncate">{era.name}</div>
+                    <div
+                      className={`text-[10px] mt-1 font-[family-name:var(--font-mono)] tabular-nums ${
+                        tix > 0 ? "text-info" : "text-parchment/30"
+                      }`}
+                    >
+                      🎟️ {tix}
+                    </div>
                   </button>
                 );
               })}
@@ -368,10 +400,17 @@ function ResultContent({
       >
         {result.map((c, i) => {
           const isRevealed = revealed[i];
+          const isJackpot = c.rarity === "SSR" || c.rarity === "UR";
+          const jackpotClass =
+            c.rarity === "UR"
+              ? "reveal-burst-ur"
+              : c.rarity === "SSR"
+                ? "reveal-burst-ssr"
+                : "";
           return (
             <motion.div
               key={`${c.id}-${i}`}
-              className="flex justify-center"
+              className="flex justify-center relative"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{
@@ -385,8 +424,42 @@ function ResultContent({
                   animate={{ rotateY: 0, scale: 1 }}
                   transition={{ duration: 0.45, ease: [0.22, 0.97, 0.32, 1.08] }}
                   style={{ transformStyle: "preserve-3d" }}
+                  className={`relative ${isJackpot ? jackpotClass : ""}`}
                 >
                   <CardTile card={c} size={isTenPull ? "sm" : "md"} tilt />
+                  {isJackpot && (
+                    <>
+                      {/* Sparkle burst — 6 particles per jackpot */}
+                      {Array.from({ length: 6 }).map((_, k) => (
+                        <span
+                          key={k}
+                          className="reveal-sparkle absolute pointer-events-none"
+                          style={{
+                            left: `${15 + k * 13}%`,
+                            top: `${8 + ((k * 29) % 70)}%`,
+                            animationDelay: `${k * 80}ms`,
+                            color: c.rarity === "UR" ? "#FFF8C4" : "#E0C4FF",
+                          }}
+                          aria-hidden
+                        >
+                          ✦
+                        </span>
+                      ))}
+                      {/* Rarity banner below card for extra drama */}
+                      <div
+                        className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest reveal-banner"
+                        style={{
+                          background:
+                            c.rarity === "UR"
+                              ? "linear-gradient(90deg, #D4A84B, #FFF0C4, #D4A84B)"
+                              : "linear-gradient(90deg, #B87FEB, #E0C4FF, #B87FEB)",
+                          color: "#120820",
+                        }}
+                      >
+                        ★ {c.rarity}
+                      </div>
+                    </>
+                  )}
                 </motion.div>
               ) : (
                 <button

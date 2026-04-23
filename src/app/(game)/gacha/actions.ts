@@ -2,6 +2,11 @@
 
 import { requireUser } from "@/lib/auth-helpers";
 import { progressMission } from "@/lib/daily-missions";
+import {
+  getEraTicketCount,
+  parseEraTickets,
+  spendEraTickets,
+} from "@/lib/era-tickets";
 import { pullRarities } from "@/lib/gacha";
 import {
   getPool,
@@ -22,12 +27,13 @@ export type PullResult = {
   crystalsLeft: number;
   faithLeft: number;
   freePullsLeft: number;
+  eraTicketsLeft: Record<string, number>;
   pitySR: number;
   pitySSR: number;
   pityUR: number;
   totalPulls: number;
   /** "free" = used free pulls, otherwise name of currency used */
-  paidWith: "free" | "crystal" | "faith";
+  paidWith: "free" | "crystal" | "faith" | "eraTicket";
   poolId: PoolId;
   featuredUrId: string | null;
 };
@@ -59,14 +65,25 @@ export async function pullGacha(args: {
 
   // Balance check
   if (!useFree) {
-    const balance =
-      config.currency === "crystals" ? user.crystals : user.faith;
-    if (balance < cost) {
-      const label = config.currency === "crystals" ? "水晶" : "信念幣";
-      return {
-        ok: false,
-        error: `${label}不足(需 ${cost},目前 ${balance})`,
-      };
+    if (config.currency === "eraTicket") {
+      const tickets = parseEraTickets(user.eraTickets);
+      const have = getEraTicketCount(tickets, args.eraId!);
+      if (have < cost) {
+        return {
+          ok: false,
+          error: `時代券不足(需 ${cost} 張,目前 ${have} 張)· 擊敗時代 BOSS 可取得`,
+        };
+      }
+    } else {
+      const balance =
+        config.currency === "crystals" ? user.crystals : user.faith;
+      if (balance < cost) {
+        const label = config.currency === "crystals" ? "水晶" : "信念幣";
+        return {
+          ok: false,
+          error: `${label}不足(需 ${cost},目前 ${balance})`,
+        };
+      }
     }
   }
 
@@ -129,23 +146,35 @@ export async function pullGacha(args: {
     return pool[crypto.randomInt(0, pool.length)];
   });
 
-  // Currency + pity update
+  // Era ticket path: debit atomically BEFORE drawing cards, so a race
+  // can't double-spend the last tickets.
+  if (!useFree && config.currency === "eraTicket") {
+    const ok = await spendEraTickets(user.id, args.eraId!, cost);
+    if (!ok) {
+      return { ok: false, error: "時代券不足 · 擊敗時代 BOSS 可取得" };
+    }
+  }
+
+  // Currency + pity update for non-ticket paths.
   const updateData: Record<string, unknown> = {
     pitySR: finalPity.pitySR,
     pitySSR: finalPity.pitySSR,
     pityUR: finalPity.pityUR,
     totalPulls: { increment: count },
   };
-  let paidWith: "free" | "crystal" | "faith";
+  let paidWith: "free" | "crystal" | "faith" | "eraTicket";
   if (useFree) {
     updateData.freePulls = { decrement: count };
     paidWith = "free";
   } else if (config.currency === "crystals") {
     updateData.crystals = { decrement: cost };
     paidWith = "crystal";
-  } else {
+  } else if (config.currency === "faith") {
     updateData.faith = { decrement: cost };
     paidWith = "faith";
+  } else {
+    // eraTicket: already debited above
+    paidWith = "eraTicket";
   }
 
   const [updatedUser] = await prisma.$transaction([
@@ -163,9 +192,11 @@ export async function pullGacha(args: {
   if (!useFree) {
     if (config.currency === "crystals") {
       await progressMission(user.id, "crystals_spent", cost);
-    } else {
+    } else if (config.currency === "faith") {
       await progressMission(user.id, "faith_spent", cost);
     }
+    // eraTicket spend doesn't count toward crystal/faith missions (they're
+    // earned via boss fights, not purchased).
   }
 
   revalidatePath("/gacha");
@@ -178,6 +209,7 @@ export async function pullGacha(args: {
       cards: drawn,
       crystalsLeft: updatedUser.crystals,
       faithLeft: updatedUser.faith,
+      eraTicketsLeft: parseEraTickets(updatedUser.eraTickets),
       freePullsLeft: updatedUser.freePulls,
       pitySR: updatedUser.pitySR,
       pitySSR: updatedUser.pitySSR,

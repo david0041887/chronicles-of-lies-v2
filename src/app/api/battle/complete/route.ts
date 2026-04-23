@@ -3,6 +3,12 @@ import { audit, clientIpOf } from "@/lib/audit";
 import { verifyResult, verifyTicket } from "@/lib/battle/ticket";
 import { csrfGate } from "@/lib/csrf";
 import { progressMission } from "@/lib/daily-missions";
+import {
+  grantEraTickets,
+  TICKETS_BOSS_FIRST_CLEAR,
+  TICKETS_BOSS_REPEAT,
+  TICKETS_PRIME_BOSS_CLEAR,
+} from "@/lib/era-tickets";
 import { cardLegendIndex } from "@/lib/legend-cards";
 import { prisma } from "@/lib/prisma";
 import { takeBurst } from "@/lib/rate-limit";
@@ -265,6 +271,19 @@ export async function POST(req: Request) {
       create: { userId, stageId },
     }),
   ]);
+
+  // Era tickets: BOSS wins grant gacha tickets for that era.
+  if (stage.isBoss) {
+    if (stage.mode === "prime") {
+      await grantEraTickets(userId, stage.eraId, TICKETS_PRIME_BOSS_CLEAR);
+    } else {
+      await grantEraTickets(
+        userId,
+        stage.eraId,
+        isFirstClear ? TICKETS_BOSS_FIRST_CLEAR : TICKETS_BOSS_REPEAT,
+      );
+    }
+  }
 
   // Mission progress — fire after transaction commits.
   await progressMission(userId, "battle_win", 1);

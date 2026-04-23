@@ -85,7 +85,7 @@ interface Props {
   ticket?: string;
 }
 
-const AUTO_LEAVE_MS = 4200;
+const AUTO_LEAVE_MS = 2000;
 const ZERO_PERKS: PlayerPerks = {
   startHandBonus: 0,
   startManaBonus: 0,
@@ -233,20 +233,35 @@ export function BattleClient({
     let cancelled = false;
     const runAsync = async () => {
       try {
-        await new Promise((r) => setTimeout(r, 650));
+        await new Promise((r) => setTimeout(r, 500));
         if (cancelled) return;
 
         if (isConfused(battle, "enemy")) {
-          consumeConfusion(battle, "enemy");
+          try {
+            consumeConfusion(battle, "enemy");
+          } catch (err) {
+            console.error("consumeConfusion threw", err);
+          }
+          tick();
+          await new Promise((r) => setTimeout(r, 350));
+        } else {
+          try {
+            runEnemyTurn(battle);
+          } catch (err) {
+            console.error("runEnemyTurn threw", err);
+          }
           tick();
           await new Promise((r) => setTimeout(r, 450));
-        } else {
-          runEnemyTurn(battle);
-          tick();
-          await new Promise((r) => setTimeout(r, 550));
         }
         if (cancelled) return;
 
+        // Always attempt to end the enemy turn. endEnemyTurn self-guards
+        // on phase !== "enemy_turn" so it's a no-op if the battle already
+        // ended (win/loss) during runEnemyTurn.
+        endEnemyTurn(battle);
+        tick();
+      } catch (err) {
+        console.error("enemy turn runAsync fatal", err);
         if (battle.phase === "enemy_turn") {
           endEnemyTurn(battle);
           tick();
@@ -258,16 +273,20 @@ export function BattleClient({
     };
     runAsync();
 
-    // Safety: if we somehow don't advance within 6 seconds, recover
+    // Watchdog: if we haven't left enemy_turn in 3 seconds, force it.
     const watchdog = setTimeout(() => {
       if (battle.phase === "enemy_turn") {
         console.warn("Battle: enemy turn watchdog triggered, forcing end turn");
-        endEnemyTurn(battle);
+        try {
+          endEnemyTurn(battle);
+        } catch (err) {
+          console.error("watchdog endEnemyTurn threw", err);
+        }
         tick();
         enemyRunningRef.current = false;
         setEnemyThinking(false);
       }
-    }, 6000);
+    }, 3000);
 
     return () => {
       cancelled = true;

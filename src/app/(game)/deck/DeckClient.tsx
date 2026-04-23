@@ -201,6 +201,19 @@ export function DeckClient({ ownedCards, initialDeck }: Props) {
         />
       )}
 
+      {/* Current deck composition — visible list of what's in the deck */}
+      {total > 0 && (
+        <CurrentDeckPanel
+          counts={counts}
+          ownedCards={ownedCards}
+          onRemove={(id) => sub(id)}
+          onPreview={(id) => {
+            const c = ownedCards.find((x) => x.id === id);
+            if (c) setPreview(c);
+          }}
+        />
+      )}
+
       {/* Action buttons */}
       <div className="flex flex-wrap gap-2 mb-4">
         <Button variant="primary" size="sm" onClick={onSave} disabled={pending || !dirty}>
@@ -306,6 +319,91 @@ export function DeckClient({ ownedCards, initialDeck }: Props) {
         onClose={() => setPreview(null)}
       />
     </>
+  );
+}
+
+/** List of cards currently in the deck, grouped by cardId with count badge. */
+function CurrentDeckPanel({
+  counts,
+  ownedCards,
+  onRemove,
+  onPreview,
+}: {
+  counts: Record<string, number>;
+  ownedCards: Card[];
+  onRemove: (id: string) => void;
+  onPreview: (id: string) => void;
+}) {
+  const byId = useMemo(
+    () => new Map(ownedCards.map((c) => [c.id, c])),
+    [ownedCards],
+  );
+  const entries = useMemo(() => {
+    const rank = { R: 0, SR: 1, SSR: 2, UR: 3 } as const;
+    return Object.entries(counts)
+      .map(([id, n]) => ({ card: byId.get(id), count: n }))
+      .filter((e): e is { card: Card; count: number } => !!e.card)
+      .sort((a, b) => {
+        const r = rank[b.card.rarity] - rank[a.card.rarity];
+        if (r !== 0) return r;
+        return a.card.cost - b.card.cost;
+      });
+  }, [counts, byId]);
+
+  const RARITY_TINT: Record<Rarity, string> = {
+    R: "border-rarity-rare/50 text-rarity-rare",
+    SR: "border-rarity-super/60 text-rarity-super",
+    SSR: "border-rarity-legend/60 text-rarity-legend",
+    UR: "border-gold/70 text-gold",
+  };
+
+  return (
+    <div className="mb-4 p-4 rounded-xl border border-parchment/10 bg-veil/30">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[10px] text-parchment/50 tracking-[0.25em] uppercase font-[family-name:var(--font-cinzel)]">
+          Current Deck · 牌組內容
+        </div>
+        <div className="text-xs text-parchment/60">
+          {entries.length} 種 · 共 {entries.reduce((s, e) => s + e.count, 0)} 張
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {entries.map(({ card, count }) => (
+          <button
+            key={card.id}
+            onClick={() => onPreview(card.id)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              onRemove(card.id);
+            }}
+            className={cn(
+              "inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border bg-veil/50 hover:bg-veil/70 transition-colors",
+              RARITY_TINT[card.rarity],
+            )}
+            title={`左鍵預覽,右鍵 −1  (${card.rarity} · 費 ${card.cost} · 威 ${card.power})`}
+          >
+            <span className="text-[9px] opacity-60">{card.rarity}</span>
+            <span className="text-parchment max-w-[8rem] truncate">
+              {card.name}
+            </span>
+            <span className="font-[family-name:var(--font-mono)] text-[10px] bg-black/40 rounded px-1 text-parchment tabular-nums">
+              ×{count}
+            </span>
+            <span
+              role="button"
+              aria-label="移除一張"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(card.id);
+              }}
+              className="text-[10px] text-parchment/50 hover:text-blood cursor-pointer px-0.5"
+            >
+              ×
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

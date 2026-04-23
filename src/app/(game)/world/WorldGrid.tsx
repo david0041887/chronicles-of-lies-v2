@@ -10,6 +10,8 @@ interface Tile {
   highestStage: number;
   totalStages: number;
   bossCleared: boolean;
+  unlocked: boolean;
+  prevEraName: string | null;
   dailyLegendName?: string;
 }
 
@@ -47,10 +49,27 @@ export function WorldGrid({ tiles }: { tiles: Tile[] }) {
 }
 
 function TimelineRow({ tile, index }: { tile: Tile; index: number }) {
-  const { era, believers, highestStage, totalStages, bossCleared, dailyLegendName } = tile;
+  const { era, believers, highestStage, totalStages, bossCleared, unlocked, prevEraName, dailyLegendName } = tile;
   const isLeft = index % 2 === 0;
   const started = highestStage > 0 || bossCleared;
   const cleared = bossCleared;
+
+  // Wrap — either <Link> when unlocked or a plain <div> when locked.
+  const CardWrapper = unlocked
+    ? ({ children, style, className }: { children: React.ReactNode; style?: React.CSSProperties; className?: string }) => (
+        <Link href={`/era/${era.id}`} className={className} style={style}>
+          {children}
+        </Link>
+      )
+    : ({ children, style, className }: { children: React.ReactNode; style?: React.CSSProperties; className?: string }) => (
+        <div
+          className={className}
+          style={style}
+          title={prevEraName ? `擊敗「${prevEraName}」的 BOSS 以解鎖` : "需要先解鎖前一時代"}
+        >
+          {children}
+        </div>
+      );
 
   return (
     <motion.div
@@ -67,20 +86,30 @@ function TimelineRow({ tile, index }: { tile: Tile; index: number }) {
         era={era}
         started={started}
         cleared={cleared}
+        locked={!unlocked}
         dailyActive={!!dailyLegendName}
       />
 
       {/* Era card body (offset left or right on desktop, below on mobile) */}
       <div className={`pl-20 md:pl-0 ${isLeft ? "md:order-1 md:pr-10 md:text-right" : "md:order-2 md:pl-10"}`}>
-        <Link
-          href={`/era/${era.id}`}
-          className="group block p-5 rounded-2xl border transition-all relative overflow-hidden"
+        <CardWrapper
+          className={`group block p-5 rounded-2xl border relative overflow-hidden ${
+            unlocked ? "transition-all cursor-pointer" : "cursor-not-allowed"
+          }`}
           style={{
-            borderColor: started ? `${era.palette.main}88` : "rgba(244,230,193,0.12)",
-            background: `linear-gradient(${isLeft ? "-45deg" : "45deg"}, ${era.palette.dark}cc, ${era.palette.main}22)`,
-            boxShadow: cleared
-              ? `0 0 24px ${era.palette.main}33`
-              : undefined,
+            borderColor: !unlocked
+              ? "rgba(244,230,193,0.08)"
+              : started
+                ? `${era.palette.main}88`
+                : "rgba(244,230,193,0.12)",
+            background: !unlocked
+              ? "rgba(10,6,18,0.6)"
+              : `linear-gradient(${isLeft ? "-45deg" : "45deg"}, ${era.palette.dark}cc, ${era.palette.main}22)`,
+            boxShadow:
+              cleared && unlocked
+                ? `0 0 24px ${era.palette.main}33`
+                : undefined,
+            opacity: unlocked ? 1 : 0.45,
           }}
         >
           {/* Faint emoji watermark */}
@@ -109,7 +138,12 @@ function TimelineRow({ tile, index }: { tile: Tile; index: number }) {
                     CLEARED
                   </span>
                 )}
-                {dailyLegendName && (
+                {!unlocked && (
+                  <span className="text-[9px] tracking-widest px-1.5 py-0.5 rounded bg-parchment/10 text-parchment/60 border border-parchment/30">
+                    🔒 LOCKED
+                  </span>
+                )}
+                {dailyLegendName && unlocked && (
                   <span className="text-[9px] tracking-widest px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-300 border border-amber-400/40">
                     ✨ 今日
                   </span>
@@ -125,7 +159,11 @@ function TimelineRow({ tile, index }: { tile: Tile; index: number }) {
                 {era.en} · {era.theme}
               </p>
               <p className="text-xs text-parchment/70 italic mt-2 font-[family-name:var(--font-noto-serif)] leading-relaxed">
-                「{era.hero}」
+                {unlocked
+                  ? `「${era.hero}」`
+                  : prevEraName
+                    ? `🔒 擊敗「${prevEraName}」的 BOSS 以解鎖`
+                    : "🔒 尚未解鎖"}
               </p>
 
               <ProgressPips
@@ -150,7 +188,7 @@ function TimelineRow({ tile, index }: { tile: Tile; index: number }) {
               </div>
             </div>
           </div>
-        </Link>
+        </CardWrapper>
       </div>
     </motion.div>
   );
@@ -160,14 +198,20 @@ function EraMedallion({
   era,
   started,
   cleared,
+  locked,
   dailyActive,
 }: {
   era: Era;
   started: boolean;
   cleared: boolean;
+  locked: boolean;
   dailyActive: boolean;
 }) {
-  const color = started ? era.palette.main : "rgba(244,230,193,0.35)";
+  const color = locked
+    ? "rgba(244,230,193,0.2)"
+    : started
+      ? era.palette.main
+      : "rgba(244,230,193,0.35)";
   const accent = era.palette.accent;
   return (
     <div className="absolute top-3 left-6 md:left-1/2 md:-translate-x-1/2 z-10" aria-hidden>
@@ -198,8 +242,16 @@ function EraMedallion({
           background: `radial-gradient(circle at center, ${era.palette.dark}, ${era.palette.dark}f5)`,
         }}
       >
-        <span style={{ filter: started ? "none" : "grayscale(0.6) opacity(0.6)" }}>
-          {era.emoji}
+        <span
+          style={{
+            filter: locked
+              ? "grayscale(1) opacity(0.35)"
+              : started
+                ? "none"
+                : "grayscale(0.6) opacity(0.6)",
+          }}
+        >
+          {locked ? "🔒" : era.emoji}
         </span>
       </motion.div>
       {cleared && (

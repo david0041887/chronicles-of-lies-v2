@@ -1,7 +1,7 @@
 import { CornerFlourish, OrnamentDivider } from "@/components/fx/OrnamentDivider";
 import { VeilBackdrop } from "@/components/fx/VeilBackdrop";
 import { requireOnboarded } from "@/lib/auth-helpers";
-import { getEra, type EraId } from "@/lib/constants/eras";
+import { ERAS, getEra, type EraId } from "@/lib/constants/eras";
 import { dailyLegendIndex, msUntilNextRotation } from "@/lib/daily-legend";
 import { cardsForLegend } from "@/lib/legend-cards";
 import { prisma } from "@/lib/prisma";
@@ -25,6 +25,24 @@ export default async function EraPage({ params }: Props) {
   if (!era) notFound();
 
   const user = await requireOnboarded();
+
+  // Progressive unlock gate — admin bypass, era 1 always open, others need
+  // previous era's BOSS cleared. If not yet unlocked, redirect to /world so
+  // the user can't url-hack past the chain.
+  if (user.role !== "ADMIN") {
+    const idx = ERAS.findIndex((e) => e.id === era.id);
+    const prev = idx > 0 ? ERAS[idx - 1] : null;
+    if (prev) {
+      const prevCleared = user.eraProgress.find(
+        (p) => p.eraId === prev.id,
+      )?.bossCleared;
+      if (!prevCleared) {
+        const { redirect } = await import("next/navigation");
+        redirect(`/world?locked=${era.id}`);
+      }
+    }
+  }
+
   const progress = user.eraProgress.find((p) => p.eraId === era.id);
   const believers = progress?.believers ?? 0;
   const highestStage = progress?.highestStage ?? 0;

@@ -20,7 +20,7 @@ export interface PoolConfig {
   name: string;
   emoji: string;
   subtitle: string;
-  currency: "faith" | "crystals";
+  currency: "faith" | "crystals" | "eraTicket";
   costSingle: number;
   costTen: number;
   baseRates: { rarity: Rarity; weight: number }[];
@@ -103,14 +103,14 @@ export const POOLS: Record<PoolId, PoolConfig> = {
   era: {
     id: "era",
     name: "時代專召",
-    emoji: "🌀",
-    subtitle: "鎖定單一時代的所有卡牌。水晶費用略高。",
-    currency: "crystals",
-    costSingle: 200,
-    costTen: 1800,
+    emoji: "🎟️",
+    subtitle: "鎖定單一時代的卡,以時代券召喚。擊敗 BOSS 取得。",
+    currency: "eraTicket",
+    costSingle: 1,
+    costTen: 9,
     baseRates: STD_BASE,
     tenPullRates: STD_TEN,
-    rateHint: "機率同標準池 · 所有抽到的卡必為所選時代",
+    rateHint: "機率同標準池 · 所有抽到的卡必為所選時代 · 十連 9 券 (10% 折)",
   },
 };
 
