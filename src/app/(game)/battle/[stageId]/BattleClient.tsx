@@ -813,25 +813,16 @@ function EnemyArea({
   return (
     <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
       {intent && <EnemyIntentBadge intent={intent} />}
-      <motion.div
-        className="relative w-20 h-20 rounded-full border-2 flex items-center justify-center text-5xl shrink-0"
-        style={{ borderColor: palette.main, background: `${palette.main}22` }}
-        animate={
-          thinking
-            ? {
-                boxShadow: [
-                  `0 0 0px ${palette.main}00`,
-                  `0 0 24px ${palette.main}cc`,
-                  `0 0 0px ${palette.main}00`,
-                ],
-                scale: [1, 1.04, 1],
-              }
-            : { boxShadow: `0 0 0px ${palette.main}00`, scale: 1 }
-        }
-        transition={{
-          duration: 1.2,
-          repeat: thinking ? Infinity : 0,
-          ease: "easeInOut",
+      <div
+        className={cn(
+          "relative w-20 h-20 rounded-full border-2 flex items-center justify-center text-5xl shrink-0",
+          thinking && "enemy-pulse",
+        )}
+        style={{
+          borderColor: palette.main,
+          background: `${palette.main}22`,
+          // CSS var so keyframes can use the palette colour for drop-shadow.
+          ["--pulse-color" as string]: palette.main,
         }}
       >
         <span>{emoji}</span>
@@ -848,7 +839,7 @@ function EnemyArea({
             …
           </span>
         )}
-      </motion.div>
+      </div>
       <div className="flex-1 min-w-0">
         <div className="display-serif text-parchment text-lg truncate">
           {enemy.name}

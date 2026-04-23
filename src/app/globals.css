@@ -174,3 +174,46 @@ body {
   background-size: 100% 100%, 200% 100%;
   animation: ur-border-shift 4s linear infinite;
 }
+
+/* ============================================================
+   Enemy medallion "thinking" pulse — uses filter drop-shadow +
+   transform instead of box-shadow so the animation stays on
+   the compositor thread (no per-frame repaint).
+   ============================================================ */
+@keyframes enemy-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  50% {
+    transform: scale(1.04);
+    filter: drop-shadow(0 0 14px var(--pulse-color, rgba(212, 168, 75, 0.85)));
+  }
+}
+.enemy-pulse {
+  animation: enemy-pulse 1.2s ease-in-out infinite;
+  will-change: transform, filter;
+}
+
+/* ============================================================
+   Reduced motion — respect the OS/browser preference.
+   Disables infinite backdrop loops (era drift, veil shimmer,
+   title sheen, enemy pulse, era card glow). Event-driven
+   animations (card impact flashes, HP bar springs, modal
+   fades) are left alone because they're short one-shots.
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .veil-shimmer,
+  .title-sheen,
+  .era-mote,
+  .era-card-glow,
+  .enemy-pulse,
+  .veil-blob-a,
+  .veil-blob-b {
+    animation: none !important;
+  }
+  .era-drift-layer > span {
+    animation: none !important;
+    opacity: 0.2 !important;
+  }
+}

@@ -8,9 +8,11 @@
  *   - a sky/sun/moon layer
  *   - a silhouette scene (pyramid, cathedral, torii, mountains…)
  *   - a drift layer (petals, runes, glitch bars, embers…)
+ *
+ * The drift layer uses pure CSS animations (compositor-friendly transforms)
+ * with staggered delays so dozens of elements can loop without framer-motion
+ * per-frame overhead. Respects `prefers-reduced-motion`.
  */
-
-import { motion } from "framer-motion";
 
 interface Props {
   eraId: string;
@@ -350,17 +352,19 @@ function DriftLayer({
   palette: { main: string; accent: string; dark: string };
 }) {
   const config = DRIFT_CONFIG[eraId] ?? DRIFT_CONFIG.default;
+  const animName = config.rotate ? "era-drift-spin" : "era-drift";
 
   return (
-    <div className="absolute inset-0 overflow-hidden">
+    <div className="absolute inset-0 overflow-hidden era-drift-layer">
       {Array.from({ length: config.count }).map((_, i) => {
+        // Pseudo-random but stable per index so SSR/CSR agree.
         const left = (i * 97) % 100;
-        const delay = (i * 0.73) % 6;
+        const delay = -((i * 0.73) % config.duration);
         const duration = config.duration + ((i * 0.5) % 4);
         return (
-          <motion.span
+          <span
             key={i}
-            className="absolute"
+            className="absolute will-change-transform"
             style={{
               left: `${left}%`,
               bottom: "-5%",
@@ -368,24 +372,35 @@ function DriftLayer({
               color: config.accent ? palette.accent : palette.main,
               textShadow: `0 0 6px ${palette.main}88`,
               opacity: 0,
-            }}
-            initial={{ y: 0, opacity: 0 }}
-            animate={{
-              y: ["0%", "-110vh"],
-              opacity: [0, 0.55, 0.55, 0],
-              rotate: config.rotate ? [0, 360] : [0, 0],
-            }}
-            transition={{
-              duration,
-              delay,
-              repeat: Infinity,
-              ease: "linear",
+              animation: `${animName} ${duration}s linear ${delay}s infinite`,
             }}
           >
             {config.glyphs[i % config.glyphs.length]}
-          </motion.span>
+          </span>
         );
       })}
+
+      <style>{`
+        @keyframes era-drift {
+          0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+          8%   { opacity: 0.55; }
+          92%  { opacity: 0.55; }
+          100% { transform: translate3d(0, -110vh, 0); opacity: 0; }
+        }
+        @keyframes era-drift-spin {
+          0%   { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 0; }
+          8%   { opacity: 0.55; }
+          92%  { opacity: 0.55; }
+          100% { transform: translate3d(0, -110vh, 0) rotate(360deg); opacity: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .era-drift-layer > span {
+            animation: none !important;
+            opacity: 0.25 !important;
+            transform: translate3d(0, -55vh, 0);
+          }
+        }
+      `}</style>
     </div>
   );
 }
