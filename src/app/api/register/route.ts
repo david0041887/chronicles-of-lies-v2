@@ -1,11 +1,20 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { csrfGate } from "@/lib/csrf";
 import { prisma } from "@/lib/prisma";
 import { takeBurst } from "@/lib/rate-limit";
 
 const USERNAME_RE = /^[A-Za-z0-9_\u4e00-\u9fa5]{2,16}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PW_MIN = 8;
+
+// Strip zero-width, RTL-override, and similar invisible / bidi-trick
+// characters before username pattern validation. Prevents spoofing users
+// with visually-identical names in the admin table / leaderboards.
+const INVISIBLE_RE = /[\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/g;
+function sanitizeUsername(raw: string): string {
+  return raw.normalize("NFKC").replace(INVISIBLE_RE, "").trim();
+}
 
 function clientIp(req: Request): string {
   const forwarded = req.headers.get("x-forwarded-for");
@@ -18,6 +27,9 @@ function clientIp(req: Request): string {
 }
 
 export async function POST(req: Request) {
+  const csrf = csrfGate(req);
+  if (csrf) return csrf;
+
   // Per-IP rate limit: max 5 registrations / hour to slow mass sign-ups.
   const ip = clientIp(req);
   if (!takeBurst(`register:${ip}`, 60 * 60 * 1000, 5)) {
@@ -34,9 +46,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { username, email, password } = (body as Record<string, unknown>) ?? {};
+  const { username: rawUsername, email, password } = (body as Record<string, unknown>) ?? {};
 
-  if (typeof username !== "string" || !USERNAME_RE.test(username)) {
+  if (typeof rawUsername !== "string") {
+    return NextResponse.json(
+      { error: "使用者名稱需 2-16 字(中/英/數字/底線)" },
+      { status: 400 },
+    );
+  }
+  const username = sanitizeUsername(rawUsername);
+  if (!USERNAME_RE.test(username)) {
     return NextResponse.json(
       { error: "使用者名稱需 2-16 字(中/英/數字/底線)" },
       { status: 400 },
@@ -78,8 +97,10 @@ export async function POST(req: Request) {
     },
   });
   if (existing) {
+    // Enumeration-resistant: don't disclose WHICH field is taken — returning
+    // specific errors lets attackers probe whether an email/username exists.
     return NextResponse.json(
-      { error: existing.email === normalizedEmail ? "Email 已被使用" : "使用者名稱已被使用" },
+      { error: "使用者名稱或 Email 已被使用" },
       { status: 409 },
     );
   }

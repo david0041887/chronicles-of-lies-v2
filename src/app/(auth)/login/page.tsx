@@ -20,10 +20,20 @@ function getOrCreateDeviceId(): string {
   return id;
 }
 
+/** Allow only same-origin relative paths as post-login destinations. */
+function safeFrom(raw: string | null): string {
+  if (!raw) return "/home";
+  // Must start with "/" and NOT "//" (protocol-relative URL bypass).
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/home";
+  // Block fragments pointing off-origin (rare but cheap to guard).
+  if (raw.includes("://") || raw.startsWith("/\\")) return "/home";
+  return raw;
+}
+
 function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
-  const from = params.get("from") ?? "/home";
+  const from = safeFrom(params.get("from"));
   const { push } = useToast();
   const [loading, setLoading] = useState(false);
   const [guestLoading, setGuestLoading] = useState(false);

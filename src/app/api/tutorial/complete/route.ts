@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { csrfGate } from "@/lib/csrf";
 import { prisma } from "@/lib/prisma";
 import { takeBurst } from "@/lib/rate-limit";
 import { grantStarterDeck } from "@/lib/starter";
@@ -14,7 +15,10 @@ import { NextResponse } from "next/server";
  *  - 10 free pulls (the "tutorial" milestone)
  *  - Sets tutorialDone = true and claims the "tutorial" milestone
  */
-export async function POST() {
+export async function POST(req: Request) {
+  const csrf = csrfGate(req);
+  if (csrf) return csrf;
+
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });

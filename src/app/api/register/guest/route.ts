@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { csrfGate } from "@/lib/csrf";
 import { prisma } from "@/lib/prisma";
 import { takeBurst } from "@/lib/rate-limit";
 
@@ -24,6 +25,9 @@ function clientIp(req: Request): string {
  * is returned on subsequent calls from the same browser.
  */
 export async function POST(req: Request) {
+  const csrf = csrfGate(req);
+  if (csrf) return csrf;
+
   // Per-IP rate limit: 10 new guest accounts / hour (existing-device
   // lookups still pass through — we allow an unbounded return-visit rate).
   const ip = clientIp(req);

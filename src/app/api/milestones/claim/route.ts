@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { csrfGate } from "@/lib/csrf";
 import { getMilestoneDef } from "@/lib/milestones";
 import { prisma } from "@/lib/prisma";
 import { takeBurst } from "@/lib/rate-limit";
@@ -6,6 +7,9 @@ import { weaverLevel } from "@/lib/weaver";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
+  const csrf = csrfGate(req);
+  if (csrf) return csrf;
+
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });

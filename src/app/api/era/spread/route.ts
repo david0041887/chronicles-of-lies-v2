@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { csrfGate } from "@/lib/csrf";
 import { prisma } from "@/lib/prisma";
 import { takeBurst } from "@/lib/rate-limit";
 import {
@@ -13,6 +14,9 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 
 export async function POST(req: Request) {
+  const csrf = csrfGate(req);
+  if (csrf) return csrf;
+
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });

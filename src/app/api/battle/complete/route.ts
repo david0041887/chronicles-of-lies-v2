@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { verifyTicket } from "@/lib/battle/ticket";
+import { csrfGate } from "@/lib/csrf";
 import { progressMission } from "@/lib/daily-missions";
 import { cardLegendIndex } from "@/lib/legend-cards";
 import { prisma } from "@/lib/prisma";
@@ -19,6 +20,9 @@ const MAX_TURNS = 40;
 const MAX_PLAYS_PER_TURN = 6;
 
 export async function POST(req: Request) {
+  const csrf = csrfGate(req);
+  if (csrf) return csrf;
+
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
