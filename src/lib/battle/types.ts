@@ -30,7 +30,7 @@ export interface SideState {
   discard: BattleCard[];
   shield: number;             // block next N damage
   buffNextCard: number;       // multiplies next played card's power
-  curseStacks: number;        // damage per turn
+  curseStacks: number;        // damage per turn; decays 1/turn
   confusedTurns: number;      // >0 = skip turn(s)
   /** BOSS/Prime enrage HP threshold (0..1). Optional — only present on
    *  bosses. When HP first drops below this fraction, enrage fires. */
@@ -39,6 +39,23 @@ export interface SideState {
   enraged?: boolean;
   /** Permanent power bonus on every outgoing card (stacks with buffNextCard). */
   damageBonus?: number;
+
+  // ── NEW status effects (applied by keyword-bearing cards) ──
+
+  /** Poison stacks — deal 1 DoT per stack per turn; does NOT decay. */
+  poison: number;
+  /** Turns remaining with +50% incoming damage. */
+  vulnerableTurns: number;
+  /** Turns remaining with −25% outgoing damage. */
+  weakTurns: number;
+  /** Permanent additive power bonus on every played card. */
+  strength: number;
+  /** A card queued by echo keyword to replay at 50% power next turn. */
+  echoPending?: BattleCard | null;
+  /** Incoming-attack reflection counter (from charm keyword). */
+  charmStacks: number;
+  /** Reset each turn — counts player's plays, used by combo keyword. */
+  combosThisTurn: number;
 }
 
 export type BattlePhase = "starting" | "player_turn" | "enemy_turn" | "won" | "lost";

@@ -45,16 +45,23 @@ const TYPE_LABEL: Record<string, { label: string; emoji: string; desc: string }>
 };
 
 const KEYWORD_DESC: Record<string, string> = {
-  whisper: "低語 — 出牌時查看對手 1 張手牌",
-  ritual: "儀式 — 需蓄力 N 回合才能發動",
-  charm: "魅惑 — 敵人下張攻擊牌變自傷",
-  curse: "詛咒 — 每回合造成持續傷害",
-  resonance: "共鳴 — 同時代卡同場效果 +50%",
-  sacrifice: "獻祭 — 棄 1 張手牌強化此牌",
-  echo: "回響 — 下回合自動重複 50% 效果",
+  whisper: "低語 — 出牌時偷看對手 1 張手牌",
+  ritual: "儀式 — 高投入回合強力發動",
+  charm: "魅惑 — 敵人下張攻擊/儀式有 50% 反傷自己",
+  curse: "詛咒 — 2-3 疊,每回合遞減 1 點傷害",
+  resonance: "共鳴 — 同時代牌同場效果提升",
+  sacrifice: "獻祭 — 棄 1 張手牌 → 本牌 +3 威力",
+  echo: "回響 — 下回合自動以 50% 威力重現",
   pierce: "穿透 — 無視敵方護盾",
-  shield: "護盾 — 吸收下次傷害",
-  haste: "迅捷 — 出牌後立即抽 1 張",
+  shield: "護盾 — 獲得一次性傷害吸收",
+  haste: "迅捷 — 出牌後立即再抽 1 張",
+  // ── New effect keywords ──
+  lifesteal: "吸血 — 本次傷害回復等量信徒(上限 6)",
+  poison: "中毒 — 敵人每回合 −N 信徒,不衰減",
+  vulnerable: "破綻 — 敵人 2 回合內受到 +50% 傷害",
+  weaken: "虛弱 — 敵人 2 回合內輸出 −25%",
+  strength: "力量 — 永久為每張後續牌 +1 威力",
+  combo: "連擊 — 本回合第 3 張起 +50% 威力",
 };
 
 export function CardDetailModal({ card, ownedCount, onClose }: Props) {

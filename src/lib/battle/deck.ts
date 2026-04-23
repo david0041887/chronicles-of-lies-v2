@@ -3,6 +3,7 @@ import { effectivePower } from "@/lib/forge";
 import { dailyLegendIndex } from "@/lib/daily-legend";
 import { cardLegendIndex } from "@/lib/legend-cards";
 import type { Rarity } from "@prisma/client";
+import { enrichCardKeywords } from "./keyword-enrichment";
 import type { BattleCard } from "./types";
 
 const RANK: Record<string, number> = { R: 0, SR: 1, SSR: 2, UR: 3 };
@@ -68,7 +69,7 @@ export async function buildPlayerDeck(userId: string): Promise<BattleCard[]> {
     // Use highest-star copy for effective stats
     const best = [...instances].sort((a, b) => b.stars - a.stars)[0];
     const c = best.card;
-    return {
+    const raw: BattleCard = {
       id: c.id,
       uid,
       name: c.name,
@@ -83,6 +84,7 @@ export async function buildPlayerDeck(userId: string): Promise<BattleCard[]> {
       hasImage: c.image !== null,
       imageUrl: c.imageUrl,
     };
+    return enrichCardKeywords(raw);
   };
 
   // Prefer active deck
@@ -142,21 +144,23 @@ export async function buildStageDeck(cardIds: string[]): Promise<BattleCard[]> {
   cardIds.forEach((id, i) => {
     const c = byId.get(id);
     if (!c) return;
-    deck.push({
-      id: c.id,
-      uid: `enemy-${i}`,
-      name: c.name,
-      nameEn: c.nameEn,
-      eraId: c.eraId,
-      rarity: c.rarity,
-      type: c.type,
-      cost: c.cost,
-      power: c.power,
-      keywords: c.keywords,
-      flavor: c.flavor,
-      hasImage: c.image !== null,
-      imageUrl: c.imageUrl,
-    });
+    deck.push(
+      enrichCardKeywords({
+        id: c.id,
+        uid: `enemy-${i}`,
+        name: c.name,
+        nameEn: c.nameEn,
+        eraId: c.eraId,
+        rarity: c.rarity,
+        type: c.type,
+        cost: c.cost,
+        power: c.power,
+        keywords: c.keywords,
+        flavor: c.flavor,
+        hasImage: c.image !== null,
+        imageUrl: c.imageUrl,
+      }),
+    );
   });
   return deck;
 }

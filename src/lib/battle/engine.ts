@@ -39,6 +39,13 @@ function makeSide(
     buffNextCard: 1,
     curseStacks: 0,
     confusedTurns: 0,
+    poison: 0,
+    vulnerableTurns: 0,
+    weakTurns: 0,
+    strength: 0,
+    echoPending: null,
+    charmStacks: 0,
+    combosThisTurn: 0,
   };
 }
 
@@ -168,16 +175,31 @@ export function createBattle(
   return state;
 }
 
+interface DamageOpts {
+  pierce?: boolean;
+  lifesteal?: boolean;
+  skipStatusMods?: boolean; // for DoT / curse ticks that shouldn't be buffed
+}
+
 function dealDamage(
   attacker: SideState,
   defender: SideState,
   amount: number,
   log: LogEntry[],
   turn: number,
-  pierce = false,
+  opts: DamageOpts = {},
   sideName: "player" | "enemy" = "player",
-) {
+): number {
+  const { pierce = false, lifesteal = false, skipStatusMods = false } = opts;
   let dmg = Math.max(0, Math.floor(amount));
+
+  if (!skipStatusMods) {
+    // Attacker weak: −25% outgoing
+    if (attacker.weakTurns > 0) dmg = Math.floor(dmg * 0.75);
+    // Defender vulnerable: +50% incoming
+    if (defender.vulnerableTurns > 0) dmg = Math.floor(dmg * 1.5);
+  }
+
   if (!pierce && defender.shield > 0) {
     const absorbed = Math.min(defender.shield, dmg);
     defender.shield -= absorbed;
@@ -191,7 +213,10 @@ function dealDamage(
       });
     }
   }
+
+  let dealt = 0;
   if (dmg > 0) {
+    dealt = Math.min(defender.hp, dmg);
     defender.hp = Math.max(0, defender.hp - dmg);
     log.push({
       turn,
@@ -200,6 +225,23 @@ function dealDamage(
       text: `對 ${defender.name} 造成 ${dmg} 信徒流失`,
     });
   }
+
+  // Lifesteal: attacker heals for damage actually dealt, up to a cap.
+  if (lifesteal && dealt > 0) {
+    const heal = Math.min(dealt, 6);
+    const before = attacker.hp;
+    attacker.hp = Math.min(attacker.hpMax, attacker.hp + heal);
+    const got = attacker.hp - before;
+    if (got > 0) {
+      log.push({
+        turn,
+        side: sideName,
+        kind: "heal",
+        text: `${attacker.name} 吸血回復 +${got}`,
+      });
+    }
+  }
+
   // Enrage check — only for defenders that set enrageAt (BOSS / Prime BOSS).
   if (
     defender.enrageAt !== undefined &&
@@ -216,6 +258,7 @@ function dealDamage(
       text: `⚠️ ${defender.name} 進入狂暴 — 永久 +2 威力`,
     });
   }
+  return dealt;
 }
 
 function heal(side: SideState, amount: number, log: LogEntry[], turn: number, sideName: "player" | "enemy") {
@@ -230,12 +273,15 @@ function heal(side: SideState, amount: number, log: LogEntry[], turn: number, si
 /**
  * Play a card. Returns the new state (mutated in place for simplicity).
  */
-export function playCard(state: BattleState, sideName: "player" | "enemy", handIndex: number): BattleState {
+export function playCard(
+  state: BattleState,
+  sideName: "player" | "enemy",
+  handIndex: number,
+): BattleState {
   if ((sideName === "player" && state.phase !== "player_turn") || (sideName === "enemy" && state.phase !== "enemy_turn")) {
     return state;
   }
   const self = state[sideName];
-  const other = state[sideName === "player" ? "enemy" : "player"];
   const card = self.hand[handIndex];
   if (!card) return state;
   if (card.cost > self.mana) return state;
@@ -244,14 +290,81 @@ export function playCard(state: BattleState, sideName: "player" | "enemy", handI
   self.hand.splice(handIndex, 1);
   self.discard.push(card);
 
-  // Track for post-battle legend auto-spread (player only)
-  if (sideName === "player") {
-    state.playerPlays.push(card.id);
+  if (sideName === "player") state.playerPlays.push(card.id);
+
+  return resolveCardEffect(state, sideName, card, {
+    powerScale: 1,
+    ignoreKeywords: [],
+  });
+}
+
+interface ResolveOpts {
+  /** Multiplier on the final computed basePower (e.g. 0.5 for echo replay). */
+  powerScale: number;
+  /** Keywords to skip during this resolution (prevents infinite echo loops). */
+  ignoreKeywords: string[];
+}
+
+function resolveCardEffect(
+  state: BattleState,
+  sideName: "player" | "enemy",
+  card: BattleCard,
+  opts: ResolveOpts,
+): BattleState {
+  const self = state[sideName];
+  const other = state[sideName === "player" ? "enemy" : "player"];
+  const kw = (k: string) =>
+    card.keywords.includes(k) && !opts.ignoreKeywords.includes(k);
+
+  // ── Sacrifice: discard a random hand card → +3 power to this play ──
+  let sacrificeBonus = 0;
+  if (kw("sacrifice") && self.hand.length > 0) {
+    const idx = Math.floor(Math.random() * self.hand.length);
+    const dumped = self.hand.splice(idx, 1)[0];
+    self.discard.push(dumped);
+    sacrificeBonus = 3;
+    state.log.push({
+      turn: state.turn,
+      side: sideName,
+      kind: "buff",
+      text: `🔪 獻祭 ${dumped.name} → 本牌 +3 威力`,
+    });
   }
 
-  const basePower = card.power * self.buffNextCard + (self.damageBonus ?? 0);
-  const hasPierce = card.keywords.includes("pierce");
-  const hasHaste = card.keywords.includes("haste");
+  // ── Combo: +50% if ≥2 other cards were already played this turn ──
+  let comboMult = 1;
+  if (kw("combo") && self.combosThisTurn >= 2) {
+    comboMult = 1.5;
+    state.log.push({
+      turn: state.turn,
+      side: sideName,
+      kind: "buff",
+      text: `🔗 連擊 ×1.5(第 ${self.combosThisTurn + 1} 張)`,
+    });
+  }
+
+  const rawPower =
+    (card.power + self.strength) * self.buffNextCard +
+    sacrificeBonus +
+    (self.damageBonus ?? 0);
+  const basePower = Math.max(
+    0,
+    Math.floor(rawPower * comboMult * opts.powerScale),
+  );
+  const hasPierce = kw("pierce");
+  const hasHaste = kw("haste");
+  const hasLifesteal = kw("lifesteal");
+
+  // Charm reflection: if this side was charmed and plays a damage-dealing
+  // card, 50% of the base damage rebounds onto themselves.
+  const attackerIsCharmed =
+    self.charmStacks > 0 &&
+    (card.type === "attack" ||
+      card.type === "ritual" ||
+      card.type === "debuff");
+  if (attackerIsCharmed) self.charmStacks -= 1;
+
+  self.combosThisTurn += 1;
 
   state.log.push({
     turn: state.turn,
@@ -260,10 +373,24 @@ export function playCard(state: BattleState, sideName: "player" | "enemy", handI
     text: `打出 ${card.name}(${card.type} ${basePower})`,
   });
 
+  // ── Whisper: reveal one random card from the opponent's hand ──
+  if (kw("whisper") && other.hand.length > 0) {
+    const peek = other.hand[Math.floor(Math.random() * other.hand.length)];
+    state.log.push({
+      turn: state.turn,
+      side: sideName,
+      kind: "buff",
+      text: `👁️ 低語窺視:${peek.name}(${peek.type} ${peek.power})`,
+    });
+  }
+
   switch (card.type) {
     case "attack": {
-      dealDamage(self, other, basePower, state.log, state.turn, hasPierce, sideName);
-      if (card.keywords.includes("curse")) {
+      dealDamage(self, other, basePower, state.log, state.turn, {
+        pierce: hasPierce,
+        lifesteal: hasLifesteal,
+      }, sideName);
+      if (kw("curse")) {
         other.curseStacks += 2;
         state.log.push({ turn: state.turn, side: sideName, kind: "debuff", text: `${other.name} 受詛咒(2 回合)` });
       }
@@ -271,32 +398,38 @@ export function playCard(state: BattleState, sideName: "player" | "enemy", handI
     }
     case "heal": {
       heal(self, basePower, state.log, state.turn, sideName);
-      if (card.keywords.includes("shield")) {
+      if (kw("shield")) {
         self.shield += 6;
         state.log.push({ turn: state.turn, side: sideName, kind: "buff", text: `獲得 6 點護盾` });
       }
       break;
     }
     case "spread": {
-      // Spread: small HP +, draw 1
       heal(self, Math.max(2, Math.floor(basePower * 0.5)), state.log, state.turn, sideName);
       draw(self, 1, state.log, state.turn, sideName);
       break;
     }
     case "buff": {
       self.buffNextCard = 2;
-      if (card.keywords.includes("shield")) {
-        self.shield += 8;
-      }
-      if (card.keywords.includes("resonance")) {
-        self.mana = Math.min(self.manaMax, self.mana + 2);
+      if (kw("shield")) self.shield += 8;
+      if (kw("resonance")) self.mana = Math.min(self.manaMax, self.mana + 2);
+      if (kw("strength")) {
+        self.strength += 1;
+        state.log.push({
+          turn: state.turn,
+          side: sideName,
+          kind: "buff",
+          text: `💪 獲得力量 +1(永久)`,
+        });
       }
       state.log.push({ turn: state.turn, side: sideName, kind: "buff", text: `下張牌威力 x2` });
-      // Note: buffNextCard resets to 1 after next play below (handled in reset)
-      return postPlay(state, self, hasHaste, sideName);
+      return postPlay(state, sideName, card, hasHaste, opts);
     }
     case "debuff": {
-      dealDamage(self, other, Math.max(1, Math.floor(basePower * 0.7)), state.log, state.turn, hasPierce, sideName);
+      dealDamage(self, other, Math.max(1, Math.floor(basePower * 0.7)), state.log, state.turn, {
+        pierce: hasPierce,
+        lifesteal: hasLifesteal,
+      }, sideName);
       other.curseStacks += 2;
       state.log.push({ turn: state.turn, side: sideName, kind: "debuff", text: `${other.name} 受詛咒` });
       break;
@@ -304,24 +437,103 @@ export function playCard(state: BattleState, sideName: "player" | "enemy", handI
     case "confuse": {
       other.confusedTurns = Math.max(other.confusedTurns, 1);
       state.log.push({ turn: state.turn, side: sideName, kind: "debuff", text: `${other.name} 下回合困惑` });
-      if (basePower > 0) dealDamage(self, other, Math.floor(basePower * 0.5), state.log, state.turn, hasPierce, sideName);
+      if (basePower > 0) {
+        dealDamage(self, other, Math.floor(basePower * 0.5), state.log, state.turn, {
+          pierce: hasPierce,
+        }, sideName);
+      }
       break;
     }
     case "ritual": {
-      // Ritual: high impact, + apply curse
-      dealDamage(self, other, basePower, state.log, state.turn, hasPierce, sideName);
+      dealDamage(self, other, basePower, state.log, state.turn, {
+        pierce: hasPierce,
+        lifesteal: hasLifesteal,
+      }, sideName);
       other.curseStacks += 3;
       state.log.push({ turn: state.turn, side: sideName, kind: "debuff", text: `儀式完成 — ${other.name} 受詛咒 3 疊` });
       break;
     }
   }
 
-  return postPlay(state, self, hasHaste, sideName);
+  // ── Post-effect status applications (apply after base effect resolves) ──
+  if (kw("poison")) {
+    other.poison += 3;
+    state.log.push({
+      turn: state.turn,
+      side: sideName,
+      kind: "debuff",
+      text: `☠️ ${other.name} 中毒(3 疊永不消散)`,
+    });
+  }
+  if (kw("vulnerable")) {
+    other.vulnerableTurns = Math.max(other.vulnerableTurns, 2);
+    state.log.push({
+      turn: state.turn,
+      side: sideName,
+      kind: "debuff",
+      text: `🩸 ${other.name} 破綻(2 回合 +50% 受傷)`,
+    });
+  }
+  if (kw("weaken")) {
+    other.weakTurns = Math.max(other.weakTurns, 2);
+    state.log.push({
+      turn: state.turn,
+      side: sideName,
+      kind: "debuff",
+      text: `🪶 ${other.name} 虛弱(2 回合 −25% 威力)`,
+    });
+  }
+  if (kw("charm")) {
+    other.charmStacks += 1;
+    state.log.push({
+      turn: state.turn,
+      side: sideName,
+      kind: "debuff",
+      text: `💋 ${other.name} 被魅惑 — 下次出攻擊將自傷`,
+    });
+  }
+
+  // Apply charm self-damage AFTER the main effect resolved (so the card
+  // still does its full work against the opponent, but the caster pays).
+  if (attackerIsCharmed) {
+    const selfHurt = Math.max(1, Math.floor(basePower * 0.5));
+    self.hp = Math.max(0, self.hp - selfHurt);
+    state.log.push({
+      turn: state.turn,
+      side: sideName,
+      kind: "damage",
+      text: `💋 魅惑反噬 ${selfHurt}`,
+    });
+  }
+
+  return postPlay(state, sideName, card, hasHaste, opts);
 }
 
-function postPlay(state: BattleState, self: SideState, haste: boolean, sideName: "player" | "enemy"): BattleState {
-  // Reset buff (it applies only to the next card)
+function postPlay(
+  state: BattleState,
+  sideName: "player" | "enemy",
+  card: BattleCard,
+  haste: boolean,
+  opts: ResolveOpts,
+): BattleState {
+  const self = state[sideName];
   self.buffNextCard = 1;
+
+  // Queue echo replay for next turn (not re-triggering on echo's own replay).
+  if (
+    card.keywords.includes("echo") &&
+    !opts.ignoreKeywords.includes("echo") &&
+    !self.echoPending
+  ) {
+    self.echoPending = card;
+    state.log.push({
+      turn: state.turn,
+      side: sideName,
+      kind: "buff",
+      text: `🔁 回響:${card.name} 將在下回合以 50% 威力重現`,
+    });
+  }
+
   if (haste) draw(self, 1, state.log, state.turn, sideName);
   checkWin(state);
   return state;
@@ -356,10 +568,11 @@ export function endEnemyTurn(state: BattleState): BattleState {
 
 function applyStartOfTurnEffects(state: BattleState, sideName: "player" | "enemy") {
   const self = state[sideName];
-  const other = state[sideName === "player" ? "enemy" : "player"];
 
-  // Confusion: if confused, skip turn (handled by caller: if confusedTurns>0, jump straight to end)
-  // Curse tick
+  // Reset per-turn combo counter
+  self.combosThisTurn = 0;
+
+  // Curse tick (decays)
   if (self.curseStacks > 0) {
     const dmg = self.curseStacks;
     self.hp = Math.max(0, self.hp - dmg);
@@ -367,12 +580,44 @@ function applyStartOfTurnEffects(state: BattleState, sideName: "player" | "enemy
     self.curseStacks = Math.max(0, self.curseStacks - 1);
   }
 
+  // Poison tick (does NOT decay — sticks until cleansed)
+  if (self.poison > 0) {
+    const dmg = self.poison;
+    self.hp = Math.max(0, self.hp - dmg);
+    state.log.push({
+      turn: state.turn,
+      side: sideName,
+      kind: "damage",
+      text: `☠️ ${self.name} 中毒 −${dmg}`,
+    });
+  }
+
+  // Vulnerable / weak timers decay
+  if (self.vulnerableTurns > 0) self.vulnerableTurns -= 1;
+  if (self.weakTurns > 0) self.weakTurns -= 1;
+
   // Mana refill + cap grow
   self.manaMax = Math.min(self.manaCeiling, self.manaMax + 1);
   self.mana = self.manaMax;
 
   // Draw 1
   draw(self, 1, state.log, state.turn, sideName);
+
+  // Echo: if a card was queued, replay it at 50% power without retriggering echo.
+  if (self.echoPending && self.hp > 0) {
+    const pending = self.echoPending;
+    self.echoPending = null;
+    state.log.push({
+      turn: state.turn,
+      side: sideName,
+      kind: "buff",
+      text: `🔁 回響重現:${pending.name}`,
+    });
+    resolveCardEffect(state, sideName, pending, {
+      powerScale: 0.5,
+      ignoreKeywords: ["echo", "sacrifice", "whisper"],
+    });
+  }
 
   checkWin(state);
 }

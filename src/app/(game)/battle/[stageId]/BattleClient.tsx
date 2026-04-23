@@ -864,6 +864,31 @@ function EnemyArea({
           {enemy.curseStacks > 0 && (
             <span className="text-danger">詛咒 ×{enemy.curseStacks}</span>
           )}
+          {enemy.poison > 0 && (
+            <span className="text-emerald-400" title="中毒 — 每回合持續傷害">
+              ☠️ ×{enemy.poison}
+            </span>
+          )}
+          {enemy.vulnerableTurns > 0 && (
+            <span className="text-rose-300" title="破綻 — 受到 +50% 傷害">
+              🩸 {enemy.vulnerableTurns}
+            </span>
+          )}
+          {enemy.weakTurns > 0 && (
+            <span className="text-slate-300" title="虛弱 — 輸出 −25%">
+              🪶 {enemy.weakTurns}
+            </span>
+          )}
+          {enemy.strength > 0 && (
+            <span className="text-amber-300" title="力量 — 每牌 +N 威力">
+              💪 +{enemy.strength}
+            </span>
+          )}
+          {enemy.charmStacks > 0 && (
+            <span className="text-pink-300" title="魅惑 — 下張攻擊自傷">
+              💋 ×{enemy.charmStacks}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -897,8 +922,38 @@ function PlayerHUD({
             {player.buffNextCard > 1 && (
               <span className="text-rarity-super">下張×2</span>
             )}
+            {player.strength > 0 && (
+              <span className="text-amber-300" title="力量 — 每牌 +N 威力">
+                💪 +{player.strength}
+              </span>
+            )}
             {player.curseStacks > 0 && (
               <span className="text-danger">詛咒×{player.curseStacks}</span>
+            )}
+            {player.poison > 0 && (
+              <span className="text-emerald-400" title="中毒 — 每回合持續傷害">
+                ☠️ ×{player.poison}
+              </span>
+            )}
+            {player.vulnerableTurns > 0 && (
+              <span className="text-rose-300" title="破綻 — 受到 +50% 傷害">
+                🩸 {player.vulnerableTurns}
+              </span>
+            )}
+            {player.weakTurns > 0 && (
+              <span className="text-slate-300" title="虛弱 — 輸出 −25%">
+                🪶 {player.weakTurns}
+              </span>
+            )}
+            {player.charmStacks > 0 && (
+              <span className="text-pink-300" title="魅惑 — 下張攻擊自傷">
+                💋 ×{player.charmStacks}
+              </span>
+            )}
+            {player.echoPending && (
+              <span className="text-sky-300" title="回響 — 下回合重現">
+                🔁 {player.echoPending.name}
+              </span>
             )}
           </div>
         </div>
