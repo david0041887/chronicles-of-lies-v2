@@ -242,11 +242,12 @@ export default async function EraPage({ params }: Props) {
               二週目 · 帷幕翻轉後的黑化版本。難度 +3,敵人牌組高濃度 SSR/UR,獎勵 1.5-3×。
             </p>
             <div className="space-y-3">
-              {primeStages.map((stage) => {
-                const unlocked = bossCleared && (
-                  stage.orderNum === 5 ||
-                  (highestStage >= stage.orderNum - 1)
-                );
+              {primeStages.map((stage, idx) => {
+                // First Prime stage is always open once BOSS is down;
+                // subsequent ones need the previous Prime cleared.
+                const unlocked =
+                  bossCleared &&
+                  (idx === 0 || highestStage >= stage.orderNum - 1);
                 return (
                   <PrimeStageRow
                     key={stage.id}
