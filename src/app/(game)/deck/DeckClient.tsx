@@ -63,6 +63,30 @@ export function DeckClient({ ownedCards, initialDeck }: Props) {
     return current !== init;
   }, [counts, initialDeck]);
 
+  // Mana curve: bucket deck cards by cost (0-1, 2, 3, 4, 5+).
+  const { curveBuckets, avgCost, typeTotals } = useMemo(() => {
+    const buckets = [0, 0, 0, 0, 0]; // 0-1, 2, 3, 4, 5+
+    const types: Record<string, number> = {};
+    let sumCost = 0;
+    let totalInDeck = 0;
+    const byId = new Map(ownedCards.map((c) => [c.id, c]));
+    for (const [id, n] of Object.entries(counts)) {
+      const c = byId.get(id);
+      if (!c) continue;
+      const b =
+        c.cost <= 1 ? 0 : c.cost === 2 ? 1 : c.cost === 3 ? 2 : c.cost === 4 ? 3 : 4;
+      buckets[b] += n;
+      sumCost += c.cost * n;
+      totalInDeck += n;
+      types[c.type] = (types[c.type] ?? 0) + n;
+    }
+    return {
+      curveBuckets: buckets,
+      avgCost: totalInDeck > 0 ? sumCost / totalInDeck : 0,
+      typeTotals: types,
+    };
+  }, [counts, ownedCards]);
+
   const filtered = ownedCards.filter((c) => {
     if (rFilter !== "ALL" && c.rarity !== rFilter) return false;
     if (eFilter !== "ALL" && c.eraId !== eFilter) return false;
@@ -169,6 +193,16 @@ export function DeckClient({ ownedCards, initialDeck }: Props) {
           style={{ width: `${(total / DECK_SIZE) * 100}%` }}
         />
       </div>
+
+      {/* Mana curve + type mix */}
+      {total > 0 && (
+        <ManaCurvePanel
+          buckets={curveBuckets}
+          avgCost={avgCost}
+          typeTotals={typeTotals}
+          total={total}
+        />
+      )}
 
       {/* Action buttons */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -294,5 +328,122 @@ export function DeckClient({ ownedCards, initialDeck }: Props) {
         onClose={() => setPreview(null)}
       />
     </>
+  );
+}
+
+function ManaCurvePanel({
+  buckets,
+  avgCost,
+  typeTotals,
+  total,
+}: {
+  buckets: number[];
+  avgCost: number;
+  typeTotals: Record<string, number>;
+  total: number;
+}) {
+  const labels = ["0-1", "2", "3", "4", "5+"];
+  const maxBucket = Math.max(1, ...buckets);
+  const curveVerdict =
+    avgCost < 2
+      ? { text: "急速型 · 開場壓制", tone: "text-emerald-400" }
+      : avgCost < 3
+        ? { text: "均衡型 · 穩健推進", tone: "text-gold" }
+        : avgCost < 3.8
+          ? { text: "中後期型 · 強度堆疊", tone: "text-sky-400" }
+          : { text: "重甲型 · 高費曲線", tone: "text-rose-400" };
+
+  const TYPE_ICONS: Record<string, string> = {
+    attack: "⚔️",
+    heal: "💚",
+    spread: "📢",
+    confuse: "🌀",
+    buff: "⬆️",
+    debuff: "⬇️",
+    ritual: "🔮",
+  };
+  const typeOrder: string[] = [
+    "attack",
+    "ritual",
+    "debuff",
+    "heal",
+    "spread",
+    "buff",
+    "confuse",
+  ];
+
+  return (
+    <div className="mb-4 p-4 rounded-xl border border-parchment/10 bg-veil/30">
+      <div className="flex items-center justify-between mb-3 gap-3">
+        <div>
+          <div className="text-[10px] text-parchment/50 tracking-[0.25em] uppercase font-[family-name:var(--font-cinzel)]">
+            Mana Curve
+          </div>
+          <div className={cn("text-sm mt-0.5", curveVerdict.tone)}>
+            {curveVerdict.text}
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] text-parchment/50 tracking-wider">
+            平均費用
+          </div>
+          <div className="font-[family-name:var(--font-mono)] text-xl text-parchment tabular-nums">
+            {avgCost.toFixed(1)}
+          </div>
+        </div>
+      </div>
+
+      {/* Cost histogram */}
+      <div className="grid grid-cols-5 gap-2 items-end h-24">
+        {buckets.map((n, i) => {
+          const pct = (n / maxBucket) * 100;
+          const isHot = i <= 1 && n >= Math.ceil(total * 0.3);
+          return (
+            <div key={i} className="flex flex-col items-center gap-1">
+              <div
+                className={cn(
+                  "text-[10px] tabular-nums",
+                  n === 0 ? "text-parchment/30" : "text-parchment/80",
+                )}
+              >
+                {n}
+              </div>
+              <div className="w-full h-full flex items-end">
+                <div
+                  className={cn(
+                    "w-full rounded-t transition-all",
+                    n === 0
+                      ? "bg-parchment/10"
+                      : isHot
+                        ? "bg-gradient-to-t from-emerald-600 to-emerald-400"
+                        : "bg-gradient-to-t from-gold/60 to-gold",
+                  )}
+                  style={{ height: `${Math.max(4, pct)}%` }}
+                />
+              </div>
+              <div className="text-[10px] text-parchment/50 tabular-nums">
+                {labels[i]}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Type mix */}
+      {Object.keys(typeTotals).length > 0 && (
+        <div className="mt-3 pt-3 border-t border-parchment/10 flex flex-wrap gap-1.5 text-[11px]">
+          {typeOrder
+            .filter((t) => typeTotals[t])
+            .map((t) => (
+              <span
+                key={t}
+                className="px-2 py-0.5 rounded bg-veil/60 border border-parchment/15 text-parchment/75"
+              >
+                {TYPE_ICONS[t] ?? "·"} ×{typeTotals[t]}
+              </span>
+            ))}
+        </div>
+      )}
+    </div>
   );
 }

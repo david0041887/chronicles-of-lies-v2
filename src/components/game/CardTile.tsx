@@ -27,6 +27,8 @@ interface CardTileProps {
   size?: "sm" | "md" | "lg";
   tilt?: boolean;
   onClick?: () => void;
+  /** Show a NEW badge — for cards newly acquired since user last viewed. */
+  isNew?: boolean;
 }
 
 const RARITY_GLOW: Record<Rarity, string> = {
@@ -70,6 +72,7 @@ export function CardTile({
   size = "md",
   tilt = false,
   onClick,
+  isNew = false,
 }: CardTileProps) {
   const notOwned = typeof ownedCount === "number" && ownedCount === 0;
 
@@ -213,6 +216,17 @@ export function CardTile({
       {typeof ownedCount === "number" && (
         <div className="absolute top-1.5 right-1.5 text-[10px] font-bold bg-gold text-veil px-1.5 py-0.5 rounded-full shadow z-10">
           ×{ownedCount}
+        </div>
+      )}
+      {isNew && (
+        <div className="absolute top-1.5 left-1.5 z-10">
+          <motion.span
+            animate={{ scale: [1, 1.08, 1] }}
+            transition={{ duration: 1.4, repeat: Infinity }}
+            className="block text-[9px] font-bold tracking-[0.2em] bg-gradient-to-br from-amber-300 to-rose-500 text-veil px-1.5 py-0.5 rounded shadow-[0_0_10px_rgba(255,180,80,0.6)]"
+          >
+            NEW
+          </motion.span>
         </div>
       )}
     </Wrapper>

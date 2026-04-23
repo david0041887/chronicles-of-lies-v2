@@ -5,7 +5,7 @@ import { CardTile } from "@/components/game/CardTile";
 import { ERAS } from "@/lib/constants/eras";
 import { cn } from "@/lib/utils";
 import type { Card, Rarity } from "@prisma/client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type RarityFilter = "ALL" | Rarity;
 type EraFilter = "ALL" | string;
@@ -19,20 +19,56 @@ interface Props {
 
 const RARITY_FILTERS: RarityFilter[] = ["ALL", "SSR", "SR", "R"];
 
+const SEEN_STORAGE_KEY = "chroniclesCollectionSeen_v1";
+
 export function CollectionClient({ cards, ownedMap }: Props) {
   const [rarity, setRarity] = useState<RarityFilter>("ALL");
   const [era, setEra] = useState<EraFilter>("ALL");
   const [ownedOnly, setOwnedOnly] = useState(false);
   const [selected, setSelected] = useState<CardWithImage | null>(null);
+  const [newCardIds, setNewCardIds] = useState<Set<string>>(new Set());
+  const [showNewOnly, setShowNewOnly] = useState(false);
+
+  // Compare current owned counts against locally-stored "seen" counts.
+  // Cards whose count grew since the last visit get the NEW badge.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let prev: Record<string, number> = {};
+    try {
+      const raw = window.localStorage.getItem(SEEN_STORAGE_KEY);
+      if (raw) prev = JSON.parse(raw) as Record<string, number>;
+    } catch {
+      prev = {};
+    }
+    const fresh = new Set<string>();
+    for (const [id, n] of Object.entries(ownedMap)) {
+      if (n > (prev[id] ?? 0)) fresh.add(id);
+    }
+    setNewCardIds(fresh);
+    // After 8 seconds on this page, mark everything as seen so the badges
+    // clear on next visit. (Still visible during the current viewing.)
+    const t = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(
+          SEEN_STORAGE_KEY,
+          JSON.stringify(ownedMap),
+        );
+      } catch {
+        /* ignore quota */
+      }
+    }, 8000);
+    return () => window.clearTimeout(t);
+  }, [ownedMap]);
 
   const filtered = useMemo(() => {
     return cards.filter((c) => {
       if (rarity !== "ALL" && c.rarity !== rarity) return false;
       if (era !== "ALL" && c.eraId !== era) return false;
       if (ownedOnly && (ownedMap[c.id] ?? 0) === 0) return false;
+      if (showNewOnly && !newCardIds.has(c.id)) return false;
       return true;
     });
-  }, [cards, rarity, era, ownedOnly, ownedMap]);
+  }, [cards, rarity, era, ownedOnly, ownedMap, showNewOnly, newCardIds]);
 
   return (
     <div>
@@ -98,6 +134,20 @@ export function CollectionClient({ cards, ownedMap }: Props) {
           僅顯示已擁有
         </label>
 
+        {newCardIds.size > 0 && (
+          <button
+            onClick={() => setShowNewOnly((v) => !v)}
+            className={cn(
+              "text-xs px-3 py-1.5 rounded-full border transition-colors",
+              showNewOnly
+                ? "bg-amber-400/20 border-amber-400 text-amber-200"
+                : "border-amber-400/40 text-amber-300 hover:bg-amber-400/10",
+            )}
+          >
+            ✨ 僅顯示新卡 ({newCardIds.size})
+          </button>
+        )}
+
         <span className="ml-auto text-xs text-parchment/40">
           {filtered.length} 張
         </span>
@@ -116,6 +166,7 @@ export function CollectionClient({ cards, ownedMap }: Props) {
               ownedCount={ownedMap[c.id] ?? 0}
               size="sm"
               onClick={() => setSelected(c)}
+              isNew={newCardIds.has(c.id)}
             />
           ))}
         </div>
