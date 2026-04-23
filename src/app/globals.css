@@ -248,3 +248,24 @@ body {
   .forge-twinkle { animation: none !important; box-shadow: 0 0 0 4px rgba(212,168,75,0.6) !important; }
   .forge-sparkle { animation: none !important; opacity: 0.6 !important; }
 }
+
+/* ============================================================
+   Skeleton shimmer for route-level loading.tsx fallbacks.
+   ============================================================ */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.skeleton-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(244, 230, 193, 0.06) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer { animation: none !important; background-position: 50% 0; }
+}

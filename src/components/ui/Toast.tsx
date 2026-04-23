@@ -38,13 +38,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ push }}>
       {children}
-      <div className="fixed top-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none">
+      <div
+        className="fixed top-16 left-1/2 -translate-x-1/2 z-[60] flex flex-col gap-2 pointer-events-none w-[min(92vw,24rem)] items-center"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         {toasts.map((t) => (
           <div
             key={t.id}
             className={cn(
               "pointer-events-auto px-4 py-3 rounded-lg border backdrop-blur-md",
-              "shadow-lg animate-[fadeIn_0.2s_var(--ease-fluid)]",
+              "shadow-lg animate-[fadeIn_0.2s_var(--ease-fluid)] text-sm max-w-full text-center",
               variantStyles[t.variant],
             )}
             role="status"

@@ -27,6 +27,7 @@ function LoginInner() {
   const { push } = useToast();
   const [loading, setLoading] = useState(false);
   const [guestLoading, setGuestLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -110,13 +111,24 @@ function LoginInner() {
           <label className="block text-xs text-parchment/70 mb-1 tracking-wider">
             密碼
           </label>
-          <Input
-            name="password"
-            type="password"
-            required
-            autoComplete="current-password"
-            placeholder="至少 6 字"
-          />
+          <div className="relative">
+            <Input
+              name="password"
+              type={showPassword ? "text" : "password"}
+              required
+              autoComplete="current-password"
+              placeholder="至少 6 字"
+              className="pr-16"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute top-1/2 -translate-y-1/2 right-2 px-2 py-1 text-[10px] text-parchment/60 hover:text-gold tracking-widest"
+              aria-label={showPassword ? "隱藏密碼" : "顯示密碼"}
+            >
+              {showPassword ? "隱藏" : "顯示"}
+            </button>
+          </div>
         </div>
         <Button type="submit" size="lg" className="w-full" disabled={loading || guestLoading}>
           {loading ? "召喚中…" : "進入帷幕"}

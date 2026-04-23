@@ -8,10 +8,33 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
+// Rough password strength heuristic: 0 (empty) → 4 (very strong).
+function scorePassword(p: string): number {
+  if (!p) return 0;
+  let s = 0;
+  if (p.length >= 8) s++;
+  if (p.length >= 12) s++;
+  if (/[A-Z]/.test(p) && /[a-z]/.test(p)) s++;
+  if (/\d/.test(p) && /[^A-Za-z0-9]/.test(p)) s++;
+  return Math.min(4, s);
+}
+const PW_HINT: Record<number, { label: string; tone: string }> = {
+  0: { label: "請輸入密碼", tone: "text-parchment/40" },
+  1: { label: "太弱 — 試試更長的組合", tone: "text-blood/80" },
+  2: { label: "普通 — 可以接受", tone: "text-warning" },
+  3: { label: "良好", tone: "text-success/80" },
+  4: { label: "非常強", tone: "text-success" },
+};
+
 export default function RegisterPage() {
   const router = useRouter();
   const { push } = useToast();
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [password, setPassword] = useState("");
+
+  const pwScore = scorePassword(password);
+  const pwHint = PW_HINT[pwScore];
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -77,6 +100,7 @@ export default function RegisterPage() {
               required
               minLength={2}
               maxLength={16}
+              autoComplete="username"
               placeholder="中英數字 2-16 字"
             />
           </div>
@@ -96,14 +120,51 @@ export default function RegisterPage() {
             <label className="block text-xs text-parchment/70 mb-1 tracking-wider">
               密碼
             </label>
-            <Input
-              name="password"
-              type="password"
-              required
-              minLength={6}
-              autoComplete="new-password"
-              placeholder="至少 6 字"
-            />
+            <div className="relative">
+              <Input
+                name="password"
+                type={showPassword ? "text" : "password"}
+                required
+                minLength={6}
+                autoComplete="new-password"
+                placeholder="至少 6 字"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                aria-describedby="pw-hint"
+                className="pr-16"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute top-1/2 -translate-y-1/2 right-2 px-2 py-1 text-[10px] text-parchment/60 hover:text-gold tracking-widest"
+                aria-label={showPassword ? "隱藏密碼" : "顯示密碼"}
+              >
+                {showPassword ? "隱藏" : "顯示"}
+              </button>
+            </div>
+            {/* Strength bar */}
+            <div className="mt-2 flex items-center gap-1.5">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className={`h-1 flex-1 rounded-full transition-colors ${
+                    i <= pwScore
+                      ? pwScore <= 1
+                        ? "bg-blood/70"
+                        : pwScore === 2
+                          ? "bg-warning"
+                          : "bg-success"
+                      : "bg-parchment/10"
+                  }`}
+                />
+              ))}
+              <span
+                id="pw-hint"
+                className={`text-[10px] tracking-wider ${pwHint.tone} shrink-0`}
+              >
+                {pwHint.label}
+              </span>
+            </div>
           </div>
           <Button type="submit" size="lg" className="w-full" disabled={loading}>
             {loading ? "正在編織…" : "加入議會"}
