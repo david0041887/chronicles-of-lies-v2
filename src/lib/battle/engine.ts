@@ -1,4 +1,5 @@
-import type { BattleCard, BattleState, LogEntry, SideState } from "./types";
+import { MAX_BOARD_SIZE } from "./types";
+import type { BattleCard, BattleState, LogEntry, Minion, SideState } from "./types";
 
 const BASE_HAND_CAP = 5;
 const BASE_MANA_CAP = 10;
@@ -35,6 +36,7 @@ function makeSide(
     deck: shuffle(deck),
     hand: [],
     discard: [],
+    board: [],
     shield: 0,
     buffNextCard: 1,
     curseStacks: 0,
@@ -354,6 +356,7 @@ function resolveCardEffect(
   const hasPierce = kw("pierce");
   const hasHaste = kw("haste");
   const hasLifesteal = kw("lifesteal");
+  const isMinion = kw("minion");
 
   // Charm reflection: if this side was charmed and plays a damage-dealing
   // card, 50% of the base damage rebounds onto themselves.
@@ -382,6 +385,56 @@ function resolveCardEffect(
       kind: "buff",
       text: `👁️ 低語窺視:${peek.name}(${peek.type} ${peek.power})`,
     });
+  }
+
+  // ── Minion summon: create a creature on the board instead of firing an
+  //    instant effect. Board is cap-limited; over-cap summons fizzle with
+  //    a log message and mana refund so the player isn't punished for a
+  //    dead play caused by cramped board.
+  if (isMinion) {
+    if (self.board.length >= MAX_BOARD_SIZE) {
+      self.mana += card.cost; // refund
+      self.hand.unshift(card); // put card back
+      const idx = self.discard.findIndex((c) => c.uid === card.uid);
+      if (idx >= 0) self.discard.splice(idx, 1);
+      state.log.push({
+        turn: state.turn,
+        side: sideName,
+        kind: "debuff",
+        text: `戰場已滿(${MAX_BOARD_SIZE} 格),${card.name} 無法召喚`,
+      });
+      return postPlay(state, sideName, card, false, opts);
+    }
+    const hpMax = Math.max(2, Math.floor(card.power * 1.5) + card.cost);
+    const atk = Math.max(1, card.power + (self.damageBonus ?? 0));
+    const hasCharge = kw("charge");
+    const hasWindfury = kw("windfury");
+    const hasDivineShield = kw("divine_shield");
+    const minion: Minion = {
+      uid: `m-${state.turn}-${card.uid}`,
+      cardId: card.id,
+      name: card.name,
+      rarity: card.rarity,
+      eraId: card.eraId,
+      hpMax,
+      hp: hpMax,
+      atk,
+      keywords: card.keywords.filter((k) => k !== "minion"),
+      summonedThisTurn: !hasCharge,
+      attacksRemaining: hasCharge ? (hasWindfury ? 2 : 1) : 0,
+      shielded: hasDivineShield,
+      imageUrl: card.imageUrl,
+      hasImage: card.hasImage,
+      flavor: card.flavor,
+    };
+    self.board.push(minion);
+    state.log.push({
+      turn: state.turn,
+      side: sideName,
+      kind: "buff",
+      text: `🐾 召喚 ${card.name}(HP ${hpMax} / ATK ${atk}${hasCharge ? " · 突擊" : ""}${hasDivineShield ? " · 聖盾" : ""})`,
+    });
+    return postPlay(state, sideName, card, hasHaste, opts);
   }
 
   switch (card.type) {
@@ -545,6 +598,118 @@ function postPlay(
 // server-side MAX_TURNS sanity check on /api/battle/complete.
 const MAX_BATTLE_TURNS = 40;
 
+/**
+ * Resolve one minion attack. Target is either the enemy "face" or another
+ * minion on the enemy board identified by uid. Both combatants take damage
+ * (face doesn't hit back). Dead minions are removed at the end.
+ *
+ * Rules:
+ *   - Attacker must have attacksRemaining > 0 and not summonedThisTurn
+ *     (unless it has charge, which is handled at summon time).
+ *   - If any enemy minion has `taunt`, the player MUST target a taunt
+ *     minion (or "face" is rejected). Server re-validates.
+ *   - Divine shield absorbs the first hit (to the minion or face shield).
+ *   - Lifesteal on attacker heals the attacker's FACE for damage dealt.
+ */
+export function attackWithMinion(
+  state: BattleState,
+  sideName: "player" | "enemy",
+  attackerUid: string,
+  target: { kind: "face" } | { kind: "minion"; uid: string },
+): BattleState {
+  if ((sideName === "player" && state.phase !== "player_turn") ||
+      (sideName === "enemy" && state.phase !== "enemy_turn")) {
+    return state;
+  }
+  const self = state[sideName];
+  const other = state[sideName === "player" ? "enemy" : "player"];
+  const attacker = self.board.find((m) => m.uid === attackerUid);
+  if (!attacker) return state;
+  if (attacker.summonedThisTurn || attacker.attacksRemaining <= 0) return state;
+
+  // Taunt gate: if any enemy minion has taunt, you must hit one first.
+  const taunts = other.board.filter((m) => m.keywords.includes("taunt"));
+  if (taunts.length > 0) {
+    if (target.kind === "face") return state;
+    const targetIsTaunt = taunts.some((t) => t.uid === target.uid);
+    if (!targetIsTaunt) return state;
+  }
+
+  const atkLog = (txt: string, kind: LogEntry["kind"] = "damage") => {
+    state.log.push({ turn: state.turn, side: sideName, kind, text: txt });
+  };
+
+  let dealtToTarget = 0;
+
+  if (target.kind === "face") {
+    const dmg = attacker.atk;
+    dealtToTarget = Math.min(other.hp, dmg);
+    dealDamage(self, other, dmg, state.log, state.turn, {
+      pierce: attacker.keywords.includes("pierce"),
+    }, sideName);
+    atkLog(`🗡️ ${attacker.name} → ${other.name} 面部(${dmg})`, "play");
+  } else {
+    const targetMinion = other.board.find((m) => m.uid === target.uid);
+    if (!targetMinion) return state;
+
+    // Divine shield absorb (target)
+    if (targetMinion.shielded) {
+      targetMinion.shielded = false;
+      atkLog(`🛡 ${targetMinion.name} 聖盾吸收`, "buff");
+    } else {
+      targetMinion.hp -= attacker.atk;
+      dealtToTarget = attacker.atk;
+      atkLog(`⚔️ ${attacker.name} ×${attacker.atk} → ${targetMinion.name}`, "play");
+    }
+
+    // Counter-damage to attacker (divine shield absorb check)
+    if (attacker.shielded && targetMinion.atk > 0) {
+      attacker.shielded = false;
+      atkLog(`🛡 ${attacker.name} 聖盾吸收`, "buff");
+    } else if (targetMinion.atk > 0) {
+      attacker.hp -= targetMinion.atk;
+    }
+  }
+
+  attacker.attacksRemaining -= 1;
+
+  // Lifesteal: attacker heals face for damage dealt.
+  if (attacker.keywords.includes("lifesteal") && dealtToTarget > 0) {
+    const healed = Math.min(dealtToTarget, 6);
+    const before = self.hp;
+    self.hp = Math.min(self.hpMax, self.hp + healed);
+    const got = self.hp - before;
+    if (got > 0) {
+      atkLog(`${self.name} 吸血回復 +${got}`, "heal");
+    }
+  }
+
+  cleanupDeadMinions(state);
+  checkWin(state);
+  return state;
+}
+
+/** Remove dead minions (hp <= 0) from both boards; fire deathrattle later. */
+function cleanupDeadMinions(state: BattleState) {
+  for (const sideName of ["player", "enemy"] as const) {
+    const s = state[sideName];
+    const alive: Minion[] = [];
+    for (const m of s.board) {
+      if (m.hp > 0) {
+        alive.push(m);
+      } else {
+        state.log.push({
+          turn: state.turn,
+          side: sideName,
+          kind: "debuff",
+          text: `💀 ${m.name} 陣亡`,
+        });
+      }
+    }
+    s.board = alive;
+  }
+}
+
 function checkWin(state: BattleState) {
   if (state.enemy.hp <= 0) {
     state.phase = "won";
@@ -587,6 +752,15 @@ function applyStartOfTurnEffects(state: BattleState, sideName: "player" | "enemy
 
   // Reset per-turn combo counter
   self.combosThisTurn = 0;
+
+  // Reset minion attack-availability. Minions summoned previous turn now
+  // lose their summoning sickness; every minion (fresh summons without
+  // charge excepted) gets its attacks refreshed.
+  for (const m of self.board) {
+    m.summonedThisTurn = false;
+    const windfury = m.keywords.includes("windfury");
+    m.attacksRemaining = windfury ? 2 : 1;
+  }
 
   // Curse tick (decays)
   if (self.curseStacks > 0) {

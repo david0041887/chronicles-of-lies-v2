@@ -18,6 +18,34 @@ export interface BattleCard {
   imageUrl?: string | null;
 }
 
+/**
+ * A summoned creature on the board. Persists across turns, attacks each
+ * turn (once by default, twice with `windfury`). Dies when hp <= 0 and is
+ * removed at cleanup time.
+ */
+export interface Minion {
+  uid: string;                 // unique within battle
+  cardId: string;              // originating card template id
+  name: string;
+  rarity: Rarity;
+  eraId: string;
+  hpMax: number;
+  hp: number;
+  atk: number;
+  keywords: string[];          // minion-facing: taunt/charge/divine_shield/deathrattle/windfury + shared: pierce/lifesteal
+  /** Can't attack on the turn summoned unless the minion has `charge`. */
+  summonedThisTurn: boolean;
+  /** Reset to 1 (or 2 with windfury) each turn. */
+  attacksRemaining: number;
+  /** Divine-shield state: one-time free absorb. */
+  shielded: boolean;
+  imageUrl?: string | null;
+  hasImage?: boolean;
+  flavor?: string | null;
+}
+
+export const MAX_BOARD_SIZE = 5;
+
 export interface SideState {
   name: string;
   hp: number;                 // 信徒 (believers)
@@ -28,6 +56,7 @@ export interface SideState {
   deck: BattleCard[];
   hand: BattleCard[];
   discard: BattleCard[];
+  board: Minion[];            // summoned creatures — max MAX_BOARD_SIZE
   shield: number;             // block next N damage
   buffNextCard: number;       // multiplies next played card's power
   curseStacks: number;        // damage per turn; decays 1/turn

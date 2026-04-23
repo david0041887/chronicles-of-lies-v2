@@ -21,6 +21,20 @@ export function enrichCardKeywords(card: BattleCard): BattleCard {
   const rarity = card.rarity;
   const type = card.type;
 
+  // ── MINION classification ──
+  // Attack/ritual cards at SR+ become summoned creatures that persist on
+  // the board and trade blows with the enemy; R-rarity and non-combat
+  // cards stay as one-shot spells. This gives roughly a 40/60 minion-to-
+  // spell ratio across the 180-card library.
+  if (rarity !== "R" && (type === "attack" || type === "ritual")) {
+    add.add("minion");
+    // Rarity-scaled keywords for minions:
+    if (rarity === "SSR" || rarity === "UR") add.add("taunt");
+    if (type === "ritual") add.add("charge");
+    if (rarity === "UR") add.add("divine_shield");
+    if (rarity === "UR" && bit(5)) add.add("windfury");
+  }
+
   // UR → gets echo + one extra signature skill by type
   if (rarity === "UR") {
     add.add("echo");
