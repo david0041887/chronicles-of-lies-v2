@@ -1,4 +1,3 @@
-import { VeilBackdrop } from "@/components/fx/VeilBackdrop";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ERAS } from "@/lib/constants/eras";
 import { requireOnboarded } from "@/lib/auth-helpers";
@@ -59,8 +58,6 @@ export default async function WorldPage() {
 
   return (
     <div className="relative min-h-[calc(100vh-4rem)]">
-      <VeilBackdrop intensity="high" />
-
       <main className="relative max-w-5xl mx-auto px-4 sm:px-6 py-8">
         <PageHeader
           align="center"

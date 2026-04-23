@@ -564,6 +564,11 @@ export function BattleClient({
       {/* Era-specific arena backdrop (SVG silhouettes + drifting glyphs) */}
       <EraArenaBackdrop eraId={era?.id ?? "primitive"} palette={bg} />
 
+      {/* Battle-entry curtain: two golden veils peel back horizontally on
+          mount, making the arrival into a fight feel ceremonial instead
+          of snapped-in. ~900ms total; kept behind the game-content z-0. */}
+      <BattleCurtain palette={bg} />
+
       <div
         className="absolute inset-0 opacity-35 pointer-events-none"
         style={{
@@ -1608,6 +1613,51 @@ function EnemyIntentBadge({ intent }: { intent: EnemyIntent }) {
         </span>
       )}
     </motion.div>
+  );
+}
+
+function BattleCurtain({ palette }: { palette: { main: string; accent: string; dark: string } }) {
+  // Mount-only, fires once per battle; auto-unmounts after the reveal.
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(false), 1050);
+    return () => clearTimeout(t);
+  }, []);
+  if (!visible) return null;
+  return (
+    <div className="absolute inset-0 z-40 pointer-events-none overflow-hidden">
+      <motion.div
+        initial={{ x: 0 }}
+        animate={{ x: "-101%" }}
+        transition={{ duration: 0.85, ease: [0.77, 0, 0.18, 1], delay: 0.08 }}
+        className="absolute inset-y-0 left-0 w-1/2"
+        style={{
+          background: `linear-gradient(90deg, ${palette.dark} 0%, ${palette.main}dd 60%, ${palette.accent}80 100%)`,
+          boxShadow: `inset -12px 0 32px ${palette.accent}60`,
+        }}
+      />
+      <motion.div
+        initial={{ x: 0 }}
+        animate={{ x: "101%" }}
+        transition={{ duration: 0.85, ease: [0.77, 0, 0.18, 1], delay: 0.08 }}
+        className="absolute inset-y-0 right-0 w-1/2"
+        style={{
+          background: `linear-gradient(270deg, ${palette.dark} 0%, ${palette.main}dd 60%, ${palette.accent}80 100%)`,
+          boxShadow: `inset 12px 0 32px ${palette.accent}60`,
+        }}
+      />
+      {/* Center seam glow right before curtains split */}
+      <motion.div
+        initial={{ opacity: 0, scaleY: 0.2 }}
+        animate={{ opacity: [0, 1, 0], scaleY: [0.2, 1, 0.3] }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        className="absolute left-1/2 top-0 bottom-0 w-[2px] -translate-x-1/2"
+        style={{
+          background: `linear-gradient(180deg, transparent, ${palette.accent}, transparent)`,
+          boxShadow: `0 0 24px ${palette.accent}`,
+        }}
+      />
+    </div>
   );
 }
 

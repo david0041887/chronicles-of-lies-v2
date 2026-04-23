@@ -1,5 +1,4 @@
 import { CornerFlourish, OrnamentDivider } from "@/components/fx/OrnamentDivider";
-import { VeilBackdrop } from "@/components/fx/VeilBackdrop";
 import { requireOnboarded } from "@/lib/auth-helpers";
 import { ERAS, getEra, type EraId } from "@/lib/constants/eras";
 import { dailyLegendIndex, msUntilNextRotation } from "@/lib/daily-legend";
@@ -93,12 +92,6 @@ export default async function EraPage({ params }: Props) {
 
   return (
     <div className="relative">
-      <VeilBackdrop
-        main={era.palette.main}
-        accent={era.palette.accent}
-        dark={era.palette.dark}
-        intensity="medium"
-      />
       <main className="relative max-w-5xl mx-auto px-4 sm:px-6 py-10">
         {/* Hero */}
         <div

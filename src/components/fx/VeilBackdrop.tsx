@@ -9,8 +9,18 @@ interface Props {
 }
 
 /**
- * Full-viewport animated veil backdrop. Parallax blobs + golden particles.
- * Used behind era pages and battle scenes.
+ * Full-viewport animated veil backdrop. Stack of parallax layers:
+ *
+ *   1. Gradient base                    — calm color wash
+ *   2. Drifting twin blobs              — slow 30–40s parallax
+ *   3. Slanted veil threads             — subtle diagonal lines that scan
+ *   4. Golden particle motes            — rising flecks
+ *   5. Corner vignette ring             — frames the content area
+ *   6. Film grain                       — tiny noise texture
+ *
+ * Each layer is composited for free — no per-frame JS, `prefers-reduced-
+ * motion` is honoured, all transforms are GPU-friendly. Used as the
+ * default backdrop for most non-battle pages.
  */
 export function VeilBackdrop({
   main = "#6B2E8A",
@@ -19,7 +29,7 @@ export function VeilBackdrop({
   intensity = "medium",
   className,
 }: Props) {
-  const particleCount = intensity === "high" ? 48 : intensity === "medium" ? 28 : 14;
+  const particleCount = intensity === "high" ? 56 : intensity === "medium" ? 32 : 16;
 
   return (
     <div
@@ -54,8 +64,30 @@ export function VeilBackdrop({
         }}
       />
 
+      {/* Slanted veil threads — diagonal scan lines that slowly drift */}
+      <div
+        className="absolute inset-0 opacity-[0.14] mix-blend-screen veil-threads"
+        style={{
+          background: `repeating-linear-gradient(115deg, transparent 0 38px, ${accent}33 38px 39px, transparent 39px 78px)`,
+        }}
+      />
+
       {/* Particles */}
       <Particles count={particleCount} color={accent} />
+
+      {/* Corner rings — cathedral vignette */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background: `radial-gradient(ellipse at 50% 55%, transparent 48%, ${dark}99 95%)`,
+        }}
+      />
+      <div
+        className="absolute inset-0 veil-breathe"
+        style={{
+          background: `radial-gradient(circle at 50% 50%, ${main}18, transparent 60%)`,
+        }}
+      />
 
       {/* Grain (subtle film noise) */}
       <div className="absolute inset-0 grain" />
@@ -70,8 +102,23 @@ export function VeilBackdrop({
           0%,100% { transform: translate(0, 0) scale(1); }
           50%     { transform: translate(-6%, -4%) scale(1.1); }
         }
+        @keyframes veil-thread-scan {
+          0%   { background-position: 0 0; }
+          100% { background-position: 240px -120px; }
+        }
+        @keyframes veil-breathe {
+          0%, 100% { opacity: 0.55; transform: scale(1); }
+          50%      { opacity: 0.9;  transform: scale(1.05); }
+        }
         .veil-blob-a { animation: veil-blob-drift-a 30s ease-in-out infinite; }
         .veil-blob-b { animation: veil-blob-drift-b 38s ease-in-out infinite; }
+        .veil-threads { animation: veil-thread-scan 28s linear infinite; }
+        .veil-breathe { animation: veil-breathe 8s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) {
+          .veil-blob-a, .veil-blob-b, .veil-threads, .veil-breathe {
+            animation: none !important;
+          }
+        }
         .grain {
           background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
           background-size: 3px 3px;

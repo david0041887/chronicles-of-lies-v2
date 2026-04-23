@@ -71,16 +71,6 @@ body {
   background-attachment: fixed;
 }
 
-/* Golden flow — used in hero + card glows */
-@keyframes veil-shimmer {
-  0%, 100% { opacity: 0.4; transform: translateX(0); }
-  50% { opacity: 0.8; transform: translateX(20px); }
-}
-
-.veil-shimmer {
-  animation: veil-shimmer 4s ease-in-out infinite;
-}
-
 /* Parchment text with soft glow */
 .text-sacred {
   color: var(--color-gold);
@@ -133,25 +123,6 @@ body {
   100% { opacity: 1; transform: translateY(0); }
 }
 
-/* Era card mote drift */
-@keyframes era-mote-drift {
-  0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.35; }
-  50%      { transform: translate3d(6px, -12px, 0); opacity: 0.85; }
-}
-.era-mote {
-  animation-name: era-mote-drift;
-  animation-iteration-count: infinite;
-  animation-timing-function: ease-in-out;
-  will-change: transform, opacity;
-}
-
-/* Era card breathing glow */
-@keyframes era-glow-pulse {
-  0%, 100% { opacity: 0.55; }
-  50%      { opacity: 0.85; }
-}
-.era-card-glow { animation: era-glow-pulse 6s ease-in-out infinite; }
-
 /* UR rainbow border */
 @keyframes ur-border-shift {
   0%   { background-position: 0% 50%; }
@@ -203,13 +174,12 @@ body {
    fades) are left alone because they're short one-shots.
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {
-  .veil-shimmer,
   .title-sheen,
-  .era-mote,
-  .era-card-glow,
   .enemy-pulse,
   .veil-blob-a,
-  .veil-blob-b {
+  .veil-blob-b,
+  .veil-threads,
+  .veil-breathe {
     animation: none !important;
   }
   .era-drift-layer > span {

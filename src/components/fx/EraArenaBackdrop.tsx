@@ -25,14 +25,31 @@ export function EraArenaBackdrop({ eraId, palette }: Props) {
       className="absolute inset-0 pointer-events-none overflow-hidden"
       aria-hidden
     >
+      {/* Deep base gradient — anchors the scene beneath the SVG silhouettes
+          so the whole era has a tinted "atmosphere" even before art loads. */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background: `radial-gradient(ellipse at 50% 25%, ${palette.main}26, transparent 55%),
+                       radial-gradient(ellipse at 50% 95%, ${palette.accent}14, transparent 50%),
+                       linear-gradient(180deg, ${palette.dark}, #020106 85%)`,
+        }}
+      />
+
       <svg
         viewBox="0 0 800 600"
         preserveAspectRatio="xMidYMid slice"
-        className="absolute inset-0 w-full h-full"
+        className="absolute inset-0 w-full h-full era-scene-breathe"
       >
         <EraScene eraId={eraId} palette={palette} />
       </svg>
 
+      {/* Atmosphere layer — large, slow, blurred particles for parallax
+          depth (sand motes, embers, snow, petals, etc.). Runs behind the
+          sharper DriftLayer so glyphs read against a soft backdrop. */}
+      <AtmosphereLayer eraId={eraId} palette={palette} />
+
+      {/* Foreground drift layer — sharp glyphs/runes/chars */}
       <DriftLayer eraId={eraId} palette={palette} />
 
       {/* Vignette to keep focus on center UI */}
@@ -42,6 +59,19 @@ export function EraArenaBackdrop({ eraId, palette }: Props) {
           background: `radial-gradient(ellipse at center, transparent 40%, ${palette.dark}cc 100%)`,
         }}
       />
+
+      <style>{`
+        @keyframes era-scene-breathe {
+          0%, 100% { opacity: 0.92; }
+          50%      { opacity: 1;    }
+        }
+        .era-scene-breathe {
+          animation: era-scene-breathe 9s ease-in-out infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .era-scene-breathe { animation: none !important; opacity: 0.95 !important; }
+        }
+      `}</style>
     </div>
   );
 }
@@ -404,6 +434,95 @@ function DriftLayer({
     </div>
   );
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Atmosphere layer — large soft-blurred particles behind the sharp drift
+// layer, giving each era a recognisable climate (embers / sand / snow /
+// petals / ink / neon) without needing actual image assets. One CSS
+// animation per particle; transforms only, so it stays compositor-safe
+// even at 30+ concurrent motes.
+// ────────────────────────────────────────────────────────────────────────────
+
+function AtmosphereLayer({
+  eraId,
+  palette,
+}: {
+  eraId: string;
+  palette: { main: string; accent: string; dark: string };
+}) {
+  const cfg = ATMOSPHERE_CONFIG[eraId] ?? ATMOSPHERE_CONFIG.default;
+  return (
+    <div className="absolute inset-0 overflow-hidden era-atmosphere-layer">
+      {Array.from({ length: cfg.count }).map((_, i) => {
+        const left = (i * 113) % 100;
+        const delay = -((i * 1.31) % cfg.duration);
+        const duration = cfg.duration + ((i * 0.83) % 8);
+        const sizePx = cfg.sizeMin + ((i * 7) % Math.max(1, cfg.sizeMax - cfg.sizeMin));
+        const color = cfg.accent ? palette.accent : palette.main;
+        const driftX = (((i * 37) % 30) - 15) + "vw";
+        return (
+          <span
+            key={i}
+            className="absolute rounded-full will-change-transform"
+            style={{
+              left: `${left}%`,
+              bottom: "-6%",
+              width: `${sizePx}px`,
+              height: `${sizePx}px`,
+              background: `radial-gradient(circle, ${color}${cfg.centerAlpha}, transparent 70%)`,
+              filter: `blur(${cfg.blur}px)`,
+              opacity: 0,
+              ["--atmos-drift-x" as string]: driftX,
+              animation: `era-atmos-rise ${duration}s linear ${delay}s infinite`,
+            }}
+          />
+        );
+      })}
+
+      <style>{`
+        @keyframes era-atmos-rise {
+          0%   { transform: translate3d(0, 0, 0) scale(0.6); opacity: 0; }
+          12%  { opacity: 0.55; }
+          80%  { opacity: 0.45; }
+          100% { transform: translate3d(var(--atmos-drift-x), -115vh, 0) scale(1.15); opacity: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .era-atmosphere-layer > span {
+            animation: none !important;
+            opacity: 0.18 !important;
+            transform: translate3d(0, -60vh, 0);
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+const ATMOSPHERE_CONFIG: Record<
+  string,
+  {
+    count: number;
+    sizeMin: number;
+    sizeMax: number;
+    duration: number;
+    blur: number;
+    accent?: boolean;
+    /** Appended to the CSS color for the centre stop alpha, e.g. "aa" */
+    centerAlpha: string;
+  }
+> = {
+  primitive: { count: 28, sizeMin: 4, sizeMax: 14, duration: 9,  blur: 2, accent: true,  centerAlpha: "cc" },  // embers
+  mesopotamia:{ count: 22, sizeMin: 12, sizeMax: 32, duration: 22, blur: 10, accent: true, centerAlpha: "55" },  // sand motes
+  egypt:    { count: 20, sizeMin: 8, sizeMax: 22, duration: 20, blur: 6, accent: true, centerAlpha: "66" },    // sand motes
+  greek:    { count: 18, sizeMin: 10, sizeMax: 26, duration: 26, blur: 8, accent: false, centerAlpha: "44" },  // marble dust
+  han:      { count: 20, sizeMin: 10, sizeMax: 24, duration: 24, blur: 8, accent: false, centerAlpha: "55" },  // ink mist
+  norse:    { count: 34, sizeMin: 3, sizeMax: 9,  duration: 14, blur: 2, accent: false, centerAlpha: "dd" },   // snowflakes (cool blue)
+  medieval: { count: 18, sizeMin: 6, sizeMax: 16, duration: 20, blur: 5, accent: true, centerAlpha: "77" },    // candle embers
+  sengoku:  { count: 26, sizeMin: 6, sizeMax: 14, duration: 16, blur: 3, accent: true, centerAlpha: "aa" },    // petals (tinted)
+  ming:     { count: 22, sizeMin: 10, sizeMax: 24, duration: 22, blur: 7, accent: true, centerAlpha: "66" },   // lantern glow
+  modern:   { count: 30, sizeMin: 3, sizeMax: 8,  duration: 7,  blur: 1, accent: true, centerAlpha: "cc" },    // neon dots
+  default:  { count: 16, sizeMin: 6, sizeMax: 16, duration: 22, blur: 6, accent: true, centerAlpha: "55" },
+};
 
 const DRIFT_CONFIG: Record<
   string,
