@@ -2,6 +2,8 @@
 
 import { CardDetailModal } from "@/components/game/CardDetailModal";
 import { CardTile } from "@/components/game/CardTile";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Pill } from "@/components/ui/Pill";
 import { ERAS } from "@/lib/constants/eras";
 import { cn } from "@/lib/utils";
 import type { Card, Rarity } from "@prisma/client";
@@ -73,52 +75,25 @@ export function CollectionClient({ cards, ownedMap }: Props) {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-6">
-        {/* Rarity pills */}
         <div className="flex items-center gap-1">
           {RARITY_FILTERS.map((r) => (
-            <button
-              key={r}
-              onClick={() => setRarity(r)}
-              className={cn(
-                "text-xs px-3 py-1.5 rounded-full border transition-colors",
-                rarity === r
-                  ? "bg-gold/20 border-gold text-gold"
-                  : "border-parchment/20 text-parchment/60 hover:border-gold/40",
-              )}
-            >
+            <Pill key={r} active={rarity === r} onClick={() => setRarity(r)}>
               {r}
-            </button>
+            </Pill>
           ))}
         </div>
 
         <div className="w-px h-6 bg-parchment/10 mx-1" />
 
-        {/* Era pills */}
         <div className="flex items-center gap-1 flex-wrap">
-          <button
-            onClick={() => setEra("ALL")}
-            className={cn(
-              "text-xs px-3 py-1.5 rounded-full border transition-colors",
-              era === "ALL"
-                ? "bg-gold/20 border-gold text-gold"
-                : "border-parchment/20 text-parchment/60 hover:border-gold/40",
-            )}
-          >
+          <Pill active={era === "ALL"} onClick={() => setEra("ALL")}>
             全時代
-          </button>
+          </Pill>
           {ERAS.map((e) => (
-            <button
-              key={e.id}
-              onClick={() => setEra(e.id)}
-              className={cn(
-                "text-xs px-3 py-1.5 rounded-full border transition-colors",
-                era === e.id
-                  ? "border-gold text-gold bg-gold/10"
-                  : "border-parchment/20 text-parchment/60 hover:border-gold/40",
-              )}
-            >
-              {e.emoji} {e.name}
-            </button>
+            <Pill key={e.id} active={era === e.id} onClick={() => setEra(e.id)}>
+              <span className="mr-1">{e.emoji}</span>
+              {e.name}
+            </Pill>
           ))}
         </div>
 
@@ -135,17 +110,13 @@ export function CollectionClient({ cards, ownedMap }: Props) {
         </label>
 
         {newCardIds.size > 0 && (
-          <button
+          <Pill
+            tone="gold"
+            active={showNewOnly}
             onClick={() => setShowNewOnly((v) => !v)}
-            className={cn(
-              "text-xs px-3 py-1.5 rounded-full border transition-colors",
-              showNewOnly
-                ? "bg-amber-400/20 border-amber-400 text-amber-200"
-                : "border-amber-400/40 text-amber-300 hover:bg-amber-400/10",
-            )}
           >
             ✨ 僅顯示新卡 ({newCardIds.size})
-          </button>
+          </Pill>
         )}
 
         <span className="ml-auto text-xs text-parchment/40">
@@ -154,9 +125,11 @@ export function CollectionClient({ cards, ownedMap }: Props) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="py-20 text-center text-parchment/40">
-          沒有符合條件的卡牌。
-        </div>
+        <EmptyState
+          icon="📜"
+          title="沒有符合條件的卡牌"
+          hint="試著放寬稀有度或時代篩選,或到召喚儀式喚出新的存在。"
+        />
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 justify-items-center">
           {filtered.map((c) => (

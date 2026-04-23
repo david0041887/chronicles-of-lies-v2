@@ -2,8 +2,10 @@
 
 import { CardTile } from "@/components/game/CardTile";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { Pill } from "@/components/ui/Pill";
 import { useToast } from "@/components/ui/Toast";
 import { ERAS } from "@/lib/constants/eras";
 import {
@@ -96,46 +98,25 @@ export function ForgeClient({ groups }: Props) {
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="flex gap-1">
           {RARITIES.map((r) => (
-            <button
-              key={r}
-              onClick={() => setRFilter(r)}
-              className={cn(
-                "text-xs px-3 py-1.5 rounded-full border transition-colors",
-                rFilter === r
-                  ? "bg-gold/20 border-gold text-gold"
-                  : "border-parchment/20 text-parchment/60 hover:border-gold/40",
-              )}
-            >
+            <Pill key={r} active={rFilter === r} onClick={() => setRFilter(r)}>
               {r}
-            </button>
+            </Pill>
           ))}
         </div>
         <div className="w-px h-6 bg-parchment/10 mx-1" />
         <div className="flex gap-1 flex-wrap">
-          <button
-            onClick={() => setEFilter("ALL")}
-            className={cn(
-              "text-xs px-3 py-1.5 rounded-full border transition-colors",
-              eFilter === "ALL"
-                ? "bg-gold/20 border-gold text-gold"
-                : "border-parchment/20 text-parchment/60 hover:border-gold/40",
-            )}
-          >
+          <Pill active={eFilter === "ALL"} onClick={() => setEFilter("ALL")}>
             全時代
-          </button>
+          </Pill>
           {ERAS.map((e) => (
-            <button
+            <Pill
               key={e.id}
+              active={eFilter === e.id}
               onClick={() => setEFilter(e.id)}
-              className={cn(
-                "text-xs px-3 py-1.5 rounded-full border transition-colors",
-                eFilter === e.id
-                  ? "border-gold text-gold bg-gold/10"
-                  : "border-parchment/20 text-parchment/60 hover:border-gold/40",
-              )}
+              title={e.name}
             >
               {e.emoji}
-            </button>
+            </Pill>
           ))}
         </div>
       </div>
@@ -271,9 +252,11 @@ function UpgradeTab({
       )}
 
       {groups.length === 0 && (
-        <div className="py-20 text-center text-parchment/40">
-          尚未擁有卡牌
-        </div>
+        <EmptyState
+          icon="⚒️"
+          title="尚未擁有可鍛造的卡"
+          hint="先到召喚儀式或關卡裡累積卡片 — 單卡 ≥2 張才能升星,≥3 張同卡(非 UR)才能融合。"
+        />
       )}
     </>
   );
@@ -503,9 +486,11 @@ function FusionTab({
       </div>
 
       {fusibleGroups.length === 0 && (
-        <div className="py-20 text-center text-parchment/40">
-          沒有可融合的卡牌
-        </div>
+        <EmptyState
+          icon="🔮"
+          title="沒有可融合的卡牌"
+          hint="融合需要 3 張同卡(非 UR)。去召喚儀式繼續收集重複卡。"
+        />
       )}
 
       <Modal

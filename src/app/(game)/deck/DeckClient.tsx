@@ -3,7 +3,9 @@
 import { CardTile } from "@/components/game/CardTile";
 import { CardDetailModal } from "@/components/game/CardDetailModal";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { Pill } from "@/components/ui/Pill";
 import { useToast } from "@/components/ui/Toast";
 import { DECK_SIZE, MAX_COPIES_PER_CARD } from "@/lib/battle/deck";
 import { ERAS } from "@/lib/constants/eras";
@@ -216,46 +218,25 @@ export function DeckClient({ ownedCards, initialDeck }: Props) {
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="flex gap-1">
           {RARITIES.map((r) => (
-            <button
-              key={r}
-              onClick={() => setRFilter(r)}
-              className={cn(
-                "text-xs px-3 py-1.5 rounded-full border transition-colors",
-                rFilter === r
-                  ? "bg-gold/20 border-gold text-gold"
-                  : "border-parchment/20 text-parchment/60 hover:border-gold/40",
-              )}
-            >
+            <Pill key={r} active={rFilter === r} onClick={() => setRFilter(r)}>
               {r}
-            </button>
+            </Pill>
           ))}
         </div>
         <div className="w-px h-6 bg-parchment/10 mx-1" />
         <div className="flex gap-1 flex-wrap">
-          <button
-            onClick={() => setEFilter("ALL")}
-            className={cn(
-              "text-xs px-3 py-1.5 rounded-full border transition-colors",
-              eFilter === "ALL"
-                ? "bg-gold/20 border-gold text-gold"
-                : "border-parchment/20 text-parchment/60 hover:border-gold/40",
-            )}
-          >
+          <Pill active={eFilter === "ALL"} onClick={() => setEFilter("ALL")}>
             全時代
-          </button>
+          </Pill>
           {ERAS.map((e) => (
-            <button
+            <Pill
               key={e.id}
+              active={eFilter === e.id}
               onClick={() => setEFilter(e.id)}
-              className={cn(
-                "text-xs px-3 py-1.5 rounded-full border transition-colors",
-                eFilter === e.id
-                  ? "border-gold text-gold bg-gold/10"
-                  : "border-parchment/20 text-parchment/60 hover:border-gold/40",
-              )}
+              title={e.name}
             >
               {e.emoji}
-            </button>
+            </Pill>
           ))}
         </div>
         <span className="ml-auto text-xs text-parchment/40">
@@ -265,9 +246,11 @@ export function DeckClient({ ownedCards, initialDeck }: Props) {
 
       {/* Grid */}
       {sorted.length === 0 ? (
-        <div className="py-20 text-center text-parchment/40">
-          沒有符合條件的卡牌
-        </div>
+        <EmptyState
+          icon="🃏"
+          title="沒有符合條件的卡牌"
+          hint="放寬篩選條件,或先到召喚儀式擴充牌庫。"
+        />
       ) : (
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
           {sorted.map((c) => {
