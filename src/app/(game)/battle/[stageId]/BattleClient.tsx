@@ -17,7 +17,6 @@ import {
 import type { BattleCard, BattleState, LogEntry, SideState } from "@/lib/battle/types";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -114,6 +113,7 @@ export function BattleClient({
   const [floaters, setFloaters] = useState<
     { id: number; side: "player" | "enemy"; delta: number }[]
   >([]);
+  const [hurtFlash, setHurtFlash] = useState<"player" | "enemy" | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const prevHpRef = useRef({
     player: battle.player.hp,
@@ -157,34 +157,65 @@ export function BattleClient({
         () => setFloaters((f) => f.filter((x) => !ids.includes(x.id))),
         1600,
       );
+      const hurt = next.find((n) => n.delta < 0);
+      if (hurt) {
+        setHurtFlash(hurt.side);
+        setTimeout(() => setHurtFlash(null), 350);
+      }
     }
   }, [battle.player.hp, battle.enemy.hp]);
 
-  // Enemy turn runner
+  // Enemy turn runner — uses a ref so we never stall on stale state
+  const enemyRunningRef = useRef(false);
   useEffect(() => {
-    if (battle.phase !== "enemy_turn" || enemyThinking) return;
+    if (battle.phase !== "enemy_turn") return;
+    if (enemyRunningRef.current) return;
+    enemyRunningRef.current = true;
     setEnemyThinking(true);
 
+    let cancelled = false;
     const runAsync = async () => {
-      await new Promise((r) => setTimeout(r, 700));
+      try {
+        await new Promise((r) => setTimeout(r, 650));
+        if (cancelled) return;
 
-      if (isConfused(battle, "enemy")) {
-        consumeConfusion(battle, "enemy");
-        tick();
-        await new Promise((r) => setTimeout(r, 500));
-      } else {
-        runEnemyTurn(battle);
-        tick();
-        await new Promise((r) => setTimeout(r, 600));
-      }
+        if (isConfused(battle, "enemy")) {
+          consumeConfusion(battle, "enemy");
+          tick();
+          await new Promise((r) => setTimeout(r, 450));
+        } else {
+          runEnemyTurn(battle);
+          tick();
+          await new Promise((r) => setTimeout(r, 550));
+        }
+        if (cancelled) return;
 
-      if (battle.phase === "enemy_turn") {
-        endEnemyTurn(battle);
-        tick();
+        if (battle.phase === "enemy_turn") {
+          endEnemyTurn(battle);
+          tick();
+        }
+      } finally {
+        enemyRunningRef.current = false;
+        setEnemyThinking(false);
       }
-      setEnemyThinking(false);
     };
     runAsync();
+
+    // Safety: if we somehow don't advance within 6 seconds, recover
+    const watchdog = setTimeout(() => {
+      if (battle.phase === "enemy_turn") {
+        console.warn("Battle: enemy turn watchdog triggered, forcing end turn");
+        endEnemyTurn(battle);
+        tick();
+        enemyRunningRef.current = false;
+        setEnemyThinking(false);
+      }
+    }, 6000);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(watchdog);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battle.phase]);
 
@@ -295,6 +326,25 @@ export function BattleClient({
       {/* Floating damage/heal numbers */}
       <FloaterLayer floaters={floaters} />
 
+      {/* Hurt flash overlay — brief red/gold pulse on the side that just took damage */}
+      <AnimatePresence>
+        {hurtFlash && (
+          <motion.div
+            key={hurtFlash}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className={cn(
+              "absolute inset-0 pointer-events-none z-20",
+              hurtFlash === "player"
+                ? "bg-gradient-to-t from-blood/40 via-transparent to-transparent"
+                : "bg-gradient-to-b from-gold/30 via-transparent to-transparent",
+            )}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Daily Legend Banner */}
       {dailyLegend && dailyLegend.boostedCardNames.length > 0 && (
         <div className="relative z-10 px-4 py-2 border-b border-gold/40 bg-gold/10 backdrop-blur text-center">
@@ -334,6 +384,7 @@ export function BattleClient({
           emoji={era?.emoji ?? "🎭"}
           palette={bg}
           confused={battle.enemy.confusedTurns > 0}
+          thinking={enemyThinking}
         />
 
         <div
@@ -638,17 +689,36 @@ function EnemyArea({
   emoji,
   palette,
   confused,
+  thinking,
 }: {
   enemy: SideState;
   emoji: string;
   palette: { main: string; accent: string };
   confused: boolean;
+  thinking: boolean;
 }) {
   return (
     <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
-      <div
+      <motion.div
         className="relative w-20 h-20 rounded-full border-2 flex items-center justify-center text-5xl shrink-0"
         style={{ borderColor: palette.main, background: `${palette.main}22` }}
+        animate={
+          thinking
+            ? {
+                boxShadow: [
+                  `0 0 0px ${palette.main}00`,
+                  `0 0 24px ${palette.main}cc`,
+                  `0 0 0px ${palette.main}00`,
+                ],
+                scale: [1, 1.04, 1],
+              }
+            : { boxShadow: `0 0 0px ${palette.main}00`, scale: 1 }
+        }
+        transition={{
+          duration: 1.2,
+          repeat: thinking ? Infinity : 0,
+          ease: "easeInOut",
+        }}
       >
         <span>{emoji}</span>
         {confused && (
@@ -656,7 +726,15 @@ function EnemyArea({
             🌀
           </span>
         )}
-      </div>
+        {thinking && !confused && (
+          <span
+            className="absolute -top-1 -right-1 text-xs bg-blood/90 text-parchment rounded-full px-1.5 py-0.5 tracking-widest font-[family-name:var(--font-cinzel)]"
+            title="謀劃中"
+          >
+            …
+          </span>
+        )}
+      </motion.div>
       <div className="flex-1 min-w-0">
         <div className="display-serif text-parchment text-lg truncate">
           {enemy.name}
@@ -732,29 +810,38 @@ function Hand({
   const canPlay = phase === "player_turn";
   return (
     <div className="relative h-[40vh] max-h-[300px] flex items-end justify-center px-2 pb-3 gap-1 overflow-x-auto">
-      {hand.map((c, i) => {
-        const affordable = c.cost <= mana;
-        return (
-          <motion.button
-            key={c.uid}
-            onClick={() => onTap(i)}
-            initial={{ y: 30, opacity: 0 }}
-            animate={{
-              y: canPlay && affordable ? 0 : 10,
-              opacity: 1,
-              scale: canPlay && affordable ? 1 : 0.92,
-            }}
-            transition={{ duration: 0.25, ease: [0.22, 0.97, 0.32, 1.08] }}
-            whileHover={{ y: -12, scale: 1.05 }}
-            className={cn(
-              "shrink-0 w-[22vw] max-w-[112px] min-w-[84px] transition-opacity",
-              !affordable && canPlay && "opacity-60",
-            )}
-          >
-            <CardTile card={c} size="sm" />
-          </motion.button>
-        );
-      })}
+      <AnimatePresence mode="popLayout">
+        {hand.map((c, i) => {
+          const affordable = c.cost <= mana;
+          return (
+            <motion.button
+              key={c.uid}
+              layout
+              onClick={() => onTap(i)}
+              initial={{ y: 60, opacity: 0, scale: 0.85 }}
+              animate={{
+                y: canPlay && affordable ? 0 : 10,
+                opacity: 1,
+                scale: canPlay && affordable ? 1 : 0.92,
+              }}
+              exit={{
+                y: -180,
+                opacity: 0,
+                scale: 1.15,
+                transition: { duration: 0.35, ease: [0.22, 0.97, 0.32, 1.08] },
+              }}
+              transition={{ duration: 0.25, ease: [0.22, 0.97, 0.32, 1.08] }}
+              whileHover={{ y: -12, scale: 1.05 }}
+              className={cn(
+                "shrink-0 w-[22vw] max-w-[112px] min-w-[84px] transition-opacity",
+                !affordable && canPlay && "opacity-60",
+              )}
+            >
+              <CardTile card={c} size="sm" />
+            </motion.button>
+          );
+        })}
+      </AnimatePresence>
       {hand.length === 0 && (
         <div className="text-parchment/30 text-xs">手牌為空</div>
       )}

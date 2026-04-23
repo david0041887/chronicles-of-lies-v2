@@ -4,6 +4,7 @@ const BASE_HAND_CAP = 5;
 const BASE_MANA_CAP = 10;
 const INITIAL_HP = 50;
 const BASE_INITIAL_DRAW = 5;
+const BASE_INITIAL_MANA = 2;  // was 1 — 2+ is more playable on turn 1
 
 export interface PlayerPerks {
   startHandBonus: number;  // +1 at weaver Lv.5
@@ -22,7 +23,7 @@ function makeSide(
   deck: BattleCard[],
   perks: PlayerPerks = ZERO_PERKS,
 ): SideState {
-  const startMana = 1 + perks.startManaBonus;
+  const startMana = BASE_INITIAL_MANA + perks.startManaBonus;
   const manaCeiling = BASE_MANA_CAP + perks.maxManaBonus;
   return {
     name,

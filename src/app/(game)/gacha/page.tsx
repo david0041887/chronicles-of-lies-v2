@@ -33,8 +33,9 @@ export default async function GachaPage() {
       <section className="mt-10 rounded-xl border border-parchment/10 bg-veil/30 p-5 text-xs text-parchment/60">
         <h3 className="display-serif text-base text-sacred mb-3">機率與保底</h3>
         <ul className="space-y-1.5 leading-relaxed">
-          <li>• 基礎:R 75% / SR 19% / SSR 5% / UR 1%</li>
-          <li>• 十連抽:SSR 8%(+3%)、UR 2%(+1%)、必出至少 2 張 SR 以上</li>
+          <li>• 基礎:R 82.5% / SR 15% / SSR 2.5% / UR 0.5%</li>
+          <li>• 十連抽:SSR 4%(+1.5%)、UR 1%(+0.5%)、必出至少 2 張 SR 以上</li>
+          <li>• 十連抽成本 1,350(單抽 ×10 等於 1,500)</li>
           <li>• {PITY_SR} 連內未出 SR → 下次保底 SR+</li>
           <li>• {PITY_SSR} 連內未出 SSR → 下次保底 SSR+</li>
           <li>• {PITY_UR} 連內未出 UR → 下次必出 UR</li>

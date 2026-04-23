@@ -5,12 +5,12 @@ import { dailyLegendIndex, msUntilNextRotation } from "@/lib/daily-legend";
 import { cardsForLegend } from "@/lib/legend-cards";
 import { prisma } from "@/lib/prisma";
 import { ensureLegendCounts } from "@/lib/spread";
-import { getChapters } from "@/lib/story";
+import { chapterStatus, getChapters } from "@/lib/story";
 import { perksForLevel, weaverLevel } from "@/lib/weaver";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LegendsPanel } from "./LegendsPanel";
-import { StoryChapters } from "./StoryChapters";
+import { StoryStageTimeline } from "./StoryStageTimeline";
 
 interface Props {
   params: Promise<{ eraId: string }>;
@@ -174,20 +174,7 @@ export default async function EraPage({ params }: Props) {
           </section>
         )}
 
-        {/* Story Chapters */}
-        {chapters.length > 0 && (
-          <section className="mb-8">
-            <h2 className="display-serif text-2xl text-sacred mb-4">📖 主線劇情</h2>
-            <StoryChapters
-              chapters={chapters}
-              highestStage={highestStage}
-              bossCleared={bossCleared}
-              palette={era.palette}
-            />
-          </section>
-        )}
-
-        {/* 4 Legends — passive display only, no click to spread */}
+        {/* Legends (compact passive display) */}
         <section className="mb-8">
           <h2 className="display-serif text-2xl text-sacred mb-1">📢 四大傳說</h2>
           <p className="text-xs text-parchment/50 tracking-wider mb-4">
@@ -203,85 +190,21 @@ export default async function EraPage({ params }: Props) {
           />
         </section>
 
-        {/* Stages */}
+        {/* Story-Stage Timeline — chapters and battles interleaved */}
         <section>
-          <h2 className="display-serif text-2xl text-sacred mb-4">⚔️ 帷幕對決</h2>
-          {stages.length === 0 ? (
-            <div className="p-8 rounded-xl border border-dashed border-parchment/20 bg-veil/20 text-center text-parchment/50">
-              尚未開放關卡
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {stages.map((s, i) => {
-                const unlocked = i === 0 || highestStage >= s.orderNum - 1;
-                const cleared = highestStage >= s.orderNum;
-                return (
-                  <div
-                    key={s.id}
-                    className={`relative p-5 rounded-xl border transition-colors ${
-                      unlocked
-                        ? s.isBoss
-                          ? "border-blood/50 bg-blood/10"
-                          : "border-parchment/15 bg-veil/40 hover:border-gold/40"
-                        : "border-parchment/10 bg-veil/20 opacity-60"
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div
-                        className="w-12 h-12 rounded-full border-2 flex items-center justify-center shrink-0"
-                        style={{
-                          borderColor: era.palette.main,
-                          background: `${era.palette.main}22`,
-                        }}
-                      >
-                        <span className="display-serif text-lg">
-                          {s.isBoss ? "👑" : s.orderNum}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="display-serif text-lg text-parchment truncate">
-                            {s.name}
-                          </span>
-                          {cleared && <span className="text-xs text-success">✓ 已通關</span>}
-                          {s.isBoss && (
-                            <span className="text-[10px] text-blood tracking-widest border border-blood/60 px-1.5 py-0.5 rounded">
-                              BOSS
-                            </span>
-                          )}
-                        </div>
-                        {s.subtitle && (
-                          <div className="text-xs text-parchment/50">{s.subtitle}</div>
-                        )}
-                        <div className="flex items-center gap-3 text-[11px] text-parchment/60 mt-1">
-                          <span>難度 ×{s.difficulty}</span>
-                          <span>敵 HP {s.enemyHp}</span>
-                          <span className="text-rarity-super">💎 +{s.rewardCrystals}</span>
-                          <span className="text-gold">🪙 +{s.rewardBelievers}</span>
-                        </div>
-                      </div>
-                      {unlocked ? (
-                        <Link
-                          href={`/battle/${s.id}`}
-                          className={`px-4 py-2 rounded-lg text-sm font-semibold shrink-0 transition-all ${
-                            s.isBoss
-                              ? "bg-blood text-parchment hover:brightness-110"
-                              : "bg-gold text-veil hover:brightness-110"
-                          }`}
-                        >
-                          {cleared ? "再戰" : "挑戰"}
-                        </Link>
-                      ) : (
-                        <span className="text-xs text-parchment/30 tracking-widest shrink-0">
-                          🔒 上一關未通
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <h2 className="display-serif text-2xl text-sacred mb-1">📖 主線 · 帷幕對決</h2>
+          <p className="text-xs text-parchment/50 tracking-wider mb-4">
+            每通關一關,下一章劇情解鎖 → 打完 BOSS 完成該時代終章。
+          </p>
+          <StoryStageTimeline
+            chapters={chapters.map((ch) => ({
+              ...ch,
+              status: chapterStatus(ch.unlockAt, highestStage, bossCleared),
+            }))}
+            stages={stages}
+            highestStage={highestStage}
+            palette={era.palette}
+          />
         </section>
       </main>
     </div>

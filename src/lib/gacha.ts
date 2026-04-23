@@ -14,19 +14,20 @@ import type { Rarity } from "@prisma/client";
  */
 
 const BASE_RATES: { rarity: Rarity; weight: number }[] = [
-  { rarity: "R", weight: 750 },
-  { rarity: "SR", weight: 190 },
-  { rarity: "SSR", weight: 50 },
-  { rarity: "UR", weight: 10 },
+  // v3: per-spec §5.1 — R 82.5 / SR 15 / SSR 2 / UR 0.5
+  { rarity: "R", weight: 820 },
+  { rarity: "SR", weight: 150 },
+  { rarity: "SSR", weight: 25 },
+  { rarity: "UR", weight: 5 },
 ];
 
 const TEN_PULL_RATES: { rarity: Rarity; weight: number }[] = [
-  // 10-pull: SSR 10% (+5), UR 2% (+1) vs base single-pull rates.
-  // Additionally the 10-pull costs 10% less (COST_TEN below).
-  { rarity: "R", weight: 680 },
-  { rarity: "SR", weight: 200 },
-  { rarity: "SSR", weight: 100 },
-  { rarity: "UR", weight: 20 },
+  // 10-pull: SSR 4% (+1.5), UR 1% (+0.5) vs base.
+  // Still guaranteed at least 2 × SR+. Additionally 10% off cost.
+  { rarity: "R", weight: 780 },
+  { rarity: "SR", weight: 170 },
+  { rarity: "SSR", weight: 40 },
+  { rarity: "UR", weight: 10 },
 ];
 
 export const PITY_SR = 50;

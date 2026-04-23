@@ -68,9 +68,9 @@ export default function Home() {
               進入帷幕
             </Button>
           </Link>
-          <Link href="/world">
+          <Link href="/lore">
             <Button size="lg" variant="ghost">
-              世界觀簡介
+              📖 世界觀
             </Button>
           </Link>
         </div>
