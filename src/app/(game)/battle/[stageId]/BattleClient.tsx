@@ -1,5 +1,6 @@
 "use client";
 
+import { EraArenaBackdrop } from "@/components/fx/EraArenaBackdrop";
 import { CardDetailModal } from "@/components/game/CardDetailModal";
 import { CardTile } from "@/components/game/CardTile";
 import { Button } from "@/components/ui/Button";
@@ -114,7 +115,14 @@ export function BattleClient({
     { id: number; side: "player" | "enemy"; delta: number }[]
   >([]);
   const [hurtFlash, setHurtFlash] = useState<"player" | "enemy" | null>(null);
+  const [impactFlash, setImpactFlash] = useState<{
+    id: number;
+    type: string;
+    side: "player" | "enemy";
+  } | null>(null);
+  const [shakeKey, setShakeKey] = useState(0);
   const logRef = useRef<HTMLDivElement>(null);
+  const prevLogLenRef = useRef(0);
   const prevHpRef = useRef({
     player: battle.player.hp,
     enemy: battle.enemy.hp,
@@ -122,10 +130,24 @@ export function BattleClient({
 
   const tick = () => setBattle((b) => ({ ...b }));
 
-  // Log auto-scroll
+  // Log auto-scroll + detect enemy plays for impact flash
   useEffect(() => {
     const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
+    // Scan newly appended log entries for enemy plays
+    const fresh = battle.log.slice(prevLogLenRef.current);
+    prevLogLenRef.current = battle.log.length;
+    for (const entry of fresh) {
+      if (entry.kind === "play" && entry.side === "enemy") {
+        // text is e.g. "打出 X(attack 5)" — extract type from parens
+        const m = entry.text.match(/\(([a-z]+)\s/);
+        if (m) {
+          triggerImpact(m[1], "enemy");
+          break;
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battle.log.length]);
 
   // Emit damage / heal floaters on HP changes
@@ -161,6 +183,9 @@ export function BattleClient({
       if (hurt) {
         setHurtFlash(hurt.side);
         setTimeout(() => setHurtFlash(null), 350);
+        if (hurt.side === "player" && Math.abs(hurt.delta) >= 4) {
+          setShakeKey((k) => k + 1);
+        }
       }
     }
   }, [battle.player.hp, battle.enemy.hp]);
@@ -267,6 +292,14 @@ export function BattleClient({
     setPreviewIdx(handIdx);
   };
 
+  const triggerImpact = (type: string, side: "player" | "enemy") => {
+    const id = Date.now() + Math.random();
+    setImpactFlash({ id, type, side });
+    setTimeout(() => {
+      setImpactFlash((f) => (f && f.id === id ? null : f));
+    }, 520);
+  };
+
   const playFromPreview = () => {
     if (previewIdx === null) return;
     if (battle.phase !== "player_turn") return;
@@ -276,6 +309,7 @@ export function BattleClient({
       push("信仰池不足", "warning");
       return;
     }
+    triggerImpact(c.type, "player");
     playCard(battle, "player", previewIdx);
     setPreviewIdx(null);
     tick();
@@ -310,12 +344,22 @@ export function BattleClient({
     previewCard.cost <= battle.player.mana;
 
   return (
-    <div
+    <motion.div
+      key={shakeKey}
+      animate={
+        shakeKey === 0
+          ? {}
+          : { x: [0, -6, 6, -4, 4, 0], y: [0, 2, -2, 1, 0] }
+      }
+      transition={{ duration: 0.32 }}
       className="fixed inset-0 z-30 flex flex-col overflow-hidden"
       style={{
         background: `linear-gradient(180deg, ${bg.dark}, ${bg.main}22 50%, ${bg.dark})`,
       }}
     >
+      {/* Era-specific arena backdrop (SVG silhouettes + drifting glyphs) */}
+      <EraArenaBackdrop eraId={era?.id ?? "primitive"} palette={bg} />
+
       <div
         className="absolute inset-0 opacity-35 pointer-events-none"
         style={{
@@ -325,6 +369,9 @@ export function BattleClient({
 
       {/* Floating damage/heal numbers */}
       <FloaterLayer floaters={floaters} />
+
+      {/* Card-play impact flash (center of arena) */}
+      <ImpactFlashLayer flash={impactFlash} />
 
       {/* Hurt flash overlay — brief red/gold pulse on the side that just took damage */}
       <AnimatePresence>
@@ -535,7 +582,7 @@ export function BattleClient({
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }
 
@@ -845,6 +892,54 @@ function Hand({
       {hand.length === 0 && (
         <div className="text-parchment/30 text-xs">手牌為空</div>
       )}
+    </div>
+  );
+}
+
+function ImpactFlashLayer({
+  flash,
+}: {
+  flash: { id: number; type: string; side: "player" | "enemy" } | null;
+}) {
+  const colors: Record<string, { ring: string; glow: string; emoji: string }> = {
+    attack: { ring: "#ef4444", glow: "rgba(239,68,68,0.55)", emoji: "⚔️" },
+    debuff: { ring: "#8b5cf6", glow: "rgba(139,92,246,0.55)", emoji: "⬇️" },
+    ritual: { ring: "#d946ef", glow: "rgba(217,70,239,0.55)", emoji: "🔮" },
+    heal: { ring: "#22c55e", glow: "rgba(34,197,94,0.55)", emoji: "💚" },
+    spread: { ring: "#06b6d4", glow: "rgba(6,182,212,0.5)", emoji: "📢" },
+    buff: { ring: "#f59e0b", glow: "rgba(245,158,11,0.55)", emoji: "⬆️" },
+    confuse: { ring: "#a855f7", glow: "rgba(168,85,247,0.5)", emoji: "🌀" },
+  };
+  return (
+    <div className="absolute inset-0 pointer-events-none z-20 flex items-center justify-center">
+      <AnimatePresence>
+        {flash && (() => {
+          const c = colors[flash.type] ?? colors.attack;
+          return (
+            <motion.div
+              key={flash.id}
+              initial={{ scale: 0.4, opacity: 0 }}
+              animate={{ scale: [0.4, 1.4, 1.2], opacity: [0, 0.9, 0] }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+              className="relative"
+            >
+              <div
+                className="rounded-full border-4 flex items-center justify-center text-5xl"
+                style={{
+                  width: 180,
+                  height: 180,
+                  borderColor: c.ring,
+                  boxShadow: `0 0 60px ${c.glow}, inset 0 0 40px ${c.glow}`,
+                  background: `radial-gradient(circle, ${c.glow} 0%, transparent 70%)`,
+                }}
+              >
+                {c.emoji}
+              </div>
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { CornerFlourish, OrnamentDivider } from "@/components/fx/OrnamentDivider";
 import { VeilBackdrop } from "@/components/fx/VeilBackdrop";
 import { requireOnboarded } from "@/lib/auth-helpers";
 import { getEra, type EraId } from "@/lib/constants/eras";
@@ -85,14 +86,25 @@ export default async function EraPage({ params }: Props) {
             background: `linear-gradient(135deg, ${era.palette.dark} 0%, ${era.palette.main}40 100%)`,
           }}
         >
+          <CornerFlourish color={`${era.palette.accent}88`} size={28} />
+          {/* faint era emoji watermark */}
+          <span
+            aria-hidden
+            className="absolute -right-6 -bottom-10 select-none pointer-events-none opacity-[0.07]"
+            style={{ fontSize: "18rem", lineHeight: 1 }}
+          >
+            {era.emoji}
+          </span>
           <Link
             href="/world"
-            className="inline-block text-parchment/50 hover:text-parchment text-sm mb-6"
+            className="relative inline-block text-parchment/50 hover:text-parchment text-sm mb-6"
           >
             ← 返回世界
           </Link>
-          <div className="flex items-center gap-4 mb-4">
-            <span className="text-6xl">{era.emoji}</span>
+          <div className="relative flex items-center gap-4 mb-4">
+            <span className="text-6xl drop-shadow-[0_0_18px_rgba(0,0,0,0.5)]">
+              {era.emoji}
+            </span>
             <div>
               <span
                 className="font-[family-name:var(--font-cinzel)] text-xs tracking-[0.3em]"
@@ -105,10 +117,15 @@ export default async function EraPage({ params }: Props) {
               </h1>
             </div>
           </div>
-          <p className="text-parchment/80 font-[family-name:var(--font-noto-serif)] italic max-w-xl mb-6">
+          <p className="relative text-parchment/80 font-[family-name:var(--font-noto-serif)] italic max-w-xl mb-6">
             「{era.hero}」
           </p>
-          <div className="flex flex-wrap items-center gap-6">
+          <OrnamentDivider
+            color={`${era.palette.accent}88`}
+            glyph={era.emoji}
+            className="relative mb-6 max-w-md"
+          />
+          <div className="relative flex flex-wrap items-center gap-6">
             <div>
               <div className="text-xs text-parchment/50 tracking-wider">已累積信徒</div>
               <div className="font-[family-name:var(--font-mono)] text-3xl text-parchment tabular-nums">
