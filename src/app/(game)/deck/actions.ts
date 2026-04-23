@@ -8,10 +8,28 @@ import { revalidatePath } from "next/cache";
 export async function saveDeck(
   cardIds: string[],
 ): Promise<{ ok: true; deckId: string } | { ok: false; error: string }> {
+  try {
+    return await saveDeckUnsafe(cardIds);
+  } catch (err) {
+    console.error("saveDeck failed", err);
+    return { ok: false, error: "儲存牌組失敗,請稍後再試" };
+  }
+}
+
+async function saveDeckUnsafe(
+  cardIds: string[],
+): Promise<{ ok: true; deckId: string } | { ok: false; error: string }> {
   const user = await requireOnboarded();
 
   if (!Array.isArray(cardIds) || cardIds.length !== DECK_SIZE) {
     return { ok: false, error: `牌組需 ${DECK_SIZE} 張(目前 ${cardIds?.length ?? 0})` };
+  }
+  // Refuse absurdly-long string ids (potential DoS via huge JSON blobs
+  // or Prisma $in with millions of entries).
+  for (const id of cardIds) {
+    if (typeof id !== "string" || id.length > 64) {
+      return { ok: false, error: "牌組包含無效卡 id" };
+    }
   }
 
   // Max 3 copies per card id

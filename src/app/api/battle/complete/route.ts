@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { verifyTicket } from "@/lib/battle/ticket";
+import { verifyResult, verifyTicket } from "@/lib/battle/ticket";
 import { csrfGate } from "@/lib/csrf";
 import { progressMission } from "@/lib/daily-missions";
 import { cardLegendIndex } from "@/lib/legend-cards";
@@ -47,6 +47,7 @@ export async function POST(req: Request) {
   const {
     stageId,
     ticket,
+    sig,
     won,
     turnsElapsed,
     playerHpEnd,
@@ -60,13 +61,35 @@ export async function POST(req: Request) {
 
   // ── Verify HMAC ticket: the client must have actually rendered the battle
   //    page as this user for this stage within the TTL window.
-  const ticketCheck = verifyTicket(typeof ticket === "string" ? ticket : "", {
-    userId,
-    stageId,
-  });
+  const ticketStr = typeof ticket === "string" ? ticket : "";
+  const ticketCheck = verifyTicket(ticketStr, { userId, stageId });
   if (!ticketCheck.ok) {
     return NextResponse.json(
       { error: `Battle ticket rejected: ${ticketCheck.error}` },
+      { status: 403 },
+    );
+  }
+
+  // ── Verify payload signature: client must have computed HMAC over the
+  //    canonical outcome using the ticket-derived key. Reject if missing
+  //    or mismatched — this catches tools that simply POST a modified body.
+  const plays = Array.isArray(playerPlays) ? (playerPlays as string[]) : [];
+  const sigOk =
+    typeof sig === "string" &&
+    verifyResult(
+      {
+        ticket: ticketStr,
+        won: won === true,
+        turnsElapsed: Math.max(1, Math.floor(Number(turnsElapsed) || 1)),
+        playerHpEnd: Math.floor(Number(playerHpEnd) || 0),
+        enemyHpEnd: Math.floor(Number(enemyHpEnd) || 0),
+        playerPlays: plays,
+      },
+      sig,
+    );
+  if (!sigOk) {
+    return NextResponse.json(
+      { error: "Battle result signature rejected" },
       { status: 403 },
     );
   }
@@ -79,7 +102,6 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  const plays = Array.isArray(playerPlays) ? (playerPlays as string[]) : [];
   if (plays.length > turns * MAX_PLAYS_PER_TURN) {
     return NextResponse.json(
       { error: "Play count inconsistent with turn count" },

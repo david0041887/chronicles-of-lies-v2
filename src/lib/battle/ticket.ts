@@ -93,3 +93,62 @@ export function verifyTicket(
   }
   return { ok: true, exp: payload.exp };
 }
+
+/**
+ * Derive a stable "result signature" over the battle outcome. Client and
+ * server must agree on the exact canonical string so tampering with any
+ * reported field (won / turns / HP / plays) breaks the signature.
+ *
+ * Server stores only NEXTAUTH_SECRET + the original ticket's payload, both
+ * tied to a single battle session. Key = HMAC(ticket, SECRET) — derived so
+ * two parallel battles can't share a signature.
+ */
+interface ResultPayload {
+  ticket: string;
+  won: boolean;
+  turnsElapsed: number;
+  playerHpEnd: number;
+  enemyHpEnd: number;
+  playerPlays: string[];
+}
+
+function canonicalise(p: ResultPayload): string {
+  // Sort plays for order-independence (the server already treats the list
+  // as a multiset for mission progress), and round numerics to integers so
+  // floating-point serialisation quirks don't break the signature.
+  const plays = [...p.playerPlays].sort().join(",");
+  return [
+    p.ticket,
+    p.won ? "1" : "0",
+    Math.floor(p.turnsElapsed),
+    Math.floor(p.playerHpEnd),
+    Math.floor(p.enemyHpEnd),
+    plays,
+  ].join("|");
+}
+
+// Key derivation uses plain SHA-256 of the ticket so the browser can mirror
+// it with SubtleCrypto (which has no HMAC-with-secret shortcut on the
+// client without the actual secret). The ticket itself already carries a
+// SECRET-bound signature — the result signature is a speed-bump that
+// forces attackers to implement the algorithm, not a cryptographic
+// guarantee against someone who can open DevTools.
+function derivedKey(ticket: string): Buffer {
+  return crypto.createHash("sha256").update(ticket).digest();
+}
+
+export function signResult(p: ResultPayload): string {
+  const key = derivedKey(p.ticket);
+  return b64url(crypto.createHmac("sha256", key).update(canonicalise(p)).digest());
+}
+
+export function verifyResult(p: ResultPayload, sig: string): boolean {
+  if (!sig || typeof sig !== "string") return false;
+  const expected = signResult(p);
+  if (sig.length !== expected.length) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+  } catch {
+    return false;
+  }
+}

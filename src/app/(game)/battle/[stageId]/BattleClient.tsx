@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { previewEnemyIntent, runEnemyTurn, type EnemyIntent } from "@/lib/battle/ai";
+import { signBattleResult } from "@/lib/battle/client-sig";
 import {
   consumeConfusion,
   createBattle,
@@ -285,17 +286,26 @@ export function BattleClient({
         const url = tutorialMode
           ? "/api/tutorial/complete"
           : "/api/battle/complete";
+        const payload = {
+          ticket: ticket ?? "",
+          won: battle.phase === "won",
+          turnsElapsed: battle.turn,
+          playerHpEnd: battle.player.hp,
+          enemyHpEnd: battle.enemy.hp,
+          playerPlays: battle.playerPlays,
+        };
+        // Only the real battle endpoint requires a signature; tutorial
+        // uses a simpler one-shot path.
+        const sig = !tutorialMode && ticket
+          ? await signBattleResult(payload)
+          : undefined;
         const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             stageId: stage.id,
-            ticket,
-            won: battle.phase === "won",
-            turnsElapsed: battle.turn,
-            playerHpEnd: battle.player.hp,
-            enemyHpEnd: battle.enemy.hp,
-            playerPlays: battle.playerPlays,
+            sig,
+            ...payload,
           }),
         });
         const body = await res.json();
