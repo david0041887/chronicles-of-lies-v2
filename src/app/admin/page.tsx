@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { grantCrystals, resetUserStats, toggleRole } from "./actions";
+import {
+  grantCrystalsForm,
+  resetUserStatsForm,
+  toggleRoleForm,
+} from "./actions";
 import { ReseedStagesButton } from "./ReseedStagesButton";
 
 export const dynamic = "force-dynamic";
@@ -132,7 +136,7 @@ export default async function AdminPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
-                      <form action={toggleRole.bind(null, u.id)}>
+                      <form action={toggleRoleForm.bind(null, u.id)}>
                         <button
                           type="submit"
                           className="text-xs px-2 py-1 rounded border border-parchment/30 text-parchment/70 hover:border-gold hover:text-gold"
@@ -141,7 +145,7 @@ export default async function AdminPage() {
                           {u.role === "ADMIN" ? "降為玩家" : "升為管理員"}
                         </button>
                       </form>
-                      <form action={grantCrystals.bind(null, u.id, 1000)}>
+                      <form action={grantCrystalsForm.bind(null, u.id, 1000)}>
                         <button
                           type="submit"
                           className="text-xs px-2 py-1 rounded border border-rarity-super/50 text-rarity-super hover:bg-rarity-super/10"
@@ -150,7 +154,7 @@ export default async function AdminPage() {
                           +1000💎
                         </button>
                       </form>
-                      <form action={resetUserStats.bind(null, u.id)}>
+                      <form action={resetUserStatsForm.bind(null, u.id)}>
                         <button
                           type="submit"
                           className="text-xs px-2 py-1 rounded border border-blood/40 text-blood/80 hover:bg-blood/10"

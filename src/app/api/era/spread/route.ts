@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { takeBurst } from "@/lib/rate-limit";
 import {
   cooldownLeft,
   dominantIndex,
@@ -15,6 +16,11 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+  // Per-user burst cap belt-and-braces with the server-side cooldown in
+  // spread.ts — catches attackers who bypass the UI cooldown.
+  if (!takeBurst(`spread:${session.user.id}`, 60_000, 20)) {
+    return NextResponse.json({ error: "請求太頻繁" }, { status: 429 });
   }
 
   let body: unknown;

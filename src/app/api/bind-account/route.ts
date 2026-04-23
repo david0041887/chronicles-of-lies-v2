@@ -1,10 +1,21 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { takeBurst } from "@/lib/rate-limit";
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
 const USERNAME_RE = /^[A-Za-z0-9_\u4e00-\u9fa5]{2,16}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function clientIp(req: Request): string {
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return (
+    req.headers.get("x-real-ip") ??
+    req.headers.get("cf-connecting-ip") ??
+    "anon"
+  );
+}
 
 /**
  * Bind a guest user to a real email / password / username.
@@ -14,6 +25,19 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+  // Rate limit: 5 bind attempts / hour per IP and per user — tight because
+  // this mutation replaces the account's email/password, so abuse is
+  // account-takeover-adjacent if a guest session is hijacked.
+  const ip = clientIp(req);
+  if (
+    !takeBurst(`bind:${ip}`, 60 * 60 * 1000, 5) ||
+    !takeBurst(`bind:u:${session.user.id}`, 60 * 60 * 1000, 5)
+  ) {
+    return NextResponse.json(
+      { error: "綁定請求過多,請稍後再試" },
+      { status: 429 },
+    );
   }
 
   let body: unknown;

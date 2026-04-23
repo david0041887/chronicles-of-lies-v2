@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { takeBurst } from "@/lib/rate-limit";
 import { grantStarterDeck } from "@/lib/starter";
 import { getMilestoneDef } from "@/lib/milestones";
 import { NextResponse } from "next/server";
@@ -17,6 +18,14 @@ export async function POST() {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+  // Rate limit: tutorial is one-shot (gated by tutorialDone) but an
+  // attacker could still hammer this and burn DB cycles. Cap at 3/min.
+  if (!takeBurst(`tutorialComplete:${session.user.id}`, 60_000, 3)) {
+    return NextResponse.json(
+      { error: "請求太頻繁" },
+      { status: 429 },
+    );
   }
 
   const user = await prisma.user.findUnique({ where: { id: session.user.id } });

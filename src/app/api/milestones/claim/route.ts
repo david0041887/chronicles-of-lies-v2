@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { getMilestoneDef } from "@/lib/milestones";
 import { prisma } from "@/lib/prisma";
+import { takeBurst } from "@/lib/rate-limit";
 import { weaverLevel } from "@/lib/weaver";
 import { NextResponse } from "next/server";
 
@@ -8,6 +9,12 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+  if (!takeBurst(`milestone:${session.user.id}`, 60_000, 10)) {
+    return NextResponse.json(
+      { error: "請求太頻繁" },
+      { status: 429 },
+    );
   }
   let body: unknown;
   try {
