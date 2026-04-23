@@ -169,7 +169,7 @@ export default async function AdminPage() {
       </section>
 
       <p className="mt-8 text-xs text-parchment/30 tracking-widest text-center">
-        Phase 1.1 後台 — 更多管理功能(卡牌編輯、活動開關、封禁)於後續 phase 加入
+        Beta 後台 · 更多管理功能(卡牌編輯、活動開關、封禁)將逐步加入
       </p>
     </main>
   );

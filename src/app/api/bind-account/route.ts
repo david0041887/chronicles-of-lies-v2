@@ -34,8 +34,8 @@ export async function POST(req: Request) {
   if (typeof email !== "string" || !EMAIL_RE.test(email)) {
     return NextResponse.json({ error: "Email 格式錯誤" }, { status: 400 });
   }
-  if (typeof password !== "string" || password.length < 6) {
-    return NextResponse.json({ error: "密碼至少 6 字" }, { status: 400 });
+  if (typeof password !== "string" || password.length < 8) {
+    return NextResponse.json({ error: "密碼至少 8 字" }, { status: 400 });
   }
 
   const normalizedEmail = email.toLowerCase();

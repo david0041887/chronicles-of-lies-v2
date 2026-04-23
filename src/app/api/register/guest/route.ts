@@ -1,6 +1,17 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { takeBurst } from "@/lib/rate-limit";
+
+function clientIp(req: Request): string {
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return (
+    req.headers.get("x-real-ip") ??
+    req.headers.get("cf-connecting-ip") ??
+    "anon"
+  );
+}
 
 /**
  * Guest registration / login.
@@ -13,6 +24,10 @@ import { prisma } from "@/lib/prisma";
  * is returned on subsequent calls from the same browser.
  */
 export async function POST(req: Request) {
+  // Per-IP rate limit: 10 new guest accounts / hour (existing-device
+  // lookups still pass through — we allow an unbounded return-visit rate).
+  const ip = clientIp(req);
+
   let body: unknown;
   try {
     body = await req.json();
@@ -36,6 +51,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ email: existing.email, password }, { status: 200 });
   }
 
+  // Only throttle NEW guest creations.
+  if (!takeBurst(`guestReg:${ip}`, 60 * 60 * 1000, 10)) {
+    return NextResponse.json(
+      { error: "訪客建立太頻繁,請稍後再試" },
+      { status: 429 },
+    );
+  }
+
   // Generate a unique-ish username
   const suffix = deviceId.slice(0, 6);
   let username = `訪客_${suffix}`;
@@ -47,17 +70,28 @@ export async function POST(req: Request) {
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
-  await prisma.user.create({
-    data: {
-      username,
-      email,
-      passwordHash,
-      deviceId,
-      isGuest: true,
-      title: "無名編織者",
-      crystals: 300,
-    },
-  });
+  try {
+    await prisma.user.create({
+      data: {
+        username,
+        email,
+        passwordHash,
+        deviceId,
+        isGuest: true,
+        title: "無名編織者",
+        crystals: 300,
+      },
+    });
+  } catch (err) {
+    // Race: another concurrent request for the same deviceId won the
+    // insert between our findUnique and create. Fall back to returning
+    // the now-existing user.
+    const raced = await prisma.user.findUnique({ where: { deviceId } });
+    if (raced) {
+      return NextResponse.json({ email: raced.email, password }, { status: 200 });
+    }
+    throw err;
+  }
 
   return NextResponse.json({ email, password }, { status: 201 });
 }

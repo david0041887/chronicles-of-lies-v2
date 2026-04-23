@@ -132,7 +132,7 @@ export function SettingsClient({ user }: Props) {
           <form onSubmit={onBind} className="space-y-3">
             <Input name="username" placeholder="使用者名稱" required minLength={2} maxLength={16} />
             <Input name="email" type="email" placeholder="Email" required />
-            <Input name="password" type="password" placeholder="密碼(至少 6 字)" required minLength={6} />
+            <Input name="password" type="password" placeholder="密碼(至少 8 字)" required minLength={8} />
             <Button type="submit" variant="primary" size="md" className="w-full" disabled={binding}>
               {binding ? "綁定中…" : "綁定帳號"}
             </Button>
