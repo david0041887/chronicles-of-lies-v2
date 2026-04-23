@@ -457,7 +457,9 @@ function resolveCardEffect(
 
   // ── Post-effect status applications (apply after base effect resolves) ──
   if (kw("poison")) {
-    other.poison += 3;
+    // Cap poison stacks at 10 — prevents late-game Prime bosses from
+    // snowballing an unrecoverable DoT against the player.
+    other.poison = Math.min(10, other.poison + 3);
     state.log.push({
       turn: state.turn,
       side: sideName,
@@ -539,6 +541,10 @@ function postPlay(
   return state;
 }
 
+// Hard cap — battles past this many turns are auto-lost. Matches the
+// server-side MAX_TURNS sanity check on /api/battle/complete.
+const MAX_BATTLE_TURNS = 40;
+
 function checkWin(state: BattleState) {
   if (state.enemy.hp <= 0) {
     state.phase = "won";
@@ -546,6 +552,16 @@ function checkWin(state: BattleState) {
   } else if (state.player.hp <= 0) {
     state.phase = "lost";
     state.log.push({ turn: state.turn, side: "enemy", kind: "phase", text: "失敗 — 你的信徒散去" });
+  } else if (state.turn > MAX_BATTLE_TURNS) {
+    // Stall-out guard. Both sides drained / confused loop / deck empty —
+    // declare the player the loser so we never hang.
+    state.phase = "lost";
+    state.log.push({
+      turn: state.turn,
+      side: "enemy",
+      kind: "phase",
+      text: `帷幕已封閉 — 第 ${MAX_BATTLE_TURNS} 回合後判負`,
+    });
   }
 }
 

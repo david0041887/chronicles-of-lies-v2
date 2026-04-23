@@ -50,9 +50,9 @@ export function StoryStageTimeline({
   > = [];
 
   const prologue = chapters.find((c) => c.unlockAt === 0);
-  const terminus = chapters.find((c) => c.unlockAt === 3);
+  const terminus = chapters.find((c) => c.unlockAt >= 99);
   const midChapters = chapters.filter(
-    (c) => c.unlockAt !== 0 && c.unlockAt !== 3,
+    (c) => c.unlockAt > 0 && c.unlockAt < 99,
   );
 
   if (prologue) items.push({ kind: "chapter", data: prologue, key: "ch0" });
@@ -168,7 +168,7 @@ function ChapterRow({
           >
             {unlocked
               ? chapter.subtitle
-              : chapter.unlockAt === 3
+              : chapter.unlockAt >= 99
                 ? "需擊敗 BOSS 解鎖"
                 : `需通關第 ${chapter.unlockAt} 關解鎖`}
           </div>

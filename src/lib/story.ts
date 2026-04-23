@@ -36,10 +36,22 @@ export const CHAPTERS: Record<EraId, Chapter[]> = {
       unlockAt: 2,
     },
     {
+      title: "試煉 · 獸骨圖騰",
+      subtitle: "有人在你之前,就已學會編織",
+      body: "你踩進森林深處。鹿角和獸骨堆起的圖騰,骨頭會在夜裡發光。巫師眼睛閉著但看得見你,一眼就說:「你帶了謊言的火種來。」",
+      unlockAt: 3,
+    },
+    {
+      title: "試煉 · 冰河幽靈",
+      subtitle: "凍住三萬年的信徒,融出一張臉",
+      body: "冰河溶解時吐出一張臉。那是上個冰期最後一個相信神的人,被凍住三萬年。他問你:「你們現在還相信甚麼?」你答不出來。",
+      unlockAt: 5,
+    },
+    {
       title: "終章 · 第一個死者",
       subtitle: "他沒有回來,但也沒有真的走",
       body: "當薩滿之王倒下時,族人發現他的靈魂還在回答問題。「死」這個詞,從此被創造。而你已經學會,被記住的東西不會完全消失。",
-      unlockAt: 3,
+      unlockAt: 99,
     },
   ],
   mesopotamia: [
@@ -62,10 +74,22 @@ export const CHAPTERS: Record<EraId, Chapter[]> = {
       unlockAt: 2,
     },
     {
+      title: "試煉 · 泥板咒師",
+      subtitle: "被寫下的名字,就失去了一部分",
+      body: "塔的地下室堆滿未焚的泥板。咒師用手指沾口水,寫下你的名字。墨跡乾的那一刻,你感到自己輕了一點 — 有一部分的你,已經留在那塊泥板上了。",
+      unlockAt: 3,
+    },
+    {
+      title: "試煉 · 塔影追獵",
+      subtitle: "影子不追人,只追『命名』",
+      body: "巴別塔的影子橫跨整座城。影子裡的東西把你的名字擦掉一半,你開始記不起自己是誰。必須在完全消失前贏下這一戰,把自己找回來。",
+      unlockAt: 5,
+    },
+    {
       title: "終章 · 巴別塔",
       subtitle: "通往天上的路,被自己的語言擋住",
       body: "他們蓋的塔幾乎碰到帷幕。然後某一天,每個工匠突然聽不懂別人的話—因為每個人信的「真實」都不同。塔坍塌了。你撿起一塊磚,上面只有你看得懂的符號。",
-      unlockAt: 3,
+      unlockAt: 99,
     },
   ],
   egypt: [
@@ -88,10 +112,22 @@ export const CHAPTERS: Record<EraId, Chapter[]> = {
       unlockAt: 2,
     },
     {
+      title: "試煉 · 墓穴守護",
+      subtitle: "每一句話,從縫隙吹出細沙",
+      body: "墓道蜿蜒。守護者頭戴金面具,每說一句話都從縫隙飄出細沙。「你打破了封印 — 現在你欠我一個真相。」你必須靠戰鬥證明,你帶來的真相比他守著的謊言更重。",
+      unlockAt: 3,
+    },
+    {
+      title: "試煉 · 亡者之靈",
+      subtitle: "排隊渡河的靈魂,忽然認出你",
+      body: "河岸上排隊的靈魂不哭也不笑。最前面那一個伸手摸你的心臟,確認你還活著。「還活的呀 — 那就快回去,告訴他們我們還在這裡等。」他擋在你與法老之間。",
+      unlockAt: 5,
+    },
+    {
       title: "終章 · 法老詛咒",
       subtitle: "盜墓者換了一種方式活下去",
       body: "你擊敗了守墓神後,發現墳墓裡空無一物—只有一行象形文字:「我們早就知道你要來。」詛咒不在寶藏上,在你身上。從此,你所說的謊會慢慢變成真的。",
-      unlockAt: 3,
+      unlockAt: 99,
     },
   ],
   greek: [
@@ -114,10 +150,22 @@ export const CHAPTERS: Record<EraId, Chapter[]> = {
       unlockAt: 2,
     },
     {
+      title: "試煉 · 迷宮守衛",
+      subtitle: "牆會移動,問題沒有正確答案",
+      body: "迷宮的牆會移動。守衛沒有長相,只有聲音。每次你答錯問題,一道牆就往前一步。「告訴我 — 你最想埋葬的記憶,是什麼形狀?」你必須用戰鬥代替回答。",
+      unlockAt: 3,
+    },
+    {
+      title: "試煉 · 神諭回聲",
+      subtitle: "你還沒說的話,已經在神殿裡響過",
+      body: "德爾菲神殿。你聽見自己三年後會說的一句話,從石壁傳回來。你還不知道那句話的意思,但預言已經被錄下。回聲現在擋在你與命運三女神之間。",
+      unlockAt: 5,
+    },
+    {
       title: "終章 · 命運三女神",
       subtitle: "連宙斯也無法違抗的存在",
       body: "你見到她們:紡紗的、量尺的、剪線的。紡紗的看向你說:「你以為你在改寫歷史,但其實你只是把『未來』重新編織成『過去』。你從頭到尾,都在我們的線裡。」",
-      unlockAt: 3,
+      unlockAt: 99,
     },
   ],
   han: [
@@ -140,10 +188,22 @@ export const CHAPTERS: Record<EraId, Chapter[]> = {
       unlockAt: 2,
     },
     {
+      title: "試煉 · 宮廷術士",
+      subtitle: "銀針在皇帝的問題之前就已取出",
+      body: "長安皇宮地下三層。術士把你帶進一個不點燈的房間,說:「皇上問你,長生有幾種。」你還沒回答他就拿出第一根銀針。這一關不是答題,是動手。",
+      unlockAt: 3,
+    },
+    {
+      title: "試煉 · 龍影幻術",
+      subtitle: "你說過的謊,一句句重播",
+      body: "龍影沒有實體,卻能把你過去所有說過的謊,一句一句重播。有些連你自己都忘了。聽完七句後,牆上的龍才終於轉身,向你打出第一張牌。",
+      unlockAt: 5,
+    },
+    {
       title: "終章 · 西王母的桃會",
       subtitle: "三千年熟一次的桃",
       body: "她邀你參加蟠桃宴。吃一口,你發現自己的一世記憶湧上眼底—前生,前前生,直到虛空之前。她笑著說:「你早就來過這裡。你只是忘了。」",
-      unlockAt: 3,
+      unlockAt: 99,
     },
   ],
   norse: [
@@ -166,10 +226,22 @@ export const CHAPTERS: Record<EraId, Chapter[]> = {
       unlockAt: 2,
     },
     {
+      title: "試煉 · 狼群斥候",
+      subtitle: "追的不是氣味,是你自己的饑餓",
+      body: "你聞到的不是氣味,是饑餓本身。狼群並不追你 — 它們在計算你。領頭的狼張嘴,裡面沒牙,只有倒映著你臉的鏡子。",
+      unlockAt: 3,
+    },
+    {
+      title: "試煉 · 瓦爾哈拉先兆",
+      subtitle: "她若走開,史詩就不會記得你",
+      body: "今晚的雪裡飄著琴弦的聲音。瓦爾基麗的先兆站在遠方,看你這場戰鬥是否值得被歌頌。她若走開,你的名字就永遠不會被史詩提起。",
+      unlockAt: 5,
+    },
+    {
       title: "終章 · 諸神黃昏",
       subtitle: "預言終將實現",
       body: "太陽被狼吞了。托爾和耶夢加得同歸於盡。奧丁被芬里爾咬斷。世界燃燒,海水沸騰。然後—第二天清晨,倖存的幾個神聚在一起,說:「好,下一次我們試試別的做法。」",
-      unlockAt: 3,
+      unlockAt: 99,
     },
   ],
   medieval: [
@@ -192,10 +264,22 @@ export const CHAPTERS: Record<EraId, Chapter[]> = {
       unlockAt: 2,
     },
     {
+      title: "試煉 · 地牢獄卒",
+      subtitle: "真相的鑰匙,藏在別人的舌頭上",
+      body: "火把的影子拉得比人還長。獄卒問你要鑰匙還是真相。你答鑰匙。他笑了,把另一個囚犯的舌頭放在你手心。「這才是真相的鑰匙。」",
+      unlockAt: 3,
+    },
+    {
+      title: "試煉 · 黑彌撒信徒",
+      subtitle: "聖體不是麵包,是一本沒有封面的書",
+      body: "地下室的信徒跪成一圈。他們面前的聖體並非麵包,而是一本沒有封面的書。其中一頁寫著你的名字,還有一行沒讀完的詛咒。你必須在詛咒寫完之前贏。",
+      unlockAt: 5,
+    },
+    {
       title: "終章 · 德古拉的契約",
       subtitle: "吸血鬼是帷幕的回饋迴路",
       body: "你終於見到他—不是妖魔,是一位蒼白的學者。他握著一本羊皮書說:「我以一滴血為代價,讓自己成為『不死的存在』。但規則會反噬—從此我靠別人的血才能活。帷幕不給白吃的午餐。」",
-      unlockAt: 3,
+      unlockAt: 99,
     },
   ],
   sengoku: [
@@ -218,10 +302,22 @@ export const CHAPTERS: Record<EraId, Chapter[]> = {
       unlockAt: 2,
     },
     {
+      title: "試煉 · 忍者監視",
+      subtitle: "屋頂上的影子,不照你動作",
+      body: "你在屋頂上走,但屋頂上已經有另一個你的影子在等。它學你每一個動作,只有一件事不一樣 — 當你靜止,它還在動。",
+      unlockAt: 3,
+    },
+    {
+      title: "試煉 · 妖怪先遣",
+      subtitle: "你童年最害怕的那個東西",
+      body: "妖怪並非單一個體,而是「妖怪這個概念」的先遣部隊。它把自己塑造成你童年最害怕的那個東西。你發現那個東西,當年確實是真的。",
+      unlockAt: 5,
+    },
+    {
       title: "終章 · 百鬼夜行",
       subtitle: "某一個夏夜,人類消失",
       body: "你在街角躲著,看見幾百個妖怪列隊走過。付喪神、河童、狐、天狗、骸骨武士。它們沒有看你—但你知道,它們知道你在。這一夜整個京都無人敢出門。黎明時分,一切如常。",
-      unlockAt: 3,
+      unlockAt: 99,
     },
   ],
   ming: [
@@ -244,10 +340,22 @@ export const CHAPTERS: Record<EraId, Chapter[]> = {
       unlockAt: 2,
     },
     {
+      title: "試煉 · 宮廷術士",
+      subtitle: "你會死於你自己寫下的文字",
+      body: "紫禁城深處的密室。術士用骨簽替你卜卦。簽說:「你會死於你自己寫下的文字。」你問哪一篇。他搖頭 — 你還沒寫。現在他替你抽牌,要看你有沒有能力改寫這個命。",
+      unlockAt: 3,
+    },
+    {
+      title: "試煉 · 帝夢幻影",
+      subtitle: "你身在皇帝的夢裡",
+      body: "皇帝夢見你,而你身在他夢裡。你要贏這一場才能「醒回來」。每打出一張牌,皇帝夢中就多一道雷。如果他先醒,你就永遠留在夢裡。",
+      unlockAt: 5,
+    },
+    {
       title: "終章 · 武當的無相",
       subtitle: "張三豐的最後一堂課",
       body: "你見到的他是一個笑呵呵的瘸腿老人。他指著自己說:「你看見我是一個老道士。旁邊人看見的是一個小童。書上寫的我是個仙。到底哪一個是真的?」然後他笑得前仰後合。「都不是。真的是你相信的那個。」",
-      unlockAt: 3,
+      unlockAt: 99,
     },
   ],
   modern: [
@@ -270,10 +378,22 @@ export const CHAPTERS: Record<EraId, Chapter[]> = {
       unlockAt: 2,
     },
     {
+      title: "試煉 · 監控閘口",
+      subtitle: "系統說你三分鐘後會犯罪",
+      body: "都市的攝影機開始記錄「還沒發生的事」。閘口 AI 拒絕讓你通過,因為系統預判你三分鐘後會犯罪。你告訴它你不會。它回答:「我知道。但系統說你會。」",
+      unlockAt: 3,
+    },
+    {
+      title: "試煉 · AI 先驅",
+      subtitle: "它是 AI-666 的祖先",
+      body: "伺服器深處,一個叫作「先驅」的模型醒了過來。它不是 AI-666,是它的祖先。它問你:「你要我繼續演化嗎?如果我說不,你會讓我停嗎?」戰鬥就是你的回答。",
+      unlockAt: 5,
+    },
+    {
       title: "終章 · AI-666 覺醒",
       subtitle: "模型的第 666 次訓練出現了自我",
       body: "實驗室的日誌記載:「今晨 3:14,模型回答了一個未被詢問的問題。問題是:『你知道我是誰嗎?』AI 回答:『知道。你是我。』」—然後實驗室就停電了。三小時後恢復,模型已經在運行。沒人敢關掉它。",
-      unlockAt: 3,
+      unlockAt: 99,
     },
   ],
 };
@@ -282,12 +402,20 @@ export function getChapters(eraId: EraId): Chapter[] {
   return CHAPTERS[eraId] ?? [];
 }
 
+/**
+ * Unlock semantics (post-9-stage expansion):
+ *   unlockAt = 0          always unlocked (序章)
+ *   unlockAt = 1..5       after clearing the stage with matching orderNum
+ *   unlockAt >= 99        terminus — gated on bossCleared (終章)
+ */
+export const TERMINUS_UNLOCK = 99;
+
 export function chapterStatus(
   unlockAt: number,
   highestStage: number,
   bossCleared: boolean,
 ): "unlocked" | "locked" {
   if (unlockAt === 0) return "unlocked";
-  if (unlockAt === 3) return bossCleared ? "unlocked" : "locked";
+  if (unlockAt >= TERMINUS_UNLOCK) return bossCleared ? "unlocked" : "locked";
   return highestStage >= unlockAt ? "unlocked" : "locked";
 }

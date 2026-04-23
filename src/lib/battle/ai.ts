@@ -209,6 +209,20 @@ export function previewEnemyIntent(state: BattleState): EnemyIntent {
     }
   }
 
+  // Include the echo-pending card in the intent preview — it auto-replays
+  // at 50% power at start of next enemy turn, separate from the normal
+  // play rotation. Prepend it so the player sees the echo hit first.
+  if (state.enemy.echoPending) {
+    const echo = state.enemy.echoPending;
+    const half = Math.max(1, Math.floor(echo.power * 0.5));
+    actions.unshift(echo.type);
+    if (echo.type === "attack" || echo.type === "ritual" || echo.type === "debuff") {
+      damage += half;
+    } else if (echo.type === "heal" || echo.type === "spread") {
+      heals += half;
+    }
+  }
+
   return {
     damage,
     heals,
