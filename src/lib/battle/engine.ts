@@ -1,3 +1,4 @@
+import { fireAbility } from "./card-abilities";
 import { MAX_BOARD_SIZE } from "./types";
 import type { BattleCard, BattleState, LogEntry, Minion, SideState } from "./types";
 
@@ -434,6 +435,10 @@ function resolveCardEffect(
       kind: "buff",
       text: `🐾 召喚 ${card.name}(HP ${hpMax} / ATK ${atk}${hasCharge ? " · 突擊" : ""}${hasDivineShield ? " · 聖盾" : ""})`,
     });
+    // Fire battlecry — per-card signature ability on summon.
+    fireAbility(state, sideName, minion, "battlecry");
+    cleanupDeadMinions(state);
+    checkWin(state);
     return postPlay(state, sideName, card, hasHaste, opts);
   }
 
@@ -673,6 +678,11 @@ export function attackWithMinion(
 
   attacker.attacksRemaining -= 1;
 
+  // Fire on_attack ability after attack resolves (while attacker still alive).
+  if (attacker.hp > 0) {
+    fireAbility(state, sideName, attacker, "on_attack");
+  }
+
   // Lifesteal: attacker heals face for damage dealt.
   if (attacker.keywords.includes("lifesteal") && dealtToTarget > 0) {
     const healed = Math.min(dealtToTarget, 6);
@@ -689,24 +699,37 @@ export function attackWithMinion(
   return state;
 }
 
-/** Remove dead minions (hp <= 0) from both boards; fire deathrattle later. */
+/** Remove dead minions (hp <= 0) from both boards; fire deathrattle abilities
+ *  before removal. Runs in a small fixpoint loop so chained deathrattles
+ *  that kill each other don't orphan corpses. */
 function cleanupDeadMinions(state: BattleState) {
-  for (const sideName of ["player", "enemy"] as const) {
-    const s = state[sideName];
-    const alive: Minion[] = [];
-    for (const m of s.board) {
-      if (m.hp > 0) {
-        alive.push(m);
-      } else {
-        state.log.push({
-          turn: state.turn,
-          side: sideName,
-          kind: "debuff",
-          text: `💀 ${m.name} 陣亡`,
-        });
+  let iterations = 0;
+  while (iterations < 5) {
+    iterations++;
+    let hadCleanup = false;
+    for (const sideName of ["player", "enemy"] as const) {
+      const s = state[sideName];
+      const alive: Minion[] = [];
+      for (const m of s.board) {
+        if (m.hp > 0) {
+          alive.push(m);
+        } else {
+          hadCleanup = true;
+          state.log.push({
+            turn: state.turn,
+            side: sideName,
+            kind: "debuff",
+            text: `💀 ${m.name} 陣亡`,
+          });
+          // Fire deathrattle BEFORE removal so effect source still has
+          // board context. This may kill other minions, which we catch
+          // on the next iteration.
+          fireAbility(state, sideName, m, "deathrattle");
+        }
       }
+      s.board = alive;
     }
-    s.board = alive;
+    if (!hadCleanup) break;
   }
 }
 
@@ -732,6 +755,13 @@ function checkWin(state: BattleState) {
 
 export function endPlayerTurn(state: BattleState): BattleState {
   if (state.phase !== "player_turn") return state;
+  // Fire end_of_turn for all player minions before flipping sides.
+  for (const m of [...state.player.board]) {
+    fireAbility(state, "player", m, "end_of_turn");
+  }
+  cleanupDeadMinions(state);
+  checkWin(state);
+  if (state.phase !== "player_turn") return state; // might have died
   state.phase = "enemy_turn";
   state.log.push({ turn: state.turn, side: "enemy", kind: "phase", text: `敵人回合` });
   applyStartOfTurnEffects(state, "enemy");
@@ -739,6 +769,13 @@ export function endPlayerTurn(state: BattleState): BattleState {
 }
 
 export function endEnemyTurn(state: BattleState): BattleState {
+  if (state.phase !== "enemy_turn") return state;
+  // Fire end_of_turn for all enemy minions before flipping sides.
+  for (const m of [...state.enemy.board]) {
+    fireAbility(state, "enemy", m, "end_of_turn");
+  }
+  cleanupDeadMinions(state);
+  checkWin(state);
   if (state.phase !== "enemy_turn") return state;
   state.turn += 1;
   state.phase = "player_turn";
@@ -761,6 +798,13 @@ function applyStartOfTurnEffects(state: BattleState, sideName: "player" | "enemy
     const windfury = m.keywords.includes("windfury");
     m.attacksRemaining = windfury ? 2 : 1;
   }
+
+  // Start-of-turn abilities fire for every minion on the side starting.
+  // Iterate a snapshot because abilities could mutate the board.
+  for (const m of [...self.board]) {
+    fireAbility(state, sideName, m, "start_of_turn");
+  }
+  cleanupDeadMinions(state);
 
   // Curse tick (decays)
   if (self.curseStacks > 0) {

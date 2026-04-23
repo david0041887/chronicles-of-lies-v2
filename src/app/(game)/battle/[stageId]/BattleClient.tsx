@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { previewEnemyIntent, runEnemyTurn, type EnemyIntent } from "@/lib/battle/ai";
+import { getAbilityDescriptions } from "@/lib/battle/card-abilities";
 import { signBattleResult } from "@/lib/battle/client-sig";
 import {
+  attackWithMinion,
   consumeConfusion,
   createBattle,
   endEnemyTurn,
@@ -17,7 +19,7 @@ import {
   playCard,
   type EnemyModifiers,
 } from "@/lib/battle/engine";
-import type { BattleCard, BattleState, LogEntry, SideState } from "@/lib/battle/types";
+import type { BattleCard, BattleState, LogEntry, Minion, SideState } from "@/lib/battle/types";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -143,6 +145,7 @@ export function BattleClient({
   } | null>(null);
   const [shakeKey, setShakeKey] = useState(0);
   const [enemyIntent, setEnemyIntent] = useState<EnemyIntent | null>(null);
+  const [selectedAttackerUid, setSelectedAttackerUid] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const prevLogLenRef = useRef(0);
   const prevHpRef = useRef({
@@ -384,6 +387,38 @@ export function BattleClient({
     tick();
   };
 
+  const onSelectAttacker = (minionUid: string) => {
+    if (battle.phase !== "player_turn") return;
+    const m = battle.player.board.find((x) => x.uid === minionUid);
+    if (!m) return;
+    if (m.summonedThisTurn || m.attacksRemaining <= 0) {
+      push("這個回合此怪物無法攻擊", "warning");
+      return;
+    }
+    setSelectedAttackerUid((prev) => (prev === minionUid ? null : minionUid));
+  };
+
+  const onAttackTarget = (target: { kind: "face" } | { kind: "minion"; uid: string }) => {
+    if (!selectedAttackerUid) return;
+    if (battle.phase !== "player_turn") return;
+    // Taunt check — if enemy has taunt minions, face & non-taunt are invalid
+    const hasTaunt = battle.enemy.board.some((m) => m.keywords.includes("taunt"));
+    if (hasTaunt) {
+      if (target.kind === "face") {
+        push("有嘲諷怪物 — 必須先處理", "warning");
+        return;
+      }
+      const t = battle.enemy.board.find((x) => x.uid === target.uid);
+      if (t && !t.keywords.includes("taunt")) {
+        push("有嘲諷怪物 — 必須先處理", "warning");
+        return;
+      }
+    }
+    attackWithMinion(battle, "player", selectedAttackerUid, target);
+    setSelectedAttackerUid(null);
+    tick();
+  };
+
   const onEndTurn = () => {
     if (battle.phase !== "player_turn") return;
     endPlayerTurn(battle);
@@ -503,16 +538,34 @@ export function BattleClient({
           confused={battle.enemy.confusedTurns > 0}
           thinking={enemyThinking}
           intent={battle.phase === "player_turn" ? enemyIntent : null}
+          attackMode={selectedAttackerUid !== null}
+          onFaceClick={() => onAttackTarget({ kind: "face" })}
+        />
+
+        <BoardRow
+          side="enemy"
+          minions={battle.enemy.board}
+          palette={bg}
+          attackMode={selectedAttackerUid !== null}
+          onMinionClick={(uid) => onAttackTarget({ kind: "minion", uid })}
         />
 
         <div
           ref={logRef}
-          className="relative mx-4 my-2 rounded-lg border border-parchment/10 bg-black/30 backdrop-blur p-3 max-h-32 overflow-y-auto text-xs space-y-0.5"
+          className="relative mx-4 my-2 rounded-lg border border-parchment/10 bg-black/30 backdrop-blur p-3 max-h-24 overflow-y-auto text-xs space-y-0.5"
         >
           {battle.log.slice(-40).map((l, i) => (
             <LogLine key={i} entry={l} />
           ))}
         </div>
+
+        <BoardRow
+          side="player"
+          minions={battle.player.board}
+          palette={bg}
+          selectedUid={selectedAttackerUid}
+          onMinionClick={onSelectAttacker}
+        />
 
         <PlayerHUD
           player={battle.player}
@@ -842,6 +895,8 @@ function EnemyArea({
   confused,
   thinking,
   intent,
+  attackMode,
+  onFaceClick,
 }: {
   enemy: SideState;
   emoji: string;
@@ -849,21 +904,26 @@ function EnemyArea({
   confused: boolean;
   thinking: boolean;
   intent: EnemyIntent | null;
+  attackMode?: boolean;
+  onFaceClick?: () => void;
 }) {
   return (
     <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
       {intent && <EnemyIntentBadge intent={intent} />}
-      <div
+      <button
+        onClick={attackMode ? onFaceClick : undefined}
+        disabled={!attackMode}
         className={cn(
           "relative w-20 h-20 rounded-full border-2 flex items-center justify-center text-5xl shrink-0",
           thinking && "enemy-pulse",
+          attackMode && "cursor-crosshair ring-4 ring-blood/80 animate-pulse",
         )}
         style={{
           borderColor: palette.main,
           background: `${palette.main}22`,
-          // CSS var so keyframes can use the palette colour for drop-shadow.
           ["--pulse-color" as string]: palette.main,
         }}
+        aria-label={attackMode ? "攻擊敵人面部" : enemy.name}
       >
         <span>{emoji}</span>
         {confused && (
@@ -879,7 +939,12 @@ function EnemyArea({
             …
           </span>
         )}
-      </div>
+        {attackMode && (
+          <span className="absolute inset-0 flex items-center justify-center text-blood text-4xl pointer-events-none">
+            🎯
+          </span>
+        )}
+      </button>
       <div className="flex-1 min-w-0">
         <div className="display-serif text-parchment text-lg truncate">
           {enemy.name}
@@ -888,6 +953,140 @@ function EnemyArea({
         <StatusTray side={enemy} showEcho={false} />
       </div>
     </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Board row — renders minions for a side, handles attack clicks.
+// ────────────────────────────────────────────────────────────────────────
+
+function BoardRow({
+  side,
+  minions,
+  palette,
+  selectedUid,
+  attackMode,
+  onMinionClick,
+}: {
+  side: "player" | "enemy";
+  minions: Minion[];
+  palette: { main: string; accent: string };
+  selectedUid?: string | null;
+  attackMode?: boolean;
+  onMinionClick?: (uid: string) => void;
+}) {
+  if (minions.length === 0) {
+    return (
+      <div className="relative h-20 flex items-center justify-center text-parchment/20 text-[11px] tracking-widest px-4">
+        {side === "player" ? "— 我方戰場(空) —" : "— 敵方戰場(空) —"}
+      </div>
+    );
+  }
+  const hasTaunt = minions.some((m) => m.keywords.includes("taunt"));
+  return (
+    <div className="relative h-24 flex items-center justify-center gap-2 px-2 flex-wrap">
+      {minions.map((m) => {
+        const isSelected = selectedUid === m.uid;
+        const canAct =
+          side === "player" &&
+          !m.summonedThisTurn &&
+          m.attacksRemaining > 0;
+        const isAttackableTaunt = side === "enemy" && m.keywords.includes("taunt");
+        const mustAttackThis = attackMode && hasTaunt && !isAttackableTaunt;
+        return (
+          <MinionCard
+            key={m.uid}
+            minion={m}
+            side={side}
+            palette={palette}
+            selected={isSelected}
+            canAct={canAct}
+            highlighted={
+              attackMode && side === "enemy" && !mustAttackThis
+            }
+            dimmed={mustAttackThis}
+            onClick={() => onMinionClick?.(m.uid)}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function MinionCard({
+  minion,
+  side,
+  palette,
+  selected,
+  canAct,
+  highlighted,
+  dimmed,
+  onClick,
+}: {
+  minion: Minion;
+  side: "player" | "enemy";
+  palette: { main: string; accent: string };
+  selected?: boolean;
+  canAct?: boolean;
+  highlighted?: boolean;
+  dimmed?: boolean;
+  onClick?: () => void;
+}) {
+  const hasTaunt = minion.keywords.includes("taunt");
+  const hasDivineShield = minion.shielded;
+  const isSleeping = minion.summonedThisTurn || minion.attacksRemaining <= 0;
+  return (
+    <button
+      onClick={onClick}
+      title={`${minion.name} · ATK ${minion.atk} / HP ${minion.hp}/${minion.hpMax}${
+        minion.keywords.length ? " · " + minion.keywords.join("/") : ""
+      }`}
+      className={cn(
+        "relative rounded-lg border-2 overflow-hidden w-16 h-20 flex flex-col items-center justify-between p-1 transition-all",
+        "bg-gradient-to-b from-veil/80 to-veil/40 backdrop-blur",
+        selected && "ring-4 ring-gold animate-pulse scale-105",
+        highlighted && "ring-2 ring-blood/60 cursor-crosshair hover:scale-105",
+        dimmed && "opacity-40 cursor-not-allowed",
+        side === "player" && canAct && !selected && "hover:-translate-y-1",
+        side === "player" && isSleeping && "opacity-75",
+        hasTaunt && "shadow-[0_0_14px_rgba(212,168,75,0.6)]",
+      )}
+      style={{
+        borderColor: hasTaunt
+          ? "#D4A84B"
+          : hasDivineShield
+            ? "#93C2F1"
+            : palette.main,
+      }}
+    >
+      <div className="text-lg leading-none">
+        {minion.rarity === "UR" ? "🌟" : minion.rarity === "SSR" ? "⭐" : minion.rarity === "SR" ? "✦" : "·"}
+      </div>
+      <div className="text-[9px] text-parchment/90 truncate w-full text-center leading-tight">
+        {minion.name.slice(0, 4)}
+      </div>
+      <div className="flex items-end justify-between w-full text-[10px] font-[family-name:var(--font-mono)] font-bold tabular-nums">
+        <span className="text-orange-300">⚔{minion.atk}</span>
+        <span className={cn(minion.hp < minion.hpMax ? "text-rose-300" : "text-emerald-300")}>
+          {minion.hp}
+        </span>
+      </div>
+      {hasTaunt && (
+        <span className="absolute -top-1 -left-1 text-[10px] bg-gold text-veil rounded-full w-4 h-4 flex items-center justify-center" title="嘲諷">
+          🛡
+        </span>
+      )}
+      {hasDivineShield && (
+        <span className="absolute -top-1 -right-1 text-[10px] bg-info text-veil rounded-full w-4 h-4 flex items-center justify-center" title="聖盾">
+          ✨
+        </span>
+      )}
+      {isSleeping && side === "player" && (
+        <span className="absolute top-1 right-1 text-[10px] opacity-70" title="召喚沉睡">
+          💤
+        </span>
+      )}
+    </button>
   );
 }
 

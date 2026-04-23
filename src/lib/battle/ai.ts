@@ -1,4 +1,4 @@
-import { playCard } from "./engine";
+import { attackWithMinion, playCard } from "./engine";
 import type { BattleCard, BattleState, LogEntry, SideState } from "./types";
 
 export interface EnemyIntent {
@@ -16,7 +16,8 @@ export interface EnemyIntent {
 
 /**
  * Run the enemy's entire turn: play cards greedily per a simple heuristic
- * until out of mana or out of affordable cards. Mutates state in place.
+ * until out of mana or out of affordable cards, then attack with any
+ * minions that have attacks remaining. Mutates state in place.
  */
 export function runEnemyTurn(state: BattleState) {
   if (state.phase !== "enemy_turn") return;
@@ -28,10 +29,53 @@ export function runEnemyTurn(state: BattleState) {
     const playable = hand
       .map((c, i) => ({ c, i }))
       .filter(({ c }) => c.cost <= state.enemy.mana);
-    if (playable.length === 0) return;
+    if (playable.length === 0) break;
 
     const pick = choose(state, playable);
     playCard(state, "enemy", pick.i);
+  }
+
+  // Minion attack phase — pick best target for each attacker until all
+  // attacks are spent.
+  runEnemyMinionAttacks(state);
+}
+
+function runEnemyMinionAttacks(state: BattleState) {
+  const MAX_ATTACKS = 15;
+  for (let i = 0; i < MAX_ATTACKS; i++) {
+    if (state.phase !== "enemy_turn") return;
+    const attacker = state.enemy.board.find(
+      (m) => !m.summonedThisTurn && m.attacksRemaining > 0,
+    );
+    if (!attacker) return;
+
+    const taunts = state.player.board.filter((m) => m.keywords.includes("taunt"));
+    let target: { kind: "face" } | { kind: "minion"; uid: string };
+    if (taunts.length > 0) {
+      // Must hit a taunt — pick lowest-HP to clear fastest.
+      const t = [...taunts].sort((a, b) => a.hp - b.hp)[0];
+      target = { kind: "minion", uid: t.uid };
+    } else if (state.player.board.length > 0) {
+      // Prefer hitting a minion we can kill without dying, otherwise go
+      // face if we're ≥ player HP remaining.
+      const killable = state.player.board.find(
+        (m) => m.hp <= attacker.atk && attacker.hp > m.atk,
+      );
+      if (killable) {
+        target = { kind: "minion", uid: killable.uid };
+      } else if (attacker.atk >= state.player.hp / 3) {
+        // Big hitter — face.
+        target = { kind: "face" };
+      } else {
+        // Trade into weakest minion.
+        const weakest = [...state.player.board].sort((a, b) => a.hp - b.hp)[0];
+        target = { kind: "minion", uid: weakest.uid };
+      }
+    } else {
+      target = { kind: "face" };
+    }
+
+    attackWithMinion(state, "enemy", attacker.uid, target);
   }
 }
 
@@ -133,6 +177,9 @@ function cloneSide(s: SideState): SideState {
     deck: [...s.deck],
     hand: [...s.hand],
     discard: [...s.discard],
+    // Deep-copy minions so the simulation can mutate HP/attacks without
+    // touching the live board.
+    board: s.board.map((m) => ({ ...m, keywords: [...m.keywords] })),
   };
 }
 
@@ -221,6 +268,19 @@ export function previewEnemyIntent(state: BattleState): EnemyIntent {
     } else if (echo.type === "heal" || echo.type === "spread") {
       heals += half;
     }
+  }
+
+  // Minion attacks: estimate via cloned-state HP diff. Sim already ran
+  // runEnemyTurn → runEnemyMinionAttacks, so sim.player.hp < state.player.hp
+  // captures net minion damage (after player's shields + armour).
+  const minionDamage = Math.max(0, state.player.hp - sim.player.hp);
+  if (minionDamage > 0) {
+    damage += minionDamage;
+    // Represent each attacking minion as an "attack" action.
+    const hitters = state.enemy.board.filter(
+      (m) => !m.summonedThisTurn && m.attacksRemaining > 0,
+    ).length;
+    for (let i = 0; i < Math.min(hitters, 2); i++) actions.push("attack");
   }
 
   return {
