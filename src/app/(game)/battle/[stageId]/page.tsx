@@ -1,6 +1,7 @@
 import { requireOnboarded } from "@/lib/auth-helpers";
 import { applyDailyLegendBuff, buildPlayerDeck, buildStageDeck } from "@/lib/battle/deck";
 import { modifiersForStage } from "@/lib/battle/engine";
+import { signTicket } from "@/lib/battle/ticket";
 import { prisma } from "@/lib/prisma";
 import { getEra } from "@/lib/constants/eras";
 import { perksForLevel, weaverLevel } from "@/lib/weaver";
@@ -69,9 +70,11 @@ export default async function BattlePage({ params }: Props) {
     isBoss: stage.isBoss,
     mode: stage.mode as "normal" | "prime",
   });
+  const ticket = signTicket(user.id, stage.id);
 
   return (
     <BattleClient
+      ticket={ticket}
       stage={{
         id: stage.id,
         name: stage.name,

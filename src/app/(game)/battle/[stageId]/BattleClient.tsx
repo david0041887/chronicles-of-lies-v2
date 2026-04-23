@@ -78,6 +78,10 @@ interface Props {
   nextStage?: NextStage | null;
   /** Boss / Prime modifiers applied when creating the battle. */
   enemyMods?: EnemyModifiers;
+  /** HMAC-signed ticket issued by the server on page render — returned to
+   *  /api/battle/complete to prove this battle actually started. Not used
+   *  in tutorial mode. */
+  ticket?: string;
 }
 
 const AUTO_LEAVE_MS = 4200;
@@ -98,6 +102,7 @@ export function BattleClient({
   dailyLegend = null,
   nextStage = null,
   enemyMods = {},
+  ticket,
 }: Props) {
   const router = useRouter();
   const { push } = useToast();
@@ -285,6 +290,7 @@ export function BattleClient({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             stageId: stage.id,
+            ticket,
             won: battle.phase === "won",
             turnsElapsed: battle.turn,
             playerHpEnd: battle.player.hp,

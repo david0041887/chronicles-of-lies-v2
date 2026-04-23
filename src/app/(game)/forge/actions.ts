@@ -1,6 +1,7 @@
 "use server";
 
 import { requireOnboarded } from "@/lib/auth-helpers";
+import { progressMission } from "@/lib/daily-missions";
 import { copiesNeeded, FUSION_INPUTS, MAX_STARS, NEXT_RARITY } from "@/lib/forge";
 import { prisma } from "@/lib/prisma";
 import { perksForLevel, weaverLevel } from "@/lib/weaver";
@@ -55,6 +56,8 @@ export async function upgradeCardStars(
       data: { stars: best.stars + 1 },
     }),
   ]);
+
+  await progressMission(user.id, "forge_action", 1);
 
   revalidatePath("/forge");
   revalidatePath("/collection");
@@ -116,6 +119,8 @@ export async function fuseCards(
       data: { userId: user.id, cardId: product.id, stars: 1 },
     }),
   ]);
+
+  await progressMission(user.id, "forge_action", 1);
 
   revalidatePath("/forge");
   revalidatePath("/collection");

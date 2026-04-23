@@ -1,6 +1,7 @@
 "use server";
 
 import { requireUser } from "@/lib/auth-helpers";
+import { progressMission } from "@/lib/daily-missions";
 import { pullRarities } from "@/lib/gacha";
 import {
   getPool,
@@ -8,6 +9,7 @@ import {
   type PoolId,
 } from "@/lib/gacha-pools";
 import { prisma } from "@/lib/prisma";
+import { takeBurst } from "@/lib/rate-limit";
 import { perksForLevel, weaverLevel } from "@/lib/weaver";
 import type { Card, Rarity } from "@prisma/client";
 import crypto from "crypto";
@@ -36,6 +38,13 @@ export async function pullGacha(args: {
   eraId?: string;
 }): Promise<{ ok: true; data: PullResult } | { ok: false; error: string }> {
   const user = await requireUser();
+
+  // Throttle: max 20 pulls per minute per user (generous for ten-pull spam
+  // but blocks brute-force scripts).
+  if (!takeBurst(`gacha:${user.id}`, 60_000, 20)) {
+    return { ok: false, error: "召喚太頻繁,稍等幾秒再試" };
+  }
+
   const config = getPool(args.pool);
   const count = args.count;
   const cost = count === 10 ? config.costTen : config.costSingle;
@@ -148,6 +157,16 @@ export async function pullGacha(args: {
       data: drawn.map((c) => ({ userId: user.id, cardId: c.id })),
     }),
   ]);
+
+  // Mission progress (post-commit).
+  await progressMission(user.id, "gacha_pull", count);
+  if (!useFree) {
+    if (config.currency === "crystals") {
+      await progressMission(user.id, "crystals_spent", cost);
+    } else {
+      await progressMission(user.id, "faith_spent", cost);
+    }
+  }
 
   revalidatePath("/gacha");
   revalidatePath("/home");

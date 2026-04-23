@@ -1,7 +1,9 @@
 import { OrnamentDivider } from "@/components/fx/OrnamentDivider";
+import { DailyMissionsPanel } from "@/components/game/DailyMissionsPanel";
 import { HomeHud } from "@/components/game/HomeHud";
 import { MilestonePanel } from "@/components/game/MilestonePanel";
 import { requireOnboarded } from "@/lib/auth-helpers";
+import { ensureTodaysMissions } from "@/lib/daily-missions";
 import { FUSION_INPUTS } from "@/lib/forge";
 import { evaluate } from "@/lib/milestones";
 import { prisma } from "@/lib/prisma";
@@ -81,6 +83,17 @@ export default async function HomePage() {
 
   const weaver = levelProgress(user.totalBelievers);
 
+  const missions = await ensureTodaysMissions(user.id);
+  const now = new Date();
+  const msUntilReset =
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() + 1,
+      0, 0, 0,
+    ) - now.getTime();
+  const resetInHours = Math.max(1, Math.ceil(msUntilReset / 3600000));
+
   const milestones = evaluate(
     {
       level: weaverLevel(user.totalBelievers),
@@ -145,6 +158,11 @@ export default async function HomePage() {
           </div>
         </Link>
       )}
+
+      <DailyMissionsPanel
+        initialSlots={missions.slots}
+        resetInHours={resetInHours}
+      />
 
       <MilestonePanel milestones={milestones} />
 
