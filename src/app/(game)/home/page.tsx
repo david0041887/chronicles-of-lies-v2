@@ -2,6 +2,7 @@ import { OrnamentDivider } from "@/components/fx/OrnamentDivider";
 import { HomeHud } from "@/components/game/HomeHud";
 import { MilestonePanel } from "@/components/game/MilestonePanel";
 import { requireOnboarded } from "@/lib/auth-helpers";
+import { FUSION_INPUTS } from "@/lib/forge";
 import { evaluate } from "@/lib/milestones";
 import { prisma } from "@/lib/prisma";
 import { levelProgress, weaverLevel } from "@/lib/weaver";
@@ -52,6 +53,32 @@ export default async function HomePage() {
     where: { userId: user.id, bossCleared: true },
   });
 
+  // Forge nudge — count upgradable (2+ copies) and fusable (3+ copies of <UR rarity).
+  const ownedGroups = await prisma.ownedCard.groupBy({
+    by: ["cardId"],
+    where: { userId: user.id },
+    _count: true,
+  });
+  const duplicateCardIds = ownedGroups
+    .filter((g) => g._count >= 2)
+    .map((g) => g.cardId);
+  const fusableCardIds = ownedGroups
+    .filter((g) => g._count >= FUSION_INPUTS)
+    .map((g) => g.cardId);
+  let upgradableCount = 0;
+  let fusableCount = 0;
+  if (duplicateCardIds.length > 0) {
+    const cards = await prisma.card.findMany({
+      where: { id: { in: duplicateCardIds } },
+      select: { id: true, rarity: true },
+    });
+    upgradableCount = cards.length;
+    fusableCount = cards.filter(
+      (c) =>
+        c.rarity !== "UR" && fusableCardIds.includes(c.id),
+    ).length;
+  }
+
   const weaver = levelProgress(user.totalBelievers);
 
   const milestones = evaluate(
@@ -95,6 +122,34 @@ export default async function HomePage() {
               </div>
             </div>
             <span className="text-parchment/60 text-lg">→</span>
+          </div>
+        </Link>
+      )}
+
+      {(upgradableCount > 0 || fusableCount > 0) && (
+        <Link
+          href="/forge"
+          className="block p-4 rounded-xl border-2 border-rarity-super/60 bg-gradient-to-r from-rarity-super/10 to-rose-500/5 hover:from-rarity-super/15 hover:to-rose-500/10 transition-colors"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="display-serif text-rarity-super text-lg">
+                ⚒️ 鍛造所有素材待命
+              </div>
+              <div className="text-xs text-parchment/70 mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
+                {upgradableCount > 0 && (
+                  <span>
+                    {upgradableCount} 張卡可<span className="text-gold">升星</span>
+                  </span>
+                )}
+                {fusableCount > 0 && (
+                  <span>
+                    {fusableCount} 張卡可<span className="text-rose-300">融合升階</span>
+                  </span>
+                )}
+              </div>
+            </div>
+            <span className="text-parchment/60 text-lg shrink-0">→</span>
           </div>
         </Link>
       )}

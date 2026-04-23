@@ -2,6 +2,7 @@
 
 import { requireAdmin } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { seedAllStages } from "@/lib/seed-stages";
 import { revalidatePath } from "next/cache";
 
 export async function toggleRole(userId: string) {
@@ -39,4 +40,22 @@ export async function resetUserStats(userId: string) {
     },
   });
   revalidatePath("/admin");
+}
+
+export async function reseedStages(): Promise<{
+  ok: boolean;
+  created?: number;
+  eras?: number;
+  skipped?: string[];
+  error?: string;
+}> {
+  await requireAdmin();
+  try {
+    const res = await seedAllStages();
+    revalidatePath("/admin");
+    revalidatePath("/world");
+    return { ok: true, ...res };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 }

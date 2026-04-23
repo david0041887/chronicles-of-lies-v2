@@ -14,6 +14,7 @@ import {
   endPlayerTurn,
   isConfused,
   playCard,
+  type EnemyModifiers,
 } from "@/lib/battle/engine";
 import type { BattleCard, BattleState, LogEntry, SideState } from "@/lib/battle/types";
 import { cn } from "@/lib/utils";
@@ -29,10 +30,16 @@ interface StageData {
   enemyHp: number;
   enemyName: string;
   isBoss: boolean;
+  mode: "normal" | "prime";
   eraId: string;
   rewardCrystals: number;
   rewardExp: number;
   rewardBelievers: number;
+}
+
+interface NextStage {
+  id: string;
+  name: string;
 }
 
 interface EraMeta {
@@ -67,6 +74,10 @@ interface Props {
   playerPerks?: PlayerPerks;
   /** Today's daily legend for this era (if active). Null if weaver < Lv.3. */
   dailyLegend?: DailyLegendMeta | null;
+  /** Next stage in the same mode+era (for post-victory "Continue" button). */
+  nextStage?: NextStage | null;
+  /** Boss / Prime modifiers applied when creating the battle. */
+  enemyMods?: EnemyModifiers;
 }
 
 const AUTO_LEAVE_MS = 4200;
@@ -85,6 +96,8 @@ export function BattleClient({
   tutorialMode = false,
   playerPerks = ZERO_PERKS,
   dailyLegend = null,
+  nextStage = null,
+  enemyMods = {},
 }: Props) {
   const router = useRouter();
   const { push } = useToast();
@@ -97,6 +110,7 @@ export function BattleClient({
       enemyDeck,
       stage.enemyHp,
       playerPerks,
+      enemyMods,
     ),
   );
   const [reportSent, setReportSent] = useState(false);
@@ -105,6 +119,7 @@ export function BattleClient({
     crystals: number;
     exp: number;
     believers: number;
+    faith?: number;
     levelBefore: number;
     levelAfter: number;
   } | null>(null);
@@ -289,9 +304,12 @@ export function BattleClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battle.phase, reportSent]);
 
-  // Auto-leave after win/loss
+  // Auto-leave after win/loss — but only when there's no next-stage choice
+  // to offer. With a next stage available, we let the player choose.
   useEffect(() => {
     if (battle.phase !== "won" && battle.phase !== "lost") return;
+    // Skip auto-leave on win when a next stage exists (we surface a button).
+    if (battle.phase === "won" && nextStage && !tutorialMode) return;
     const dest = tutorialMode ? "/home" : `/era/${stage.eraId}`;
     const t = setTimeout(() => router.push(dest), AUTO_LEAVE_MS);
     return () => clearTimeout(t);
@@ -571,7 +589,7 @@ export function BattleClient({
               {!tutorialMode && rewards && battle.phase === "won" && (
                 <div className="grid grid-cols-3 gap-2 mb-4">
                   <Reward label="💎 水晶" value={rewards.crystals} />
-                  <Reward label="EXP" value={rewards.exp} />
+                  <Reward label="🕯️ 信念" value={rewards.faith ?? 0} />
                   <Reward label="🪙 信徒" value={rewards.believers} />
                 </div>
               )}
@@ -580,16 +598,49 @@ export function BattleClient({
                   🎉 升級 Lv.{rewards.levelBefore} → Lv.{rewards.levelAfter}
                 </div>
               )}
-              <p className="text-[11px] text-parchment/40 tracking-widest">
-                {tutorialMode ? "即將進入主頁…" : "即將返回…"}
-              </p>
-              <motion.div
-                className="mt-3 h-0.5 bg-gold rounded-full"
-                initial={{ scaleX: 1 }}
-                animate={{ scaleX: 0 }}
-                transition={{ duration: AUTO_LEAVE_MS / 1000, ease: "linear" }}
-                style={{ transformOrigin: "left" }}
-              />
+
+              {/* Post-battle action row */}
+              {battle.phase === "won" && !tutorialMode && nextStage ? (
+                <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
+                  <Button
+                    variant="primary"
+                    size="md"
+                    onClick={() => router.push(`/battle/${nextStage.id}`)}
+                  >
+                    下一關 → {nextStage.name}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => router.push(`/era/${stage.eraId}`)}
+                  >
+                    返回時代
+                  </Button>
+                </div>
+              ) : battle.phase === "won" && !tutorialMode ? (
+                <div className="mt-2 flex items-center justify-center gap-2">
+                  <Button
+                    variant="primary"
+                    size="md"
+                    onClick={() => router.push(`/era/${stage.eraId}`)}
+                  >
+                    🏆 返回時代 · 終末已達
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-[11px] text-parchment/40 tracking-widest">
+                    {tutorialMode ? "即將進入主頁…" : "即將返回…"}
+                  </p>
+                  <motion.div
+                    className="mt-3 h-0.5 bg-gold rounded-full"
+                    initial={{ scaleX: 1 }}
+                    animate={{ scaleX: 0 }}
+                    transition={{ duration: AUTO_LEAVE_MS / 1000, ease: "linear" }}
+                    style={{ transformOrigin: "left" }}
+                  />
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}

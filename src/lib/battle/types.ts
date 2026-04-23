@@ -32,6 +32,13 @@ export interface SideState {
   buffNextCard: number;       // multiplies next played card's power
   curseStacks: number;        // damage per turn
   confusedTurns: number;      // >0 = skip turn(s)
+  /** BOSS/Prime enrage HP threshold (0..1). Optional — only present on
+   *  bosses. When HP first drops below this fraction, enrage fires. */
+  enrageAt?: number;
+  /** True after enrage has triggered (prevents re-firing). */
+  enraged?: boolean;
+  /** Permanent power bonus on every outgoing card (stacks with buffNextCard). */
+  damageBonus?: number;
 }
 
 export type BattlePhase = "starting" | "player_turn" | "enemy_turn" | "won" | "lost";

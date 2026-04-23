@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { grantCrystals, resetUserStats, toggleRole } from "./actions";
+import { ReseedStagesButton } from "./ReseedStagesButton";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,8 @@ export default async function AdminPage() {
 
   const adminCount = users.filter((u) => u.role === "ADMIN").length;
 
+  const stageCount = await prisma.stage.count();
+
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
       <div className="flex items-center justify-between mb-8">
@@ -40,6 +43,7 @@ export default async function AdminPage() {
           <h1 className="display-serif text-3xl text-parchment">編織者議會 · 後台</h1>
         </div>
         <div className="flex gap-2">
+          <ReseedStagesButton currentCount={stageCount} />
           <a
             href="/admin/ai"
             className="text-xs px-3 py-1.5 rounded border border-gold/50 text-gold hover:bg-gold/10 tracking-widest"

@@ -50,7 +50,7 @@ export default async function EraPage({ params }: Props) {
         })
       : [];
 
-  const stages = await prisma.stage.findMany({
+  const allStages = await prisma.stage.findMany({
     where: { eraId: era.id },
     orderBy: { orderNum: "asc" },
     select: {
@@ -64,8 +64,11 @@ export default async function EraPage({ params }: Props) {
       isBoss: true,
       rewardCrystals: true,
       rewardBelievers: true,
+      mode: true,
     },
   });
+  const stages = allStages.filter((s) => s.mode === "normal");
+  const primeStages = allStages.filter((s) => s.mode === "prime");
 
   const chapters = getChapters(era.id as EraId);
   const rotationMs = msUntilNextRotation();
@@ -223,7 +226,137 @@ export default async function EraPage({ params }: Props) {
             palette={era.palette}
           />
         </section>
+
+        {/* Prime Mode — unlocked after BOSS cleared */}
+        {primeStages.length > 0 && (
+          <section className="mt-10">
+            <h2 className="display-serif text-2xl mb-1 flex items-center gap-2">
+              <span style={{ color: era.palette.accent }}>🌀 Prime Mode · 深淵</span>
+              {!bossCleared && (
+                <span className="text-[10px] tracking-widest px-2 py-0.5 rounded border border-parchment/20 text-parchment/40">
+                  BOSS 後解鎖
+                </span>
+              )}
+            </h2>
+            <p className="text-xs text-parchment/50 tracking-wider mb-4">
+              二週目 · 帷幕翻轉後的黑化版本。難度 +3,敵人牌組高濃度 SSR/UR,獎勵 1.5-3×。
+            </p>
+            <div className="space-y-3">
+              {primeStages.map((stage) => {
+                const unlocked = bossCleared && (
+                  stage.orderNum === 5 ||
+                  (highestStage >= stage.orderNum - 1)
+                );
+                return (
+                  <PrimeStageRow
+                    key={stage.id}
+                    stage={stage}
+                    unlocked={unlocked}
+                    cleared={highestStage >= stage.orderNum}
+                    palette={era.palette}
+                  />
+                );
+              })}
+            </div>
+          </section>
+        )}
       </main>
+    </div>
+  );
+}
+
+function PrimeStageRow({
+  stage,
+  unlocked,
+  cleared,
+  palette,
+}: {
+  stage: {
+    id: string;
+    name: string;
+    subtitle: string | null;
+    orderNum: number;
+    difficulty: number;
+    enemyName: string;
+    enemyHp: number;
+    isBoss: boolean;
+    rewardCrystals: number;
+    rewardBelievers: number;
+  };
+  unlocked: boolean;
+  cleared: boolean;
+  palette: { main: string; accent: string; dark: string };
+}) {
+  return (
+    <div
+      className="relative pl-14 rounded-xl border transition-colors overflow-hidden"
+      style={{
+        borderColor: unlocked ? `${palette.main}aa` : "rgba(244,230,193,0.15)",
+        background: unlocked
+          ? `linear-gradient(135deg, ${palette.dark} 0%, ${palette.main}22 100%)`
+          : "rgba(18,8,32,0.4)",
+        opacity: unlocked ? 1 : 0.55,
+      }}
+    >
+      <div
+        className="absolute left-2 top-4 w-9 h-9 rounded-full border-2 flex items-center justify-center text-sm"
+        style={{
+          borderColor: stage.isBoss ? "#FFD700" : palette.accent,
+          background: stage.isBoss
+            ? `${palette.main}44`
+            : `${palette.dark}`,
+        }}
+      >
+        {unlocked ? (stage.isBoss ? "👑" : "🌀") : "🔒"}
+      </div>
+      <div className="flex items-center gap-3 pr-4 py-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="display-serif text-base text-parchment truncate">
+              {stage.name}
+            </span>
+            {cleared && (
+              <span className="text-[9px] text-success tracking-wider">✓ 征服</span>
+            )}
+            {stage.isBoss && (
+              <span
+                className="text-[9px] tracking-widest border px-1.5 py-0.5 rounded"
+                style={{
+                  color: palette.accent,
+                  borderColor: `${palette.accent}80`,
+                }}
+              >
+                PRIME BOSS
+              </span>
+            )}
+          </div>
+          {stage.subtitle && (
+            <div className="text-[11px] text-parchment/50">{stage.subtitle}</div>
+          )}
+          <div className="flex items-center gap-3 text-[11px] text-parchment/60 mt-1 flex-wrap">
+            <span>難度 ×{stage.difficulty}</span>
+            <span>敵 HP {stage.enemyHp}</span>
+            <span className="text-rarity-super">💎 +{stage.rewardCrystals}</span>
+            <span className="text-gold">🪙 +{stage.rewardBelievers}</span>
+          </div>
+        </div>
+        {unlocked ? (
+          <Link
+            href={`/battle/${stage.id}`}
+            className="px-4 py-2 rounded-lg text-sm font-semibold shrink-0 transition-all"
+            style={{
+              background: palette.accent,
+              color: palette.dark,
+            }}
+          >
+            {cleared ? "再戰" : "進入深淵"}
+          </Link>
+        ) : (
+          <span className="text-xs text-parchment/30 tracking-widest shrink-0">
+            🔒
+          </span>
+        )}
+      </div>
     </div>
   );
 }

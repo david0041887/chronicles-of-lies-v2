@@ -66,6 +66,41 @@ function draw(side: SideState, n: number, log: LogEntry[], turn: number, sideNam
   }
 }
 
+export interface EnemyModifiers {
+  /** Boss arena: starts with a shield to soak the opening turn. */
+  startShield?: number;
+  /** Prime-mode: extra starting mana so the fight opens aggressive. */
+  extraStartMana?: number;
+  /** HP threshold (0..1). When enemy HP drops below this, enrage triggers:
+   *  +2 permanent damageBonus on future plays, fires once, logged. */
+  enrageAt?: number;
+  /** Short label shown in the opening log, e.g. "BOSS" / "PRIME BOSS". */
+  label?: string;
+}
+
+/** Derives enemy modifiers for a given stage flavour. */
+export function modifiersForStage(args: {
+  isBoss: boolean;
+  mode: "normal" | "prime";
+}): EnemyModifiers {
+  const { isBoss, mode } = args;
+  if (mode === "prime" && isBoss) {
+    return {
+      startShield: 10,
+      extraStartMana: 2,
+      enrageAt: 0.5,
+      label: "👑 PRIME BOSS",
+    };
+  }
+  if (mode === "prime") {
+    return { startShield: 5, extraStartMana: 1, label: "🌀 PRIME" };
+  }
+  if (isBoss) {
+    return { startShield: 6, enrageAt: 0.4, label: "👑 BOSS" };
+  }
+  return {};
+}
+
 export function createBattle(
   playerName: string,
   playerDeck: BattleCard[],
@@ -73,6 +108,7 @@ export function createBattle(
   enemyDeck: BattleCard[],
   enemyHp = INITIAL_HP,
   playerPerks: PlayerPerks = ZERO_PERKS,
+  enemyMods: EnemyModifiers = {},
 ): BattleState {
   const state: BattleState = {
     phase: "starting",
@@ -84,6 +120,22 @@ export function createBattle(
     seed: Date.now() >>> 0,
   };
 
+  // Apply enemy modifiers
+  if (enemyMods.startShield && enemyMods.startShield > 0) {
+    state.enemy.shield = enemyMods.startShield;
+  }
+  if (enemyMods.extraStartMana && enemyMods.extraStartMana > 0) {
+    const bonus = enemyMods.extraStartMana;
+    state.enemy.mana = Math.min(state.enemy.manaCeiling, state.enemy.mana + bonus);
+    state.enemy.manaMax = Math.min(
+      state.enemy.manaCeiling,
+      state.enemy.manaMax + bonus,
+    );
+  }
+  if (enemyMods.enrageAt && enemyMods.enrageAt > 0) {
+    state.enemy.enrageAt = enemyMods.enrageAt;
+  }
+
   const initialDraw = BASE_INITIAL_DRAW + playerPerks.startHandBonus;
   draw(state.player, initialDraw, state.log, 1, "player");
   draw(state.enemy, BASE_INITIAL_DRAW, state.log, 1, "enemy");
@@ -94,6 +146,20 @@ export function createBattle(
       side: "player",
       kind: "buff",
       text: `編織者加成:+${playerPerks.startHandBonus} 手牌 · +${playerPerks.startManaBonus} 信仰池`,
+    });
+  }
+
+  if (enemyMods.label) {
+    const bits: string[] = [];
+    if (enemyMods.startShield) bits.push(`護盾 ${enemyMods.startShield}`);
+    if (enemyMods.extraStartMana) bits.push(`+${enemyMods.extraStartMana} 信仰池`);
+    if (enemyMods.enrageAt)
+      bits.push(`<${Math.round(enemyMods.enrageAt * 100)}% HP 將狂暴`);
+    state.log.push({
+      turn: 1,
+      side: "enemy",
+      kind: "buff",
+      text: `${enemyMods.label} · ${bits.join(" · ")}`,
     });
   }
 
@@ -134,6 +200,22 @@ function dealDamage(
       text: `對 ${defender.name} 造成 ${dmg} 信徒流失`,
     });
   }
+  // Enrage check — only for defenders that set enrageAt (BOSS / Prime BOSS).
+  if (
+    defender.enrageAt !== undefined &&
+    !defender.enraged &&
+    defender.hp > 0 &&
+    defender.hp / defender.hpMax <= defender.enrageAt
+  ) {
+    defender.enraged = true;
+    defender.damageBonus = (defender.damageBonus ?? 0) + 2;
+    log.push({
+      turn,
+      side: sideName === "player" ? "enemy" : "player",
+      kind: "buff",
+      text: `⚠️ ${defender.name} 進入狂暴 — 永久 +2 威力`,
+    });
+  }
 }
 
 function heal(side: SideState, amount: number, log: LogEntry[], turn: number, sideName: "player" | "enemy") {
@@ -167,7 +249,7 @@ export function playCard(state: BattleState, sideName: "player" | "enemy", handI
     state.playerPlays.push(card.id);
   }
 
-  const basePower = card.power * self.buffNextCard;
+  const basePower = card.power * self.buffNextCard + (self.damageBonus ?? 0);
   const hasPierce = card.keywords.includes("pierce");
   const hasHaste = card.keywords.includes("haste");
 

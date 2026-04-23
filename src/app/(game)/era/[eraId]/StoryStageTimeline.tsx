@@ -33,14 +33,10 @@ interface Props {
 /**
  * Interleaved timeline: chapter → stage → chapter → stage ...
  *
- * Mapping:
- *   chapter[0] (序章, unlockAt=0): shown first
- *   stage[0]
- *   chapter[1] (unlockAt=1): after stage[0]
- *   stage[1]
- *   chapter[2] (unlockAt=2): after stage[1]
- *   stage[2] (boss)
- *   chapter[3] (終章, unlockAt=3): after boss
+ * Chapters are placed by matching their `unlockAt` to a stage's orderNum,
+ * so we correctly slot inter-stage chapters even when elite / extra
+ * normal stages are inserted. The terminus chapter (unlockAt === 3, the
+ * "boss" sentinel) is always pinned to the very end.
  */
 export function StoryStageTimeline({
   chapters,
@@ -53,14 +49,28 @@ export function StoryStageTimeline({
     | { kind: "stage"; data: Stage; key: string }
   > = [];
 
-  // Build interleaved timeline
-  if (chapters[0]) items.push({ kind: "chapter", data: chapters[0], key: "ch0" });
-  for (let i = 0; i < stages.length; i++) {
-    items.push({ kind: "stage", data: stages[i], key: `st${i}` });
-    const nextChapter = chapters[i + 1];
-    if (nextChapter) {
-      items.push({ kind: "chapter", data: nextChapter, key: `ch${i + 1}` });
+  const prologue = chapters.find((c) => c.unlockAt === 0);
+  const terminus = chapters.find((c) => c.unlockAt === 3);
+  const midChapters = chapters.filter(
+    (c) => c.unlockAt !== 0 && c.unlockAt !== 3,
+  );
+
+  if (prologue) items.push({ kind: "chapter", data: prologue, key: "ch0" });
+
+  for (const stage of stages) {
+    items.push({ kind: "stage", data: stage, key: `st${stage.orderNum}` });
+    const matching = midChapters.find((c) => c.unlockAt === stage.orderNum);
+    if (matching) {
+      items.push({
+        kind: "chapter",
+        data: matching,
+        key: `ch_after_${stage.orderNum}`,
+      });
     }
+  }
+
+  if (terminus) {
+    items.push({ kind: "chapter", data: terminus, key: "ch_terminus" });
   }
 
   return (

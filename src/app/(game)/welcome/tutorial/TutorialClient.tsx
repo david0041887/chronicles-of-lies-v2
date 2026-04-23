@@ -35,6 +35,7 @@ interface Props {
 export function TutorialClient(props: Props) {
   const stageWithRewards = {
     ...props.stage,
+    mode: "normal" as const,
     rewardCrystals: 0,
     rewardExp: 0,
     rewardBelievers: 0,

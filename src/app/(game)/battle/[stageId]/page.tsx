@@ -1,5 +1,6 @@
 import { requireOnboarded } from "@/lib/auth-helpers";
 import { applyDailyLegendBuff, buildPlayerDeck, buildStageDeck } from "@/lib/battle/deck";
+import { modifiersForStage } from "@/lib/battle/engine";
 import { prisma } from "@/lib/prisma";
 import { getEra } from "@/lib/constants/eras";
 import { perksForLevel, weaverLevel } from "@/lib/weaver";
@@ -22,9 +23,19 @@ export default async function BattlePage({ params }: Props) {
 
   const era = getEra(stage.eraId);
 
-  const [rawPlayerDeck, enemyDeck] = await Promise.all([
+  const [rawPlayerDeck, enemyDeck, nextStage] = await Promise.all([
     buildPlayerDeck(user.id),
     buildStageDeck(stage.enemyDeck),
+    // Find the next stage in the same mode+era by orderNum, for auto-advance.
+    prisma.stage.findFirst({
+      where: {
+        eraId: stage.eraId,
+        mode: stage.mode,
+        orderNum: { gt: stage.orderNum },
+      },
+      orderBy: { orderNum: "asc" },
+      select: { id: true, name: true },
+    }),
   ]);
 
   if (rawPlayerDeck.length < 15) {
@@ -54,6 +65,11 @@ export default async function BattlePage({ params }: Props) {
     ? applyDailyLegendBuff(rawPlayerDeck, stage.eraId)
     : { deck: rawPlayerDeck, legendIdx: -1, boostedCards: [] as string[] };
 
+  const enemyMods = modifiersForStage({
+    isBoss: stage.isBoss,
+    mode: stage.mode as "normal" | "prime",
+  });
+
   return (
     <BattleClient
       stage={{
@@ -64,11 +80,14 @@ export default async function BattlePage({ params }: Props) {
         enemyHp: stage.enemyHp,
         enemyName: stage.enemyName,
         isBoss: stage.isBoss,
+        mode: stage.mode as "normal" | "prime",
         eraId: stage.eraId,
         rewardCrystals: stage.rewardCrystals,
         rewardExp: 0,
         rewardBelievers: stage.rewardBelievers,
       }}
+      nextStage={nextStage}
+      enemyMods={enemyMods}
       era={
         era
           ? {
