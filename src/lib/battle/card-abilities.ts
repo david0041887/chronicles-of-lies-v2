@@ -801,6 +801,10 @@ function getAbilitiesFor(minion: Minion): CardAbility[] {
 /**
  * Fire all abilities on a minion matching the given trigger. Safe to call
  * when the minion has no matching abilities.
+ *
+ * Emits a structured log entry per firing (kind: "buff", data.event:
+ * "ability_fired") so the UI layer can flash the minion card and surface
+ * the trigger name without having to regex-parse free-form log text.
  */
 export function fireAbility(
   state: BattleState,
@@ -815,6 +819,17 @@ export function fireAbility(
   const self = state[sideName];
   const other = state[sideName === "player" ? "enemy" : "player"];
   const ctx: AbilityContext = { state, sideName, self, other, source: minion };
+
+  // Single marker entry per firing (before the effects push their own
+  // damage/heal/buff logs), so the client can match `data.uid` to the
+  // corresponding minion and flash it exactly when the effect runs.
+  state.log.push({
+    turn: state.turn,
+    side: sideName,
+    kind: "buff",
+    text: `${triggerLabel(trigger)} · ${minion.name}`,
+    data: { event: "ability_fired", uid: minion.uid, trigger },
+  });
 
   for (const ability of matching) {
     try {

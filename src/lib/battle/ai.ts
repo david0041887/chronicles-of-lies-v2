@@ -35,7 +35,15 @@ export function runEnemyTurn(state: BattleState) {
 export type EnemyStepResult =
   | { done: true }
   | { done: false; kind: "play"; cardName: string; cardType: string }
-  | { done: false; kind: "attack"; attackerName: string; target: "face" | "minion" };
+  | {
+      done: false;
+      kind: "attack";
+      attackerUid: string;
+      attackerName: string;
+      target: "face" | "minion";
+      /** uid of the targeted minion, present when target === "minion" */
+      targetUid?: string;
+    };
 
 /**
  * Perform exactly one enemy action (either play one card or resolve one
@@ -95,8 +103,10 @@ export function runEnemyStep(state: BattleState): EnemyStepResult {
   return {
     done: false,
     kind: "attack",
+    attackerUid: attacker.uid,
     attackerName: attacker.name,
     target: target.kind,
+    targetUid: target.kind === "minion" ? target.uid : undefined,
   };
 }
 

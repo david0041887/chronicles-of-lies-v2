@@ -146,6 +146,16 @@ export function BattleClient({
   const [shakeKey, setShakeKey] = useState(0);
   const [enemyIntent, setEnemyIntent] = useState<EnemyIntent | null>(null);
   const [selectedAttackerUid, setSelectedAttackerUid] = useState<string | null>(null);
+  /** Uids of minions that should show a gold trigger-fire glow right now. */
+  const [triggerFlashes, setTriggerFlashes] = useState<Record<string, number>>({});
+  /** Current attack animation — MinionCard of attackerUid slides toward
+   *  the target (face → big leap, minion → short step), then snaps back. */
+  const [attackAnim, setAttackAnim] = useState<{
+    attackerUid: string;
+    attackerSide: "player" | "enemy";
+    targetKind: "face" | "minion";
+    ts: number;
+  } | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const prevLogLenRef = useRef(0);
   const sleepTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -156,25 +166,59 @@ export function BattleClient({
 
   const tick = () => setBattle((b) => ({ ...b }));
 
-  // Log auto-scroll + detect enemy plays for impact flash
+  // Log auto-scroll + react to newly-appended structured events:
+  //  · enemy card plays → impact flash
+  //  · minion_attack markers → attacker slide animation
+  //  · ability_fired markers → trigger glow on the source minion
   useEffect(() => {
     const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-    // Scan newly appended log entries for enemy plays
     const fresh = battle.log.slice(prevLogLenRef.current);
     prevLogLenRef.current = battle.log.length;
     for (const entry of fresh) {
-      if (entry.kind === "play" && entry.side === "enemy") {
-        // text is e.g. "打出 X(attack 5)" — extract type from parens
-        const m = entry.text.match(/\(([a-z]+)\s/);
-        if (m) {
-          triggerImpact(m[1], "enemy");
-          break;
+      const ev = entry.data?.event;
+      if (ev === "minion_attack") {
+        const attackerUid = entry.data?.attackerUid as string | undefined;
+        const targetKind = entry.data?.targetKind as "face" | "minion" | undefined;
+        if (attackerUid && targetKind) {
+          setAttackAnim({
+            attackerUid,
+            attackerSide: entry.side,
+            targetKind,
+            ts: Date.now() + Math.random(),
+          });
         }
+      } else if (ev === "ability_fired") {
+        const uid = entry.data?.uid as string | undefined;
+        if (uid) {
+          const key = Date.now() + Math.random();
+          setTriggerFlashes((f) => ({ ...f, [uid]: key }));
+          const t = setTimeout(() => {
+            setTriggerFlashes((f) => {
+              if (f[uid] !== key) return f;
+              const { [uid]: _omit, ...rest } = f;
+              return rest;
+            });
+          }, 650);
+          sleepTimersRef.current.add(t);
+        }
+      } else if (entry.kind === "play" && entry.side === "enemy") {
+        // Enemy card-play impact flash (non-attack plays only — text starts
+        // with "打出"; attack markers have empty text and are filtered above).
+        const m = entry.text.match(/\(([a-z]+)\s/);
+        if (m) triggerImpact(m[1], "enemy");
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battle.log.length]);
+
+  // Clear attack animation shortly after it fires so the attacker snaps back.
+  useEffect(() => {
+    if (!attackAnim) return;
+    const t = setTimeout(() => setAttackAnim(null), 380);
+    sleepTimersRef.current.add(t);
+    return () => clearTimeout(t);
+  }, [attackAnim]);
 
   // Recompute enemy intent whenever player is up. Skip during enemy turn
   // because the intent is what they'll do *next*, not this instant. Keyed
@@ -606,6 +650,8 @@ export function BattleClient({
           minions={battle.enemy.board}
           palette={bg}
           attackMode={selectedAttackerUid !== null}
+          attackAnim={attackAnim}
+          triggerFlashes={triggerFlashes}
           onMinionClick={(uid) => onAttackTarget({ kind: "minion", uid })}
         />
 
@@ -614,8 +660,11 @@ export function BattleClient({
           className="relative mx-4 my-2 rounded-lg border border-parchment/10 bg-black/30 backdrop-blur p-3 max-h-24 overflow-y-auto text-xs space-y-0.5"
         >
           {(() => {
-            const base = Math.max(0, battle.log.length - 40);
-            return battle.log.slice(-40).map((l, i) => (
+            // Hide UI-only marker entries (empty text, e.g. minion_attack
+            // event used to sync the slide animation) from the visible log.
+            const visible = battle.log.filter((l) => l.text !== "");
+            const base = Math.max(0, visible.length - 40);
+            return visible.slice(-40).map((l, i) => (
               <LogLine key={base + i} entry={l} />
             ));
           })()}
@@ -626,6 +675,8 @@ export function BattleClient({
           minions={battle.player.board}
           palette={bg}
           selectedUid={selectedAttackerUid}
+          attackAnim={attackAnim}
+          triggerFlashes={triggerFlashes}
           onMinionClick={onSelectAttacker}
         />
 
@@ -941,6 +992,15 @@ function InlineCardDetail({ card }: { card: BattleCard }) {
   );
 }
 
+const INLINE_TRIGGER_ICON: Record<string, string> = {
+  戰吼: "📜",
+  亡語: "☠",
+  回合開始: "🌅",
+  回合結束: "🌙",
+  攻擊後: "⚔",
+  受擊: "🩸",
+};
+
 function InlineCardAbilities({ card }: { card: BattleCard }) {
   const abilities = getAbilityDescriptionsForCard(card.id, card.rarity, card.keywords);
   if (abilities.length === 0) return null;
@@ -948,15 +1008,24 @@ function InlineCardAbilities({ card }: { card: BattleCard }) {
     <div className="mt-3 space-y-1">
       {abilities.map((line, i) => {
         const [trig, ...rest] = line.split(":");
+        const t = trig.trim();
+        const icon = INLINE_TRIGGER_ICON[t] ?? "◆";
         return (
           <div
             key={i}
-            className="text-[11px] px-2 py-1.5 rounded bg-gradient-to-r from-rarity-super/10 to-veil/60 border border-rarity-super/40"
+            className="text-[11px] px-2 py-1.5 rounded bg-gradient-to-r from-rarity-super/10 to-veil/60 border border-rarity-super/40 flex items-start gap-1.5"
           >
-            <span className="text-rarity-super font-semibold tracking-wider">
-              ◆ {trig}
+            <span className="shrink-0 w-5 h-5 rounded-full bg-rarity-super/25 border border-rarity-super/50 flex items-center justify-center text-[11px]">
+              {icon}
             </span>
-            <span className="text-parchment/85 ml-2">{rest.join(":")}</span>
+            <div className="min-w-0 flex-1">
+              <span className="text-rarity-super font-semibold tracking-wider">
+                {t}
+              </span>
+              <span className="text-parchment/85 ml-1.5">
+                {rest.join(":").trim()}
+              </span>
+            </div>
           </div>
         );
       })}
@@ -1053,6 +1122,8 @@ function BoardRow({
   palette,
   selectedUid,
   attackMode,
+  attackAnim,
+  triggerFlashes,
   onMinionClick,
 }: {
   side: "player" | "enemy";
@@ -1060,6 +1131,13 @@ function BoardRow({
   palette: { main: string; accent: string };
   selectedUid?: string | null;
   attackMode?: boolean;
+  attackAnim?: {
+    attackerUid: string;
+    attackerSide: "player" | "enemy";
+    targetKind: "face" | "minion";
+    ts: number;
+  } | null;
+  triggerFlashes?: Record<string, number>;
   onMinionClick?: (uid: string) => void;
 }) {
   if (minions.length === 0) {
@@ -1081,6 +1159,11 @@ function BoardRow({
             m.attacksRemaining > 0;
           const isAttackableTaunt = side === "enemy" && m.keywords.includes("taunt");
           const mustAttackThis = attackMode && hasTaunt && !isAttackableTaunt;
+          const isAttacking =
+            attackAnim?.attackerUid === m.uid &&
+            attackAnim?.attackerSide === side;
+          const attackTargetKind = isAttacking ? attackAnim?.targetKind : undefined;
+          const triggerFlashKey = triggerFlashes?.[m.uid];
           return (
             <MinionCard
               key={m.uid}
@@ -1091,6 +1174,9 @@ function BoardRow({
               canAct={canAct}
               highlighted={attackMode && side === "enemy" && !mustAttackThis}
               dimmed={mustAttackThis}
+              isAttacking={isAttacking}
+              attackTargetKind={attackTargetKind}
+              triggerFlashKey={triggerFlashKey}
               onClick={() => onMinionClick?.(m.uid)}
             />
           );
@@ -1108,6 +1194,9 @@ function MinionCard({
   canAct,
   highlighted,
   dimmed,
+  isAttacking,
+  attackTargetKind,
+  triggerFlashKey,
   onClick,
 }: {
   minion: Minion;
@@ -1117,6 +1206,9 @@ function MinionCard({
   canAct?: boolean;
   highlighted?: boolean;
   dimmed?: boolean;
+  isAttacking?: boolean;
+  attackTargetKind?: "face" | "minion";
+  triggerFlashKey?: number;
   onClick?: () => void;
 }) {
   const hasTaunt = minion.keywords.includes("taunt");
@@ -1128,22 +1220,52 @@ function MinionCard({
   const abilityTitle = abilities.length > 0
     ? "\n技能:\n" + abilities.map((a) => `· ${a.description}`).join("\n")
     : "";
-  // Track HP changes so we can flash the card red when it takes damage.
+  // Track HP changes so we can flash the card red when it takes damage,
+  // and float a "−N" damage number up from the card that got hit.
   const prevHpRef = useRef(minion.hp);
   const [hurtPulse, setHurtPulse] = useState(0);
+  const [hitNumbers, setHitNumbers] = useState<{ id: number; delta: number }[]>([]);
   useEffect(() => {
-    if (minion.hp < prevHpRef.current) {
+    const delta = minion.hp - prevHpRef.current;
+    if (delta < 0) {
       setHurtPulse((k) => k + 1);
+      const id = Date.now() + Math.random();
+      setHitNumbers((n) => [...n, { id, delta }]);
+      const t = setTimeout(() => {
+        setHitNumbers((n) => n.filter((h) => h.id !== id));
+      }, 1100);
+      return () => clearTimeout(t);
     }
     prevHpRef.current = minion.hp;
   }, [minion.hp]);
+
+  // Slide-to-target keyframe: when this minion is the current attacker,
+  // briefly offset it toward the opposing side (big leap for face hits,
+  // small step for minion trades) then snap back. Direction is inverted
+  // for the enemy side so they also lunge "forward" visually.
+  const attackDist =
+    attackTargetKind === "face" ? 86 : attackTargetKind === "minion" ? 36 : 0;
+  const attackDirY = side === "player" ? -attackDist : attackDist;
   return (
     <motion.button
       layout
       initial={{ opacity: 0, y: side === "player" ? 30 : -30, scale: 0.7 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
+      animate={
+        isAttacking
+          ? {
+              opacity: 1,
+              y: [0, attackDirY * 0.3, attackDirY, 0],
+              scale: [1, 1.05, 1.1, 1],
+              rotate: side === "player" ? [0, -3, 0, 0] : [0, 3, 0, 0],
+            }
+          : { opacity: 1, y: 0, scale: 1 }
+      }
       exit={{ opacity: 0, scale: 0.4, rotate: side === "player" ? -12 : 12, filter: "blur(3px)" }}
-      transition={{ duration: 0.28, ease: [0.22, 0.97, 0.32, 1.08] }}
+      transition={
+        isAttacking
+          ? { duration: 0.36, ease: [0.45, 0.05, 0.3, 0.95], times: [0, 0.35, 0.55, 1] }
+          : { duration: 0.28, ease: [0.22, 0.97, 0.32, 1.08] }
+      }
       onClick={onClick}
       title={`${minion.name} · ATK ${minion.atk} / HP ${minion.hp}/${minion.hpMax}${
         minion.keywords.length ? " · " + minion.keywords.join("/") : ""
@@ -1175,6 +1297,37 @@ function MinionCard({
           className="absolute inset-0 bg-blood/60 pointer-events-none"
         />
       )}
+      {/* Trigger-fire glow: golden halo pulse when this minion's ability fires */}
+      <AnimatePresence>
+        {triggerFlashKey !== undefined && (
+          <motion.span
+            key={triggerFlashKey}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: [0, 0.95, 0], scale: [0.9, 1.25, 1.35] }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="absolute inset-0 rounded-lg pointer-events-none"
+            style={{
+              boxShadow: "0 0 18px 6px rgba(212,168,75,0.9), inset 0 0 16px rgba(255,230,160,0.6)",
+            }}
+          />
+        )}
+      </AnimatePresence>
+      {/* Per-minion damage numbers floating up from the card */}
+      <AnimatePresence>
+        {hitNumbers.map((h) => (
+          <motion.span
+            key={h.id}
+            initial={{ opacity: 0, y: 0, scale: 0.6 }}
+            animate={{ opacity: [0, 1, 1, 0], y: -34, scale: 1.25 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.05, ease: "easeOut", times: [0, 0.15, 0.7, 1] }}
+            className="absolute left-1/2 -translate-x-1/2 -top-2 text-danger text-base font-bold drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] pointer-events-none font-[family-name:var(--font-mono)] tabular-nums"
+          >
+            {h.delta}
+          </motion.span>
+        ))}
+      </AnimatePresence>
       <div className="text-lg leading-none">
         {minion.rarity === "UR" ? "🌟" : minion.rarity === "SSR" ? "⭐" : minion.rarity === "SR" ? "✦" : "·"}
       </div>

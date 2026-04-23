@@ -644,6 +644,21 @@ export function attackWithMinion(
     state.log.push({ turn: state.turn, side: sideName, kind, text: txt });
   };
 
+  // Structured attack marker the UI uses to synchronise the attacker's
+  // slide-to-target animation with the actual state mutation.
+  state.log.push({
+    turn: state.turn,
+    side: sideName,
+    kind: "play",
+    text: "",
+    data: {
+      event: "minion_attack",
+      attackerUid: attacker.uid,
+      targetKind: target.kind,
+      targetUid: target.kind === "minion" ? target.uid : undefined,
+    },
+  });
+
   let dealtToTarget = 0;
 
   if (target.kind === "face") {

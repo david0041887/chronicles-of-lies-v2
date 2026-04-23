@@ -172,26 +172,49 @@ export function CardDetailModal({ card, ownedCount, onClose }: Props) {
   );
 }
 
+const TRIGGER_ICON: Record<string, string> = {
+  戰吼: "📜",
+  亡語: "☠",
+  回合開始: "🌅",
+  回合結束: "🌙",
+  攻擊後: "⚔",
+  受擊: "🩸",
+};
+
 function CardAbilities({ card }: { card: Card }) {
   const abilities = getAbilityDescriptionsForCard(card.id, card.rarity, card.keywords);
   if (abilities.length === 0) return null;
   return (
     <div className="mb-4">
-      <div className="text-xs text-parchment/50 tracking-wider mb-2">
-        卡牌技能
+      <div className="text-xs text-parchment/50 tracking-wider mb-2 flex items-center gap-2">
+        <span>卡牌技能</span>
+        <span className="flex-1 h-px bg-rarity-super/20" aria-hidden />
+        <span className="text-[10px] text-rarity-super/70">SR+ 登場時觸發</span>
       </div>
       <div className="space-y-1.5">
         {abilities.map((line, i) => {
           const [trig, ...rest] = line.split(":");
+          const t = trig.trim();
+          const icon = TRIGGER_ICON[t] ?? "◆";
           return (
             <div
               key={i}
-              className="text-xs px-3 py-2 rounded bg-gradient-to-r from-rarity-super/10 to-veil/60 border border-rarity-super/40"
+              className="text-xs px-3 py-2 rounded bg-gradient-to-r from-rarity-super/10 to-veil/60 border border-rarity-super/40 flex items-start gap-2"
             >
-              <span className="text-rarity-super font-semibold tracking-wider">
-                ◆ {trig}
+              <span
+                className="shrink-0 w-6 h-6 rounded-full bg-rarity-super/25 border border-rarity-super/50 flex items-center justify-center text-sm"
+                aria-hidden
+              >
+                {icon}
               </span>
-              <span className="text-parchment/85 ml-2">{rest.join(":")}</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-rarity-super font-semibold tracking-wider leading-tight">
+                  {t}
+                </div>
+                <div className="text-parchment/85 leading-snug mt-0.5">
+                  {rest.join(":").trim()}
+                </div>
+              </div>
             </div>
           );
         })}

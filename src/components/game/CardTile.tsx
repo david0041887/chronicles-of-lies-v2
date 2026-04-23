@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { getAbilityDescriptionsForCard } from "@/lib/battle/card-abilities";
 import { keywordTitle } from "@/lib/keyword-meta";
 import { motion, useMotionTemplate, useMotionValue, useSpring } from "framer-motion";
 import type { Rarity } from "@prisma/client";
@@ -58,6 +59,15 @@ const TYPE_ICON: Record<string, string> = {
   buff: "⬆️",
   debuff: "⬇️",
   ritual: "🔮",
+};
+
+const ABILITY_TRIGGER_ICON_MAP: Record<string, string> = {
+  戰吼: "📜",
+  亡語: "☠",
+  回合開始: "🌅",
+  回合結束: "🌙",
+  攻擊後: "⚔",
+  受擊: "🩸",
 };
 
 const SIZES = {
@@ -124,6 +134,22 @@ export function CardTile({
   }
 
   const Wrapper: React.ElementType = onClick ? "button" : "div";
+
+  // Derived ability preview — first description line for SR+ cards that
+  // become minions. Used to paint a small trigger badge on the art so
+  // players can tell a battlecry/deathrattle from stat-stick R cards at
+  // a glance, both in collection and in hand.
+  const abilityPreview = (() => {
+    const lines = getAbilityDescriptionsForCard(
+      card.id,
+      card.rarity,
+      card.keywords,
+    );
+    if (lines.length === 0) return null;
+    const [trig, ...rest] = lines[0].split(":");
+    const icon = ABILITY_TRIGGER_ICON_MAP[trig?.trim() ?? ""] ?? "✦";
+    return { icon, trig, desc: rest.join(":").trim(), all: lines };
+  })();
 
   const artUrl = card.imageUrl || (card.hasImage ? `/api/cards/${card.id}/art` : null);
   const artLayer = artUrl ? (
@@ -237,6 +263,17 @@ export function CardTile({
           >
             NEW
           </motion.span>
+        </div>
+      )}
+      {abilityPreview && (
+        <div
+          className="absolute bottom-[30%] right-1.5 z-10"
+          title={abilityPreview.all.join("\n")}
+        >
+          <span className="flex items-center gap-0.5 text-[9px] font-semibold tracking-wider bg-rarity-super/90 text-veil px-1.5 py-0.5 rounded-full border border-rarity-super shadow-[0_0_8px_rgba(184,127,235,0.5)]">
+            <span aria-hidden>{abilityPreview.icon}</span>
+            <span className="hidden sm:inline">{abilityPreview.trig}</span>
+          </span>
         </div>
       )}
     </Wrapper>
