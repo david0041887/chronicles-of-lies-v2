@@ -6,7 +6,7 @@ import { CardTile } from "@/components/game/CardTile";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import { runEnemyTurn } from "@/lib/battle/ai";
+import { previewEnemyIntent, runEnemyTurn, type EnemyIntent } from "@/lib/battle/ai";
 import {
   consumeConfusion,
   createBattle,
@@ -121,6 +121,7 @@ export function BattleClient({
     side: "player" | "enemy";
   } | null>(null);
   const [shakeKey, setShakeKey] = useState(0);
+  const [enemyIntent, setEnemyIntent] = useState<EnemyIntent | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const prevLogLenRef = useRef(0);
   const prevHpRef = useRef({
@@ -149,6 +150,16 @@ export function BattleClient({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battle.log.length]);
+
+  // Recompute enemy intent whenever player is up. Skip during enemy turn
+  // because the intent is what they'll do *next*, not this instant.
+  useEffect(() => {
+    if (battle.phase === "player_turn") {
+      setEnemyIntent(previewEnemyIntent(battle));
+    } else if (battle.phase === "won" || battle.phase === "lost") {
+      setEnemyIntent(null);
+    }
+  }, [battle]);
 
   // Emit damage / heal floaters on HP changes
   useEffect(() => {
@@ -432,6 +443,7 @@ export function BattleClient({
           palette={bg}
           confused={battle.enemy.confusedTurns > 0}
           thinking={enemyThinking}
+          intent={battle.phase === "player_turn" ? enemyIntent : null}
         />
 
         <div
@@ -737,15 +749,18 @@ function EnemyArea({
   palette,
   confused,
   thinking,
+  intent,
 }: {
   enemy: SideState;
   emoji: string;
   palette: { main: string; accent: string };
   confused: boolean;
   thinking: boolean;
+  intent: EnemyIntent | null;
 }) {
   return (
     <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
+      {intent && <EnemyIntentBadge intent={intent} />}
       <motion.div
         className="relative w-20 h-20 rounded-full border-2 flex items-center justify-center text-5xl shrink-0"
         style={{ borderColor: palette.main, background: `${palette.main}22` }}
@@ -787,10 +802,13 @@ function EnemyArea({
           {enemy.name}
         </div>
         <HpBar value={enemy.hp} max={enemy.hpMax} color={palette.main} />
-        <div className="flex items-center gap-3 mt-1 text-[11px] text-parchment/70">
+        <div className="flex items-center gap-3 mt-1 text-[11px] text-parchment/70 flex-wrap">
           <span>⚡ {enemy.mana}/{enemy.manaMax}</span>
           <span>🎴 {enemy.hand.length}</span>
-          <span>牌堆 {enemy.deck.length}</span>
+          <span title="牌堆 / 棄牌堆">
+            🂠 {enemy.deck.length}
+            <span className="text-parchment/40"> / {enemy.discard.length}</span>
+          </span>
           {enemy.shield > 0 && <span className="text-info">🛡 {enemy.shield}</span>}
           {enemy.curseStacks > 0 && (
             <span className="text-danger">詛咒 ×{enemy.curseStacks}</span>
@@ -817,10 +835,13 @@ function PlayerHUD({
       <div className="flex items-center justify-between gap-3">
         <div className="flex-1 min-w-0">
           <HpBar value={player.hp} max={player.hpMax} color="#D4A84B" />
-          <div className="flex items-center gap-3 mt-1 text-[11px] text-parchment/80">
+          <div className="flex items-center gap-3 mt-1 text-[11px] text-parchment/80 flex-wrap">
             <span className="display-serif text-parchment">{player.name}</span>
             <span>⚡ {player.mana}/{player.manaMax}</span>
-            <span>牌堆 {player.deck.length}</span>
+            <span title="牌堆 / 棄牌堆">
+              🂠 {player.deck.length}
+              <span className="text-parchment/40"> / {player.discard.length}</span>
+            </span>
             {player.shield > 0 && <span className="text-info">🛡 {player.shield}</span>}
             {player.buffNextCard > 1 && (
               <span className="text-rarity-super">下張×2</span>
@@ -893,6 +914,61 @@ function Hand({
         <div className="text-parchment/30 text-xs">手牌為空</div>
       )}
     </div>
+  );
+}
+
+function EnemyIntentBadge({ intent }: { intent: EnemyIntent }) {
+  if (intent.confused) {
+    return (
+      <div className="absolute top-2 right-3 flex items-center gap-1.5 px-2 py-1 rounded-md bg-purple-900/70 border border-purple-400/40 text-[10px] text-purple-200 tracking-widest z-10">
+        🌀 下回合困惑
+      </div>
+    );
+  }
+  if (intent.cardCount === 0) {
+    return (
+      <div className="absolute top-2 right-3 px-2 py-1 rounded-md bg-black/40 border border-parchment/20 text-[10px] text-parchment/60 tracking-widest z-10">
+        — 無動作
+      </div>
+    );
+  }
+  const ICONS: Record<string, string> = {
+    attack: "⚔️",
+    heal: "💚",
+    spread: "📢",
+    confuse: "🌀",
+    buff: "⬆️",
+    debuff: "⬇️",
+    ritual: "🔮",
+  };
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="absolute top-2 right-3 flex items-center gap-2 px-2 py-1 rounded-md bg-black/55 border border-blood/50 text-[10px] text-parchment tracking-widest z-10"
+      title="敵方下回合意圖預告"
+    >
+      <span className="text-blood/80 font-[family-name:var(--font-cinzel)] uppercase">
+        Next
+      </span>
+      <span className="flex items-center gap-1">
+        {intent.actions.map((a, i) => (
+          <span key={i} className="text-base leading-none">
+            {ICONS[a] ?? "·"}
+          </span>
+        ))}
+      </span>
+      {intent.damage > 0 && (
+        <span className="text-danger font-[family-name:var(--font-mono)]">
+          −{intent.damage}
+        </span>
+      )}
+      {intent.heals > 0 && (
+        <span className="text-success font-[family-name:var(--font-mono)]">
+          +{intent.heals}
+        </span>
+      )}
+    </motion.div>
   );
 }
 
