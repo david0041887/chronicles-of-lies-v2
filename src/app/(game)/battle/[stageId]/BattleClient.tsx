@@ -237,6 +237,27 @@ export function BattleClient({
     }
   }, [battle.player.hp, battle.enemy.hp]);
 
+  // Clear any pending attacker selection when the phase leaves player_turn
+  // — otherwise a mid-select phase flip (e.g. you deselect-then-end-turn,
+  // or a card-play ability kills your attacker) leaves a stale highlight.
+  useEffect(() => {
+    if (battle.phase !== "player_turn" && selectedAttackerUid !== null) {
+      setSelectedAttackerUid(null);
+    }
+  }, [battle.phase, selectedAttackerUid]);
+
+  // Also clear if the selected minion has left the board (died between
+  // picks) so the "valid target" ring on enemy minions doesn't linger
+  // after the attacker itself is gone.
+  useEffect(() => {
+    if (
+      selectedAttackerUid !== null &&
+      !battle.player.board.some((m) => m.uid === selectedAttackerUid)
+    ) {
+      setSelectedAttackerUid(null);
+    }
+  }, [battle.player.board, selectedAttackerUid]);
+
   // Enemy turn runner — plays one action at a time with brief delays so
   // the player sees each card/attack land instead of a batched snap.
   const enemyRunningRef = useRef(false);
