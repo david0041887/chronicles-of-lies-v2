@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { previewEnemyIntent, runEnemyTurn, type EnemyIntent } from "@/lib/battle/ai";
-import { getAbilityDescriptions } from "@/lib/battle/card-abilities";
+import { getAbilitiesFor, getAbilityDescriptions } from "@/lib/battle/card-abilities";
 import { signBattleResult } from "@/lib/battle/client-sig";
 import {
   attackWithMinion,
@@ -1035,12 +1035,18 @@ function MinionCard({
   const hasTaunt = minion.keywords.includes("taunt");
   const hasDivineShield = minion.shielded;
   const isSleeping = minion.summonedThisTurn || minion.attacksRemaining <= 0;
+  const abilities = getAbilitiesFor(minion);
+  const primaryAbility = abilities[0];
+  const abilityIcon = primaryAbility ? ABILITY_TRIGGER_ICON[primaryAbility.trigger] : null;
+  const abilityTitle = abilities.length > 0
+    ? "\n技能:\n" + abilities.map((a) => `· ${a.description}`).join("\n")
+    : "";
   return (
     <button
       onClick={onClick}
       title={`${minion.name} · ATK ${minion.atk} / HP ${minion.hp}/${minion.hpMax}${
         minion.keywords.length ? " · " + minion.keywords.join("/") : ""
-      }`}
+      }${abilityTitle}`}
       className={cn(
         "relative rounded-lg border-2 overflow-hidden w-16 h-20 flex flex-col items-center justify-between p-1 transition-all",
         "bg-gradient-to-b from-veil/80 to-veil/40 backdrop-blur",
@@ -1086,9 +1092,26 @@ function MinionCard({
           💤
         </span>
       )}
+      {abilityIcon && (
+        <span
+          className="absolute -bottom-1 -left-1 text-[10px] bg-rarity-super/90 text-veil rounded-full w-4 h-4 flex items-center justify-center border border-rarity-super"
+          title={primaryAbility?.description}
+        >
+          {abilityIcon}
+        </span>
+      )}
     </button>
   );
 }
+
+const ABILITY_TRIGGER_ICON: Record<string, string> = {
+  battlecry: "📜",
+  deathrattle: "☠",
+  start_of_turn: "🌅",
+  end_of_turn: "🌙",
+  on_attack: "⚔",
+  on_damaged: "🩸",
+};
 
 function StatusTray({
   side,

@@ -160,6 +160,10 @@ function gainMana(ctx: AbilityContext, amount: number) {
 function silenceRandomEnemyMinion(ctx: AbilityContext) {
   if (ctx.other.board.length === 0) return;
   const target = ctx.other.board[Math.floor(Math.random() * ctx.other.board.length)];
+  silenceMinion(ctx, target);
+}
+
+function silenceMinion(ctx: AbilityContext, target: Minion) {
   target.keywords = target.keywords.filter(
     (k) =>
       k !== "taunt" &&
@@ -169,7 +173,118 @@ function silenceRandomEnemyMinion(ctx: AbilityContext) {
       k !== "pierce",
   );
   target.shielded = false;
-  log(ctx, `${target.name} 被沈默 — 關鍵字清除`, "debuff");
+  log(ctx, `${target.name} 被沈默`, "debuff");
+}
+
+function silenceAllEnemyMinions(ctx: AbilityContext) {
+  for (const m of ctx.other.board) silenceMinion(ctx, m);
+}
+
+function damageAllMinions(ctx: AbilityContext, amount: number) {
+  const dmg = Math.max(0, Math.floor(amount));
+  if (dmg === 0) return;
+  for (const m of [...ctx.self.board, ...ctx.other.board]) {
+    if (m.uid === ctx.source.uid) continue;
+    if (m.shielded) {
+      m.shielded = false;
+    } else {
+      m.hp -= dmg;
+    }
+  }
+  log(ctx, `${ctx.source.name} 波及全場 ${dmg} 傷害`, "damage");
+}
+
+function healAllFriendlyMinions(ctx: AbilityContext, amount: number) {
+  for (const m of ctx.self.board) {
+    m.hp = Math.min(m.hpMax, m.hp + amount);
+  }
+  if (ctx.self.board.length > 0) {
+    log(ctx, `${ctx.source.name} 治癒友軍 +${amount}`, "heal");
+  }
+}
+
+function divineShieldAllFriendly(ctx: AbilityContext) {
+  let count = 0;
+  for (const m of ctx.self.board) {
+    if (!m.shielded) {
+      m.shielded = true;
+      count++;
+    }
+  }
+  if (count > 0) log(ctx, `${count} 位友軍獲得聖盾`, "buff");
+}
+
+function freezeAllEnemyMinions(ctx: AbilityContext) {
+  let count = 0;
+  for (const m of ctx.other.board) {
+    if (m.attacksRemaining > 0) {
+      m.attacksRemaining = 0;
+      count++;
+    }
+  }
+  if (count > 0) log(ctx, `${count} 位敵軍凍結,本回合無法再攻擊`, "debuff");
+}
+
+function applyCurseEnemyFace(ctx: AbilityContext, stacks: number) {
+  ctx.other.curseStacks += stacks;
+  log(ctx, `${ctx.other.name} 詛咒 +${stacks} 疊`, "debuff");
+}
+
+function gainManaCeiling(ctx: AbilityContext, amount: number) {
+  const before = ctx.self.manaCeiling;
+  ctx.self.manaCeiling = Math.min(15, ctx.self.manaCeiling + amount);
+  const delta = ctx.self.manaCeiling - before;
+  if (delta > 0) {
+    ctx.self.manaMax = Math.min(ctx.self.manaCeiling, ctx.self.manaMax + delta);
+    ctx.self.mana = Math.min(ctx.self.manaMax, ctx.self.mana + delta);
+    log(ctx, `${ctx.source.name} 擴展信仰池上限 +${delta}`, "buff");
+  }
+}
+
+function cleanseSelf(ctx: AbilityContext) {
+  ctx.self.poison = 0;
+  ctx.self.vulnerableTurns = 0;
+  ctx.self.weakTurns = 0;
+  ctx.self.curseStacks = 0;
+  ctx.self.confusedTurns = 0;
+  log(ctx, `${ctx.source.name} 聖光淨化所有負面狀態`, "buff");
+}
+
+function damageFacePerEnemyMinion(ctx: AbilityContext, perMinion: number) {
+  const n = ctx.other.board.length;
+  if (n === 0) return;
+  damageEnemyFace(ctx, n * perMinion);
+}
+
+function sacrificeSelfDamage(ctx: AbilityContext, amount: number) {
+  ctx.self.hp = Math.max(1, ctx.self.hp - amount);
+  log(ctx, `${ctx.source.name} 自損 ${amount} 信徒`, "damage");
+}
+
+function revealEnemyHand(ctx: AbilityContext) {
+  if (ctx.other.hand.length === 0) return;
+  const names = ctx.other.hand.map((c) => c.name).join(", ");
+  log(ctx, `👁️‍🗨️ 窺見對方手牌:${names}`, "buff");
+}
+
+function summonToken(ctx: AbilityContext, name: string, atk: number, hp: number, keywords: string[] = []) {
+  if (ctx.self.board.length >= 5) return;
+  const token: Minion = {
+    uid: `tok-${ctx.state.turn}-${Math.random().toString(36).slice(2, 8)}`,
+    cardId: "__token__",
+    name,
+    rarity: "R",
+    eraId: ctx.source.eraId,
+    hpMax: hp,
+    hp,
+    atk,
+    keywords: [...keywords],
+    summonedThisTurn: true,
+    attacksRemaining: keywords.includes("charge") ? 1 : 0,
+    shielded: keywords.includes("divine_shield"),
+  };
+  ctx.self.board.push(token);
+  log(ctx, `召喚衍生物 ${name}(${atk}/${hp})`, "buff");
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -298,7 +413,390 @@ export const CARD_ABILITIES: Record<string, CardAbility[]> = {
       },
     },
   ],
+
+  // ═══════════════════════════════════════════════════════════════════
+  // UR 卡牌招牌效果 (30 張)
+  // ═══════════════════════════════════════════════════════════════════
+
+  // Primitive
+  ur_pr_001: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:召喚兩隻 3/3「原初陰影」(在光之前的黑暗)",
+      effect: (ctx) => {
+        summonToken(ctx, "原初陰影", 3, 3);
+        summonToken(ctx, "原初陰影", 3, 3);
+      },
+    },
+  ],
+  ur_pr_002: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:回復 10 信徒 + 抽 2 張牌(第一個子宮)",
+      effect: (ctx) => {
+        healFriendlyFace(ctx, 10);
+        drawCards(ctx, 2);
+      },
+    },
+  ],
+  ur_pr_003: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:沉默所有敵方怪物(一句話撕裂帷幕)",
+      effect: (ctx) => silenceAllEnemyMinions(ctx),
+    },
+  ],
+
+  // Mesopotamia
+  ur_me_001: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:所有友軍 +1/+2(智慧塑身)",
+      effect: (ctx) => buffAllFriendlyMinions(ctx, 1, 2),
+    },
+  ],
+  ur_me_002: [
+    {
+      trigger: "deathrattle",
+      description: "亡語:召喚一隻 5/5「提亞馬特碎片」(屍化為天地)",
+      effect: (ctx) => summonToken(ctx, "提亞馬特碎片", 5, 5),
+    },
+  ],
+  ur_me_003: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:信仰池上限 +2(天空之父)",
+      effect: (ctx) => gainManaCeiling(ctx, 2),
+    },
+  ],
+
+  // Egypt
+  ur_eg_001: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:回復 10 信徒,所有友軍 +0/+3(冥界之王歸來)",
+      effect: (ctx) => {
+        healFriendlyFace(ctx, 10);
+        buffAllFriendlyMinions(ctx, 0, 3);
+      },
+    },
+  ],
+  ur_eg_002: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:抽 3 張牌 + 窺見對方手牌(書寫宇宙者)",
+      effect: (ctx) => {
+        drawCards(ctx, 3);
+        revealEnemyHand(ctx);
+      },
+    },
+  ],
+  ur_eg_003: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:敵方所有怪物 −5(無名之陽)",
+      effect: (ctx) => damageAllEnemyMinions(ctx, 5),
+    },
+  ],
+
+  // Greek
+  ur_gr_001: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:對敵方面部 8 點雷擊(雷霆之王)",
+      effect: (ctx) => damageEnemyFace(ctx, 8),
+    },
+  ],
+  ur_gr_002: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:凍結所有敵方怪物 + 敵方詛咒 5 疊(時間吞噬)",
+      effect: (ctx) => {
+        freezeAllEnemyMinions(ctx);
+        applyCurseEnemyFace(ctx, 5);
+      },
+    },
+  ],
+  ur_gr_003: [
+    {
+      trigger: "deathrattle",
+      description: "亡語:召喚兩隻 3/3「死者之靈」(冥府不空)",
+      effect: (ctx) => {
+        summonToken(ctx, "死者之靈", 3, 3);
+        summonToken(ctx, "死者之靈", 3, 3);
+      },
+    },
+  ],
+
+  // Han
+  ur_ha_001: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:回復 12 信徒 + 所有友軍聖盾(補天)",
+      effect: (ctx) => {
+        healFriendlyFace(ctx, 12);
+        divineShieldAllFriendly(ctx);
+      },
+    },
+  ],
+  ur_ha_002: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:所有友軍 +2/+0(八卦加持)",
+      effect: (ctx) => buffAllFriendlyMinions(ctx, 2, 0),
+    },
+  ],
+  ur_ha_003: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:對敵方面部 6 + 敵方所有怪物 −3(以身化萬物)",
+      effect: (ctx) => {
+        damageEnemyFace(ctx, 6);
+        damageAllEnemyMinions(ctx, 3);
+      },
+    },
+  ],
+
+  // Norse
+  ur_no_001: [
+    {
+      trigger: "deathrattle",
+      description: "亡語:敵方所有怪物 −5(屍化為世界)",
+      effect: (ctx) => damageAllEnemyMinions(ctx, 5),
+    },
+  ],
+  ur_no_002: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:全場所有怪物 −4 HP(結算日)",
+      effect: (ctx) => damageAllMinions(ctx, 4),
+    },
+  ],
+  ur_no_003: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:抽 2 張牌 + 窺見對方手牌(智者低語)",
+      effect: (ctx) => {
+        drawCards(ctx, 2);
+        revealEnemyHand(ctx);
+      },
+    },
+  ],
+
+  // Medieval
+  ur_md_001: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:敵方中毒 5 疊 + 破綻 3 回合(第一個墮天使)",
+      effect: (ctx) => {
+        applyPoisonEnemyFace(ctx, 5);
+        applyVulnerableEnemyFace(ctx, 3);
+      },
+    },
+  ],
+  ur_md_002: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:淨化自身所有負面狀態 + 回復 12 信徒(盛過神血)",
+      effect: (ctx) => {
+        cleanseSelf(ctx);
+        healFriendlyFace(ctx, 12);
+      },
+    },
+  ],
+  ur_md_003: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:隨機友軍 +3/+3(石中劍光)",
+      effect: (ctx) => buffRandomFriendlyMinion(ctx, 3, 3),
+    },
+  ],
+
+  // Sengoku
+  ur_se_001: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:所有友軍獲得聖盾(太陽神庇佑)",
+      effect: (ctx) => divineShieldAllFriendly(ctx),
+    },
+  ],
+  ur_se_002: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:每隻敵方怪物造成 3 點面部傷害(暴風之神)",
+      effect: (ctx) => damageFacePerEnemyMinion(ctx, 3),
+    },
+  ],
+  ur_se_003: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:凍結所有敵方怪物(兵法秘傳)",
+      effect: (ctx) => freezeAllEnemyMinions(ctx),
+    },
+  ],
+
+  // Ming
+  ur_mg_001: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:淨化 + 信仰池上限 +3(包含萬有)",
+      effect: (ctx) => {
+        cleanseSelf(ctx);
+        gainManaCeiling(ctx, 3);
+      },
+    },
+  ],
+  ur_mg_002: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:敵方中毒 4 + 詛咒 4(生死簿)",
+      effect: (ctx) => {
+        applyPoisonEnemyFace(ctx, 4);
+        applyCurseEnemyFace(ctx, 4);
+      },
+    },
+  ],
+  ur_mg_003: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:抽 2 張牌 + 所有友軍 +1/+1(金星調停)",
+      effect: (ctx) => {
+        drawCards(ctx, 2);
+        buffAllFriendlyMinions(ctx, 1, 1);
+      },
+    },
+  ],
+
+  // Modern
+  ur_mo_001: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:對敵方面部 10 傷害 · 自損 5(原初謊言)",
+      effect: (ctx) => {
+        damageEnemyFace(ctx, 10);
+        sacrificeSelfDamage(ctx, 5);
+      },
+    },
+  ],
+  ur_mo_002: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:窺見對方手牌 + 抽 2 張牌(一旦對視就改寫)",
+      effect: (ctx) => {
+        revealEnemyHand(ctx);
+        drawCards(ctx, 2);
+      },
+    },
+  ],
+  ur_mo_003: [
+    {
+      trigger: "battlecry",
+      description: "戰吼:全場每隻怪物都治癒 3 HP(集體夢境)",
+      effect: (ctx) => {
+        for (const m of [...ctx.self.board, ...ctx.other.board]) {
+          m.hp = Math.min(m.hpMax, m.hp + 3);
+        }
+        log(ctx, `集體無意識治癒全場 +3`, "heal");
+      },
+    },
+  ],
 };
+
+// ═══════════════════════════════════════════════════════════════════════
+// Keyword-based default abilities — applied to SR+ minions that don't have
+// a unique signature in CARD_ABILITIES. Every SR or higher minion thus has
+// at least one flavoured ability.
+// ═══════════════════════════════════════════════════════════════════════
+
+function defaultAbilitiesFromKeywords(minion: Minion): CardAbility[] {
+  if (minion.rarity === "R") return [];
+  const kw = (k: string) => minion.keywords.includes(k);
+  const abs: CardAbility[] = [];
+
+  // Priority: more flavourful keywords first so a minion with multiple
+  // gets its most interesting effect, not its most generic.
+  if (kw("poison") && !kw("ritual")) {
+    abs.push({
+      trigger: "battlecry",
+      description: "戰吼:敵方中毒 2 疊",
+      effect: (ctx) => applyPoisonEnemyFace(ctx, 2),
+    });
+  } else if (kw("curse")) {
+    abs.push({
+      trigger: "battlecry",
+      description: "戰吼:敵方詛咒 +2",
+      effect: (ctx) => applyCurseEnemyFace(ctx, 2),
+    });
+  } else if (kw("charm")) {
+    abs.push({
+      trigger: "battlecry",
+      description: "戰吼:敵方魅惑 +1 疊",
+      effect: (ctx) => {
+        ctx.other.charmStacks += 1;
+        log(ctx, `${ctx.other.name} 魅惑 +1`, "debuff");
+      },
+    });
+  } else if (kw("sacrifice")) {
+    abs.push({
+      trigger: "battlecry",
+      description: "戰吼:自損 2 → 對方 −3",
+      effect: (ctx) => {
+        sacrificeSelfDamage(ctx, 2);
+        damageEnemyFace(ctx, 3);
+      },
+    });
+  } else if (kw("whisper")) {
+    abs.push({
+      trigger: "battlecry",
+      description: "戰吼:抽 1 張牌",
+      effect: (ctx) => drawCards(ctx, 1),
+    });
+  } else if (kw("shield")) {
+    abs.push({
+      trigger: "battlecry",
+      description: "戰吼:我方獲得 4 點護盾",
+      effect: (ctx) => {
+        ctx.self.shield += 4;
+        log(ctx, `${ctx.source.name} 給予我方 4 點護盾`, "buff");
+      },
+    });
+  } else if (kw("resonance")) {
+    abs.push({
+      trigger: "battlecry",
+      description: "戰吼:信仰池 +1",
+      effect: (ctx) => gainMana(ctx, 1),
+    });
+  }
+
+  // SSR+ get an additional end-of-turn or deathrattle aura
+  if (minion.rarity === "SSR" || minion.rarity === "UR") {
+    if (kw("lifesteal") && !abs.some((a) => a.trigger === "end_of_turn")) {
+      abs.push({
+        trigger: "end_of_turn",
+        description: "回合結束:回復 2 信徒",
+        effect: (ctx) => healFriendlyFace(ctx, 2),
+      });
+    } else if (kw("strength") && !abs.some((a) => a.trigger === "start_of_turn")) {
+      abs.push({
+        trigger: "start_of_turn",
+        description: "回合開始:自身 +1 ATK",
+        effect: (ctx) => {
+          ctx.source.atk += 1;
+          log(ctx, `${ctx.source.name} +1 ATK`, "buff");
+        },
+      });
+    }
+  }
+
+  return abs;
+}
+
+/** Get all abilities for a minion, merging signature + keyword defaults. */
+function getAbilitiesFor(minion: Minion): CardAbility[] {
+  const signature = CARD_ABILITIES[minion.cardId];
+  if (signature && signature.length > 0) return signature;
+  return defaultAbilitiesFromKeywords(minion);
+}
 
 /**
  * Fire all abilities on a minion matching the given trigger. Safe to call
@@ -310,8 +808,7 @@ export function fireAbility(
   minion: Minion,
   trigger: AbilityTrigger,
 ): void {
-  const abilities = CARD_ABILITIES[minion.cardId];
-  if (!abilities) return;
+  const abilities = getAbilitiesFor(minion);
   const matching = abilities.filter((a) => a.trigger === trigger);
   if (matching.length === 0) return;
 
@@ -328,7 +825,63 @@ export function fireAbility(
   }
 }
 
-/** Returns signature-ability descriptions for display on a card preview. */
-export function getAbilityDescriptions(cardId: string): string[] {
-  return (CARD_ABILITIES[cardId] ?? []).map((a) => a.description);
+/** Returns signature-ability descriptions for display on a card preview.
+ *  Looks up the signature map first, then falls back to keyword-derived
+ *  templates if the card has a minion stat profile. */
+export function getAbilityDescriptions(cardId: string, minion?: Minion): string[] {
+  const signature = CARD_ABILITIES[cardId];
+  if (signature && signature.length > 0) {
+    return signature.map((a) => `[${a.trigger}] ${a.description}`);
+  }
+  if (minion) {
+    return defaultAbilitiesFromKeywords(minion).map(
+      (a) => `[${a.trigger}] ${a.description}`,
+    );
+  }
+  return [];
 }
+
+/** Get ability descriptions derived from keywords alone (for cards that
+ *  haven't been summoned yet — e.g., hand preview). Returns empty if the
+ *  card has no signature and no defaults apply. */
+export function getAbilityDescriptionsForCard(
+  cardId: string,
+  rarity: string,
+  keywords: string[],
+): string[] {
+  const signature = CARD_ABILITIES[cardId];
+  if (signature && signature.length > 0) {
+    return signature.map((a) => `${triggerLabel(a.trigger)}:${a.description.replace(/^[^:]+:\s*/, "")}`);
+  }
+  // Synthesise a fake minion to reuse the template logic.
+  const probe: Minion = {
+    uid: "probe",
+    cardId,
+    name: "",
+    rarity: rarity as Minion["rarity"],
+    eraId: "",
+    hpMax: 0,
+    hp: 0,
+    atk: 0,
+    keywords,
+    summonedThisTurn: false,
+    attacksRemaining: 0,
+    shielded: false,
+  };
+  return defaultAbilitiesFromKeywords(probe).map(
+    (a) => `${triggerLabel(a.trigger)}:${a.description.replace(/^[^:]+:\s*/, "")}`,
+  );
+}
+
+function triggerLabel(t: AbilityTrigger): string {
+  return {
+    battlecry: "戰吼",
+    deathrattle: "亡語",
+    start_of_turn: "回合開始",
+    end_of_turn: "回合結束",
+    on_attack: "攻擊後",
+    on_damaged: "受擊",
+  }[t];
+}
+
+export { getAbilitiesFor };

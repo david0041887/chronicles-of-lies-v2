@@ -2,6 +2,7 @@
 
 import { CardArt } from "@/components/game/CardArt";
 import { Modal } from "@/components/ui/Modal";
+import { getAbilityDescriptionsForCard } from "@/lib/battle/card-abilities";
 import { ERAS } from "@/lib/constants/eras";
 import { cn } from "@/lib/utils";
 import type { Rarity } from "@prisma/client";
@@ -160,9 +161,42 @@ export function CardDetailModal({ card, ownedCount, onClose }: Props) {
               </div>
             </div>
           )}
+
+          {/* Signature abilities — if this card is a minion with unique
+              triggers, list them. Otherwise fall back to keyword-derived
+              defaults for SR+ minions. */}
+          <CardAbilities card={card} />
         </div>
       </div>
     </Modal>
+  );
+}
+
+function CardAbilities({ card }: { card: Card }) {
+  const abilities = getAbilityDescriptionsForCard(card.id, card.rarity, card.keywords);
+  if (abilities.length === 0) return null;
+  return (
+    <div className="mb-4">
+      <div className="text-xs text-parchment/50 tracking-wider mb-2">
+        卡牌技能
+      </div>
+      <div className="space-y-1.5">
+        {abilities.map((line, i) => {
+          const [trig, ...rest] = line.split(":");
+          return (
+            <div
+              key={i}
+              className="text-xs px-3 py-2 rounded bg-gradient-to-r from-rarity-super/10 to-veil/60 border border-rarity-super/40"
+            >
+              <span className="text-rarity-super font-semibold tracking-wider">
+                ◆ {trig}
+              </span>
+              <span className="text-parchment/85 ml-2">{rest.join(":")}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
