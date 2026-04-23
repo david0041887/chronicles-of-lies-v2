@@ -81,6 +81,10 @@ function LoginInner() {
     router.refresh();
   }
 
+  const onForgot = () => {
+    push("密碼重設功能開發中 — 可聯絡管理員或使用訪客帳號", "info");
+  };
+
   return (
     <div className="w-full max-w-md">
       <Link
@@ -89,10 +93,32 @@ function LoginInner() {
       >
         Chronicles of Lies
       </Link>
-      <h1 className="display-serif text-3xl text-sacred text-center mb-2">登入</h1>
-      <p className="text-parchment/60 text-center mb-8 text-sm">
+      <h1 className="display-serif text-3xl text-sacred text-center mb-2">
+        登入
+      </h1>
+      <p className="text-parchment/60 text-center mb-6 text-sm">
         歡迎回來,編織者。
       </p>
+
+      {/* Quick-start guest entry — highest-friction-kill button. */}
+      <Button
+        size="lg"
+        variant="primary"
+        className="w-full"
+        onClick={onGuest}
+        disabled={loading || guestLoading}
+      >
+        {guestLoading ? "建立訪客身分中…" : "🎭 訪客直接進入遊戲"}
+      </Button>
+      <p className="text-center text-[11px] text-parchment/50 mt-2">
+        免註冊,進度綁定此裝置,之後可在設定頁綁定正式帳號
+      </p>
+
+      <div className="my-5 flex items-center gap-3 text-xs text-parchment/30 tracking-widest">
+        <span className="flex-1 h-px bg-parchment/10" />
+        或以正式帳號登入
+        <span className="flex-1 h-px bg-parchment/10" />
+      </div>
 
       <form onSubmit={onSubmit} className="space-y-4">
         <div>
@@ -108,16 +134,25 @@ function LoginInner() {
           />
         </div>
         <div>
-          <label className="block text-xs text-parchment/70 mb-1 tracking-wider">
-            密碼
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs text-parchment/70 tracking-wider">
+              密碼
+            </label>
+            <button
+              type="button"
+              onClick={onForgot}
+              className="text-[11px] text-parchment/50 hover:text-gold tracking-wider"
+            >
+              忘記密碼?
+            </button>
+          </div>
           <div className="relative">
             <Input
               name="password"
               type={showPassword ? "text" : "password"}
               required
               autoComplete="current-password"
-              placeholder="至少 6 字"
+              placeholder="輸入密碼"
               className="pr-16"
             />
             <button
@@ -130,29 +165,16 @@ function LoginInner() {
             </button>
           </div>
         </div>
-        <Button type="submit" size="lg" className="w-full" disabled={loading || guestLoading}>
+        <Button
+          type="submit"
+          size="lg"
+          variant="ghost"
+          className="w-full"
+          disabled={loading || guestLoading}
+        >
           {loading ? "召喚中…" : "進入帷幕"}
         </Button>
       </form>
-
-      <div className="my-5 flex items-center gap-3 text-xs text-parchment/30 tracking-widest">
-        <span className="flex-1 h-px bg-parchment/10" />
-        或
-        <span className="flex-1 h-px bg-parchment/10" />
-      </div>
-
-      <Button
-        size="lg"
-        variant="ghost"
-        className="w-full"
-        onClick={onGuest}
-        disabled={loading || guestLoading}
-      >
-        {guestLoading ? "建立身分中…" : "🎭 訪客登入(免註冊)"}
-      </Button>
-      <p className="text-center text-[11px] text-parchment/40 mt-2">
-        訪客進度綁定此裝置,之後可在設定綁定正式帳號
-      </p>
 
       <p className="text-center text-sm text-parchment/60 mt-6">
         還沒有帳號?{" "}

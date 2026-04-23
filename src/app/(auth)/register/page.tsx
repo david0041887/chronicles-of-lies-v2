@@ -32,17 +32,26 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
 
   const pwScore = scorePassword(password);
   const pwHint = PW_HINT[pwScore];
+  const confirmMismatch = confirm.length > 0 && confirm !== password;
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (password !== confirm) {
+      push("兩次密碼不一致", "warning");
+      return;
+    }
+    if (password.length < 8) {
+      push("密碼至少 8 字元", "warning");
+      return;
+    }
     setLoading(true);
     const data = new FormData(e.currentTarget);
     const username = (data.get("username") as string).trim();
     const email = (data.get("email") as string).trim().toLowerCase();
-    const password = data.get("password") as string;
 
     const r = await fetch("/api/register", {
       method: "POST",
@@ -125,9 +134,9 @@ export default function RegisterPage() {
                 name="password"
                 type={showPassword ? "text" : "password"}
                 required
-                minLength={6}
+                minLength={8}
                 autoComplete="new-password"
-                placeholder="至少 6 字"
+                placeholder="至少 8 字"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 aria-describedby="pw-hint"
@@ -166,7 +175,53 @@ export default function RegisterPage() {
               </span>
             </div>
           </div>
-          <Button type="submit" size="lg" className="w-full" disabled={loading}>
+          <div>
+            <label className="block text-xs text-parchment/70 mb-1 tracking-wider">
+              再輸入一次密碼
+            </label>
+            <Input
+              name="confirm"
+              type={showPassword ? "text" : "password"}
+              required
+              autoComplete="new-password"
+              placeholder="重複上方密碼以確認"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              aria-invalid={confirmMismatch}
+              aria-describedby="confirm-hint"
+              className={confirmMismatch ? "border-blood/60" : ""}
+            />
+            <div
+              id="confirm-hint"
+              className={`mt-1 text-[10px] tracking-wider ${
+                confirmMismatch
+                  ? "text-blood/80"
+                  : confirm.length > 0 && confirm === password
+                    ? "text-success/80"
+                    : "text-parchment/40"
+              }`}
+            >
+              {confirmMismatch
+                ? "兩次輸入不一致"
+                : confirm.length > 0 && confirm === password
+                  ? "✓ 兩次輸入相同"
+                  : "避免打字錯誤,請再輸入一次"}
+            </div>
+          </div>
+          <label className="flex items-start gap-2 text-[11px] text-parchment/60 cursor-pointer">
+            <input type="checkbox" required className="accent-gold mt-0.5" />
+            <span>
+              我已閱讀並同意{" "}
+              <Link href="/terms" target="_blank" className="text-gold hover:underline">
+                服務條款
+              </Link>{" "}
+              與{" "}
+              <Link href="/privacy" target="_blank" className="text-gold hover:underline">
+                隱私政策
+              </Link>
+            </span>
+          </label>
+          <Button type="submit" size="lg" className="w-full" disabled={loading || confirmMismatch || password.length < 8}>
             {loading ? "正在編織…" : "加入議會"}
           </Button>
         </form>
