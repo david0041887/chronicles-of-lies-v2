@@ -3,14 +3,6 @@ import type { LevelProgress } from "@/lib/weaver";
 interface HomeHudProps {
   username: string;
   faction: "weavers" | "veritas" | "faceless";
-  currencies: {
-    crystals: number;
-    faith: number;
-    essence: number;
-    masks: number;
-    scrolls: number;
-  };
-  veilEnergy: number;
   weaver: LevelProgress;
 }
 
@@ -26,22 +18,22 @@ const FACTION_TINT: Record<HomeHudProps["faction"], string> = {
   faceless: "text-faceless",
 };
 
+/**
+ * Profile/progress block on the home dashboard.
+ *
+ * Currencies live in the persistent TopBar now, so this block focuses on:
+ *   — identity (username + faction)
+ *   — weaver level progress toward the next milestone
+ *   — next unlock teaser
+ */
 export function HomeHud(props: HomeHudProps) {
-  const currencies: { key: keyof HomeHudProps["currencies"]; label: string; emoji: string }[] = [
-    { key: "crystals", label: "水晶", emoji: "💎" },
-    { key: "faith", label: "信念", emoji: "🪙" },
-    { key: "essence", label: "精華", emoji: "🔮" },
-    { key: "masks", label: "面具", emoji: "🎭" },
-    { key: "scrolls", label: "卷軸", emoji: "📜" },
-  ];
-
   const w = props.weaver;
 
   return (
-    <section className="rounded-2xl border border-parchment/10 bg-veil/40 backdrop-blur p-6">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+    <section className="rounded-2xl border border-parchment/10 bg-veil/40 backdrop-blur p-5 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-5">
         <div>
-          <div className="flex items-baseline gap-3">
+          <div className="flex items-baseline gap-3 flex-wrap">
             <h2 className="display-serif text-2xl text-parchment">{props.username}</h2>
             <span className={`text-xs tracking-widest ${FACTION_TINT[props.faction]}`}>
               {FACTION_LABEL[props.faction]}
@@ -49,17 +41,15 @@ export function HomeHud(props: HomeHudProps) {
           </div>
           <p className="text-sm text-parchment/50 mt-1">{w.title}</p>
         </div>
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="text-right shrink-0">
-            <div className="text-xs text-parchment/40 tracking-wider">編織者等級</div>
-            <div className="display-serif text-2xl text-sacred">Lv.{w.level}</div>
-          </div>
+        <div className="text-right shrink-0">
+          <div className="text-xs text-parchment/40 tracking-wider">編織者等級</div>
+          <div className="display-serif text-3xl text-sacred">Lv.{w.level}</div>
         </div>
       </div>
 
       {/* Weaver progress bar */}
-      <div className="mb-5">
-        <div className="flex items-baseline justify-between text-xs mb-1">
+      <div>
+        <div className="flex items-baseline justify-between text-xs mb-1 flex-wrap gap-2">
           <span className="text-parchment/50">
             累積信徒{" "}
             <span className="font-[family-name:var(--font-mono)] text-parchment tabular-nums">
@@ -88,21 +78,6 @@ export function HomeHud(props: HomeHudProps) {
             <span className="text-gold">下一個解鎖:</span> {w.nextBlurb}
           </div>
         )}
-      </div>
-
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-        {currencies.map((c) => (
-          <div
-            key={c.key}
-            className="flex flex-col items-center p-3 rounded-lg bg-veil/70 border border-parchment/5"
-          >
-            <div className="text-2xl">{c.emoji}</div>
-            <div className="text-xs text-parchment/50 mt-1">{c.label}</div>
-            <div className="font-[family-name:var(--font-mono)] text-sm text-parchment tabular-nums">
-              {props.currencies[c.key].toLocaleString()}
-            </div>
-          </div>
-        ))}
       </div>
     </section>
   );

@@ -4,6 +4,7 @@ import { ERAS } from "@/lib/constants/eras";
 import { requireOnboarded } from "@/lib/auth-helpers";
 import { dailyLegendIndex } from "@/lib/daily-legend";
 import { prisma } from "@/lib/prisma";
+import { ensureStagesSeeded } from "@/lib/seed-stages";
 import { perksForLevel, weaverLevel } from "@/lib/weaver";
 import { WorldGrid } from "./WorldGrid";
 
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
 
 export default async function WorldPage() {
   const user = await requireOnboarded();
+  // Idempotent: if DB has <70 stages, seed the missing Prime/Elite rows.
+  await ensureStagesSeeded();
   const progressByEra = new Map(user.eraProgress.map((p) => [p.eraId, p]));
 
   const perks = perksForLevel(weaverLevel(user.totalBelievers));

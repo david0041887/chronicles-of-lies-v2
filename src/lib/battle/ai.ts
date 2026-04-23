@@ -39,24 +39,88 @@ function choose(
   state: BattleState,
   playable: { c: BattleCard; i: number }[],
 ): { c: BattleCard; i: number } {
-  const enemyHpPct = state.enemy.hp / state.enemy.hpMax;
-  const playerHpPct = state.player.hp / state.player.hpMax;
+  // Keyword-aware scorer. Higher total = better pick for this game state.
+  const self = state.enemy;
+  const other = state.player;
+  const enemyHpPct = self.hp / self.hpMax;
+  const playerHpPct = other.hp / other.hpMax;
+  const combosSoFar = self.combosThisTurn;
 
-  if (enemyHpPct < 0.3) {
-    const heal = playable.find(({ c }) => c.type === "heal" || c.type === "spread");
-    if (heal) return heal;
-  }
-  if (playerHpPct < 0.25) {
-    const atk = [...playable]
-      .filter(({ c }) => c.type === "attack" || c.type === "ritual")
-      .sort((a, b) => b.c.power - a.c.power)[0];
-    if (atk) return atk;
-  }
-  return [...playable].sort((a, b) => {
-    const aScore = a.c.power + a.c.cost * 0.6;
-    const bScore = b.c.power + b.c.cost * 0.6;
-    return bScore - aScore;
-  })[0];
+  const scored = playable.map(({ c, i }) => {
+    const kw = (k: string) => c.keywords.includes(k);
+    const isAttack =
+      c.type === "attack" || c.type === "ritual" || c.type === "debuff";
+    const isHeal = c.type === "heal" || c.type === "spread";
+    const isBuff = c.type === "buff";
+
+    // Base value: higher power is good, higher cost proxies for impact.
+    let score = c.power + c.cost * 0.4;
+
+    // Pay a bit more for cards that hoard mana vs cheap cards so the AI
+    // doesn't spam 1-cost filler when it has a heavy card in hand.
+    if (c.cost >= 4) score += 1.5;
+
+    // ── State-aware aggression: when the player is weak or has low shield,
+    //    push damage; scale attack value with vulnerable state on player.
+    if (isAttack) {
+      if (playerHpPct < 0.3) score += 4;       // finisher window
+      if (other.shield === 0) score += 1.5;    // no shield = uncontested hit
+      if (other.vulnerableTurns > 0) score += c.power * 0.5; // exploit vuln
+      if (kw("pierce") && other.shield > 0) score += other.shield * 0.6;
+      if (kw("lifesteal") && enemyHpPct < 0.6) score += 3;   // sustain
+      if (kw("poison")) score += 3;                          // cheap DoT stacks
+      if (kw("vulnerable") && other.vulnerableTurns === 0) score += 3;
+      if (kw("weaken") && other.weakTurns === 0) score += 2.5;
+      if (kw("charm") && other.charmStacks === 0) score += 2;
+      if (kw("combo")) {
+        // combo pays off once we've played 2+ cards this turn.
+        score += combosSoFar >= 2 ? 4 : combosSoFar === 1 ? 1 : -1;
+      }
+    }
+
+    // ── Defense / sustain: heal priority ramps as enemy HP drops.
+    if (isHeal) {
+      if (enemyHpPct < 0.3) score += 6;
+      else if (enemyHpPct < 0.6) score += 2;
+      else score -= 1; // avoid over-healing at full HP
+      if (kw("shield") && enemyHpPct < 0.7) score += 1.5;
+      if (kw("lifesteal")) score += 1;
+    }
+
+    // ── Buff cards: worth most when a heavy hitter still in hand.
+    if (isBuff) {
+      const heavyInHand = self.hand.some(
+        (h) => h !== c && (h.type === "attack" || h.type === "ritual") && h.power >= 5,
+      );
+      if (heavyInHand && self.buffNextCard === 1) score += 3.5;
+      else score -= 1;
+      if (kw("strength")) score += 2;
+      if (kw("resonance")) score += 0.5;
+    }
+
+    // ── Confuse: valuable only if player isn't already shut down.
+    if (c.type === "confuse") {
+      if (other.confusedTurns === 0 && playerHpPct > 0.4) score += 4;
+      if (kw("charm")) score += 1.5;
+    }
+
+    // Penalise echo when we're already queued (can't stack more).
+    if (kw("echo") && self.echoPending) score -= 2;
+    // Sacrifice only worth it if we have junk in hand.
+    if (kw("sacrifice") && self.hand.length <= 2) score -= 2;
+
+    return { c, i, score };
+  });
+
+  // Highest-score wins. Tiebreak by power then by cost (prefer impact).
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (b.c.power !== a.c.power) return b.c.power - a.c.power;
+    return b.c.cost - a.c.cost;
+  });
+
+  const top = scored[0];
+  return { c: top.c, i: top.i };
 }
 
 // ────────────────────────────────────────────────────────────────────────────

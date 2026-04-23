@@ -153,6 +153,34 @@ async function upsertStage(eraId: string, spec: StageSpec): Promise<boolean> {
   return true;
 }
 
+/**
+ * Lazy auto-seed: if total stage count is below the expected 70, run the
+ * full seed. Safe to call on every request — upserts are idempotent, and
+ * after the first run the check short-circuits.
+ */
+let _seedPromise: Promise<unknown> | null = null;
+export async function ensureStagesSeeded(): Promise<void> {
+  const count = await prisma.stage.count();
+  if (count >= 70) return;
+  // If a seed is already running (concurrent requests), piggyback on it.
+  if (_seedPromise) {
+    try {
+      await _seedPromise;
+    } catch {
+      /* ignore — we'll just try again */
+    }
+    return;
+  }
+  _seedPromise = seedAllStages().finally(() => {
+    _seedPromise = null;
+  });
+  try {
+    await _seedPromise;
+  } catch {
+    /* best-effort — don't block page render on seed failure */
+  }
+}
+
 export async function seedAllStages(): Promise<{
   created: number;
   eras: number;

@@ -1,6 +1,7 @@
 import { TutorialClient } from "./TutorialClient";
 import { requireUser } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
+import { enrichCardKeywords } from "@/lib/battle/keyword-enrichment";
 import type { BattleCard } from "@/lib/battle/types";
 import { getEra } from "@/lib/constants/eras";
 import { redirect } from "next/navigation";
@@ -43,7 +44,7 @@ export default async function TutorialBattlePage() {
   const toBattleCard = (id: string, uid: string): BattleCard | null => {
     const c = byId.get(id);
     if (!c) return null;
-    return {
+    return enrichCardKeywords({
       id: c.id,
       uid,
       name: c.name,
@@ -57,7 +58,7 @@ export default async function TutorialBattlePage() {
       flavor: c.flavor,
       hasImage: c.image !== null,
       imageUrl: c.imageUrl,
-    };
+    });
   };
 
   const playerDeck = TUTORIAL_PLAYER_CARDS

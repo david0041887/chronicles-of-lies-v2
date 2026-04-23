@@ -96,14 +96,6 @@ export default async function HomePage() {
       <HomeHud
         username={user.username}
         faction={user.faction}
-        currencies={{
-          crystals: user.crystals,
-          faith: user.faith,
-          essence: user.essence,
-          masks: user.masks,
-          scrolls: user.scrolls,
-        }}
-        veilEnergy={user.veilEnergy}
         weaver={weaver}
       />
 
