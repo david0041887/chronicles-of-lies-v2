@@ -1,4 +1,5 @@
 import { VeilBackdrop } from "@/components/fx/VeilBackdrop";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { ERAS } from "@/lib/constants/eras";
 import { requireOnboarded } from "@/lib/auth-helpers";
 import { dailyLegendIndex } from "@/lib/daily-legend";
@@ -46,30 +47,28 @@ export default async function WorldPage() {
     <div className="relative min-h-[calc(100vh-4rem)]">
       <VeilBackdrop intensity="high" />
 
-      <main className="relative max-w-5xl mx-auto px-4 sm:px-6 py-10">
-        <div className="text-center mb-10">
-          <p className="font-[family-name:var(--font-cinzel)] text-gold/60 tracking-[0.35em] text-xs uppercase mb-3">
-            The Weavers&apos; Map
-          </p>
-          <h1 className="display-serif text-4xl text-sacred mb-2">世界之帷</h1>
-          <p className="text-parchment/60 text-sm max-w-lg mx-auto">
-            {perks.dailyLegendActive
+      <main className="relative max-w-5xl mx-auto px-4 sm:px-6 py-8">
+        <PageHeader
+          align="center"
+          eyebrow="The Weavers' Map"
+          title="世界之帷"
+          subtitle={
+            perks.dailyLegendActive
               ? "每個時代每日輪替一個今日傳說 — 選對時代,牌組發揮極致。"
-              : "達到編織者 Lv.3 可啟動「每日傳說」系統。"}
-          </p>
+              : "達到編織者 Lv.3 可啟動「每日傳說」系統。"
+          }
+        />
 
-          {/* Overall progress summary */}
-          <div className="mt-5 flex items-center justify-center gap-6 text-xs">
-            <span className="text-parchment/60">
-              踏足時代 <span className="font-[family-name:var(--font-mono)] text-parchment tabular-nums">{totalStarted}</span>
-              <span className="text-parchment/40"> / {tiles.length}</span>
-            </span>
-            <span className="text-parchment/20">·</span>
-            <span className="text-gold">
-              BOSS 擊敗 <span className="font-[family-name:var(--font-mono)] tabular-nums">{totalCleared}</span>
-              <span className="text-gold/50"> / {tiles.length}</span>
-            </span>
-          </div>
+        <div className="mb-8 flex items-center justify-center gap-6 text-xs">
+          <span className="text-parchment/60">
+            踏足時代 <span className="font-[family-name:var(--font-mono)] text-parchment tabular-nums">{totalStarted}</span>
+            <span className="text-parchment/40"> / {tiles.length}</span>
+          </span>
+          <span className="text-parchment/20">·</span>
+          <span className="text-gold">
+            BOSS 擊敗 <span className="font-[family-name:var(--font-mono)] tabular-nums">{totalCleared}</span>
+            <span className="text-gold/50"> / {tiles.length}</span>
+          </span>
         </div>
 
         <WorldGrid tiles={tiles} />

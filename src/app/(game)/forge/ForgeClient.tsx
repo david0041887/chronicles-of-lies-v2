@@ -3,6 +3,7 @@
 import { CardTile } from "@/components/game/CardTile";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 import { ERAS } from "@/lib/constants/eras";
 import {
@@ -59,17 +60,11 @@ export function ForgeClient({ groups }: Props) {
 
   return (
     <>
-      <div className="flex items-end justify-between flex-wrap gap-3 mb-4">
-        <div>
-          <p className="font-[family-name:var(--font-cinzel)] text-gold/60 tracking-[0.35em] text-xs uppercase mb-1">
-            Forge
-          </p>
-          <h1 className="display-serif text-3xl text-sacred">鍛造所</h1>
-          <p className="text-parchment/60 text-xs mt-1">
-            升星讓卡更強 · 融合把重複卡轉成高階卡
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Forge"
+        title="鍛造所"
+        subtitle="升星讓卡更強 · 融合把重複卡轉成高階卡"
+      />
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 border-b border-parchment/10">

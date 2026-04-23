@@ -431,11 +431,12 @@ export function BattleClient({
       )}
 
       {/* Top bar */}
-      <div className="relative flex items-center justify-between px-4 py-3 border-b border-parchment/10 bg-veil/60 backdrop-blur">
+      <div className="relative flex items-center justify-between px-3 py-2 border-b border-parchment/10 bg-veil/60 backdrop-blur">
         <button
           onClick={() => setSurrenderOpen(true)}
           disabled={battle.phase === "won" || battle.phase === "lost"}
-          className="text-xs text-blood/80 hover:text-blood tracking-wider disabled:opacity-30 disabled:cursor-not-allowed"
+          className="text-xs text-blood/80 hover:text-blood tracking-wider disabled:opacity-30 disabled:cursor-not-allowed min-h-[44px] min-w-[44px] px-2 rounded"
+          aria-label="認輸"
         >
           認輸
         </button>
@@ -853,45 +854,97 @@ function EnemyArea({
           {enemy.name}
         </div>
         <HpBar value={enemy.hp} max={enemy.hpMax} color={palette.main} />
-        <div className="flex items-center gap-3 mt-1 text-[11px] text-parchment/70 flex-wrap">
-          <span>⚡ {enemy.mana}/{enemy.manaMax}</span>
-          <span>🎴 {enemy.hand.length}</span>
-          <span title="牌堆 / 棄牌堆">
-            🂠 {enemy.deck.length}
-            <span className="text-parchment/40"> / {enemy.discard.length}</span>
-          </span>
-          {enemy.shield > 0 && <span className="text-info">🛡 {enemy.shield}</span>}
-          {enemy.curseStacks > 0 && (
-            <span className="text-danger">詛咒 ×{enemy.curseStacks}</span>
-          )}
-          {enemy.poison > 0 && (
-            <span className="text-emerald-400" title="中毒 — 每回合持續傷害">
-              ☠️ ×{enemy.poison}
-            </span>
-          )}
-          {enemy.vulnerableTurns > 0 && (
-            <span className="text-rose-300" title="破綻 — 受到 +50% 傷害">
-              🩸 {enemy.vulnerableTurns}
-            </span>
-          )}
-          {enemy.weakTurns > 0 && (
-            <span className="text-slate-300" title="虛弱 — 輸出 −25%">
-              🪶 {enemy.weakTurns}
-            </span>
-          )}
-          {enemy.strength > 0 && (
-            <span className="text-amber-300" title="力量 — 每牌 +N 威力">
-              💪 +{enemy.strength}
-            </span>
-          )}
-          {enemy.charmStacks > 0 && (
-            <span className="text-pink-300" title="魅惑 — 下張攻擊自傷">
-              💋 ×{enemy.charmStacks}
-            </span>
-          )}
-        </div>
+        <StatusTray side={enemy} showEcho={false} />
       </div>
     </div>
+  );
+}
+
+function StatusTray({
+  side,
+  showEcho = true,
+  showBuffNext = false,
+}: {
+  side: SideState;
+  showEcho?: boolean;
+  showBuffNext?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+      <StatusPill icon="⚡" value={`${side.mana}/${side.manaMax}`} title="信仰池" tone="gold" />
+      <StatusPill
+        icon="🂠"
+        value={`${side.deck.length}/${side.discard.length}`}
+        title="牌堆 / 棄牌堆"
+        tone="muted"
+      />
+      {side.hand.length >= 0 && (
+        <StatusPill icon="🎴" value={`${side.hand.length}`} title="手牌" tone="muted" />
+      )}
+      {side.shield > 0 && (
+        <StatusPill icon="🛡" value={`${side.shield}`} title="護盾" tone="info" />
+      )}
+      {showBuffNext && side.buffNextCard > 1 && (
+        <StatusPill icon="⬆︎" value="×2" title="下張威力加倍" tone="legend" />
+      )}
+      {side.strength > 0 && (
+        <StatusPill icon="💪" value={`+${side.strength}`} title="力量 — 每張牌 +N 威力" tone="gold" />
+      )}
+      {side.curseStacks > 0 && (
+        <StatusPill icon="🕯" value={`×${side.curseStacks}`} title="詛咒 — 每回合 −N,遞減" tone="danger" />
+      )}
+      {side.poison > 0 && (
+        <StatusPill icon="☠" value={`×${side.poison}`} title="中毒 — 每回合 −N,不衰減" tone="poison" />
+      )}
+      {side.vulnerableTurns > 0 && (
+        <StatusPill icon="🩸" value={`${side.vulnerableTurns}`} title="破綻 — 受到 +50% 傷害" tone="danger" />
+      )}
+      {side.weakTurns > 0 && (
+        <StatusPill icon="🪶" value={`${side.weakTurns}`} title="虛弱 — 輸出 −25%" tone="muted" />
+      )}
+      {side.charmStacks > 0 && (
+        <StatusPill icon="💋" value={`×${side.charmStacks}`} title="魅惑 — 下張攻擊自傷" tone="pink" />
+      )}
+      {showEcho && side.echoPending && (
+        <StatusPill
+          icon="🔁"
+          value={side.echoPending.name}
+          title="回響 — 下回合以 50% 威力重現"
+          tone="info"
+        />
+      )}
+    </div>
+  );
+}
+
+function StatusPill({
+  icon,
+  value,
+  title,
+  tone = "muted",
+}: {
+  icon: string;
+  value: string;
+  title: string;
+  tone?: "muted" | "gold" | "info" | "danger" | "poison" | "legend" | "pink";
+}) {
+  const tones: Record<string, string> = {
+    muted: "border-parchment/15 text-parchment/70",
+    gold: "border-gold/40 text-gold",
+    info: "border-info/40 text-info",
+    danger: "border-blood/50 text-blood",
+    poison: "border-emerald-500/40 text-emerald-400",
+    legend: "border-rarity-super/40 text-rarity-super",
+    pink: "border-pink-400/40 text-pink-300",
+  };
+  return (
+    <span
+      title={title}
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border bg-black/30 backdrop-blur text-[10px] tabular-nums font-[family-name:var(--font-mono)] leading-none ${tones[tone]}`}
+    >
+      <span className="text-[12px] leading-none">{icon}</span>
+      <span className="leading-none truncate max-w-[80px]">{value}</span>
+    </span>
   );
 }
 
@@ -910,58 +963,20 @@ function PlayerHUD({
     <div className="relative px-4 pt-2 pb-1 border-t border-parchment/10 bg-veil/50 backdrop-blur">
       <div className="flex items-center justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <HpBar value={player.hp} max={player.hpMax} color="#D4A84B" />
-          <div className="flex items-center gap-3 mt-1 text-[11px] text-parchment/80 flex-wrap">
-            <span className="display-serif text-parchment">{player.name}</span>
-            <span>⚡ {player.mana}/{player.manaMax}</span>
-            <span title="牌堆 / 棄牌堆">
-              🂠 {player.deck.length}
-              <span className="text-parchment/40"> / {player.discard.length}</span>
+          <div className="flex items-center justify-between mb-1 gap-2">
+            <span className="display-serif text-sm text-parchment truncate">
+              {player.name}
             </span>
-            {player.shield > 0 && <span className="text-info">🛡 {player.shield}</span>}
-            {player.buffNextCard > 1 && (
-              <span className="text-rarity-super">下張×2</span>
-            )}
-            {player.strength > 0 && (
-              <span className="text-amber-300" title="力量 — 每牌 +N 威力">
-                💪 +{player.strength}
-              </span>
-            )}
-            {player.curseStacks > 0 && (
-              <span className="text-danger">詛咒×{player.curseStacks}</span>
-            )}
-            {player.poison > 0 && (
-              <span className="text-emerald-400" title="中毒 — 每回合持續傷害">
-                ☠️ ×{player.poison}
-              </span>
-            )}
-            {player.vulnerableTurns > 0 && (
-              <span className="text-rose-300" title="破綻 — 受到 +50% 傷害">
-                🩸 {player.vulnerableTurns}
-              </span>
-            )}
-            {player.weakTurns > 0 && (
-              <span className="text-slate-300" title="虛弱 — 輸出 −25%">
-                🪶 {player.weakTurns}
-              </span>
-            )}
-            {player.charmStacks > 0 && (
-              <span className="text-pink-300" title="魅惑 — 下張攻擊自傷">
-                💋 ×{player.charmStacks}
-              </span>
-            )}
-            {player.echoPending && (
-              <span className="text-sky-300" title="回響 — 下回合重現">
-                🔁 {player.echoPending.name}
-              </span>
-            )}
           </div>
+          <HpBar value={player.hp} max={player.hpMax} color="#D4A84B" />
+          <StatusTray side={player} showBuffNext showEcho />
         </div>
         <Button
           variant={phase === "player_turn" ? "primary" : "ghost"}
-          size="sm"
+          size="md"
           disabled={phase !== "player_turn" || enemyThinking}
           onClick={onEndTurn}
+          className="min-h-[44px] shrink-0"
         >
           {phase === "enemy_turn" ? "敵回合…" : "結束回合"}
         </Button>

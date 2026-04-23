@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/ui/PageHeader";
 import { requireOnboarded } from "@/lib/auth-helpers";
 import { PITY_SR, PITY_SSR, PITY_UR } from "@/lib/gacha";
 import { msUntilNextWeekRotation, POOLS } from "@/lib/gacha-pools";
@@ -12,16 +13,13 @@ export default async function GachaPage() {
   const featuredRotationMs = msUntilNextWeekRotation();
 
   return (
-    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
-      <div className="text-center mb-8">
-        <p className="font-[family-name:var(--font-cinzel)] text-gold/60 tracking-[0.35em] text-xs uppercase mb-3">
-          Summoning Ritual · Four Pools
-        </p>
-        <h1 className="display-serif text-4xl text-sacred mb-2">召喚儀式</h1>
-        <p className="text-parchment/60 text-sm">
-          從帷幕彼岸喚來沉睡的存在。每個池子,皆是不同的捷徑。
-        </p>
-      </div>
+    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <PageHeader
+        align="center"
+        eyebrow="Summoning Ritual · Four Pools"
+        title="召喚儀式"
+        subtitle="從帷幕彼岸喚來沉睡的存在。每個池子,皆是不同的捷徑。"
+      />
 
       <GachaClient
         initialCrystals={user.crystals}

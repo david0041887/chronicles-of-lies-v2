@@ -3,6 +3,7 @@
 import { CardTile } from "@/components/game/CardTile";
 import { CardDetailModal } from "@/components/game/CardDetailModal";
 import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 import { DECK_SIZE, MAX_COPIES_PER_CARD } from "@/lib/battle/deck";
 import { ERAS } from "@/lib/constants/eras";
@@ -158,17 +159,11 @@ export function DeckClient({ ownedCards, initialDeck }: Props) {
 
   return (
     <>
-      <div className="flex items-end justify-between flex-wrap gap-3 mb-4">
-        <div>
-          <p className="font-[family-name:var(--font-cinzel)] text-gold/60 tracking-[0.35em] text-xs uppercase mb-1">
-            Deck Forge
-          </p>
-          <h1 className="display-serif text-3xl text-sacred">牌組編制</h1>
-          <p className="text-parchment/60 text-xs mt-1">
-            30 張牌,同名卡最多 {MAX_COPIES_PER_CARD} 張。
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
+      <PageHeader
+        eyebrow="Deck Forge"
+        title="牌組編制"
+        subtitle={`30 張牌,同名卡最多 ${MAX_COPIES_PER_CARD} 張。`}
+        actions={
           <div className="text-right">
             <div className="text-[10px] text-parchment/50 tracking-wider">牌組</div>
             <div
@@ -180,8 +175,8 @@ export function DeckClient({ ownedCards, initialDeck }: Props) {
               {total} / {DECK_SIZE}
             </div>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Progress bar */}
       <div className="h-1 rounded-full bg-parchment/10 overflow-hidden mb-4">
