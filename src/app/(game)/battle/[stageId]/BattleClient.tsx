@@ -6,8 +6,8 @@ import { CardTile } from "@/components/game/CardTile";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
-import { previewEnemyIntent, runEnemyTurn, type EnemyIntent } from "@/lib/battle/ai";
-import { getAbilitiesFor, getAbilityDescriptions } from "@/lib/battle/card-abilities";
+import { previewEnemyIntent, runEnemyStep, type EnemyIntent } from "@/lib/battle/ai";
+import { getAbilitiesFor, getAbilityDescriptionsForCard } from "@/lib/battle/card-abilities";
 import { signBattleResult } from "@/lib/battle/client-sig";
 import {
   attackWithMinion,
@@ -148,6 +148,7 @@ export function BattleClient({
   const [selectedAttackerUid, setSelectedAttackerUid] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const prevLogLenRef = useRef(0);
+  const sleepTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const prevHpRef = useRef({
     player: battle.player.hp,
     enemy: battle.enemy.hp,
@@ -176,14 +177,25 @@ export function BattleClient({
   }, [battle.log.length]);
 
   // Recompute enemy intent whenever player is up. Skip during enemy turn
-  // because the intent is what they'll do *next*, not this instant.
+  // because the intent is what they'll do *next*, not this instant. Keyed
+  // on the fields that can change during the player's turn — turn counter,
+  // player HP (after enemy attacks), enemy HP / board (the player can
+  // trade into minions) — so we don't re-run the expensive cloneState
+  // simulation on every local mutation like mana spend or hand shuffle.
   useEffect(() => {
     if (battle.phase === "player_turn") {
       setEnemyIntent(previewEnemyIntent(battle));
     } else if (battle.phase === "won" || battle.phase === "lost") {
       setEnemyIntent(null);
     }
-  }, [battle]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    battle.phase,
+    battle.turn,
+    battle.enemy.hp,
+    battle.enemy.board.length,
+    battle.player.hp,
+  ]);
 
   // Emit damage / heal floaters on HP changes
   useEffect(() => {
@@ -225,7 +237,8 @@ export function BattleClient({
     }
   }, [battle.player.hp, battle.enemy.hp]);
 
-  // Enemy turn runner — uses a ref so we never stall on stale state
+  // Enemy turn runner — plays one action at a time with brief delays so
+  // the player sees each card/attack land instead of a batched snap.
   const enemyRunningRef = useRef(false);
   useEffect(() => {
     if (battle.phase !== "enemy_turn") return;
@@ -234,9 +247,15 @@ export function BattleClient({
     setEnemyThinking(true);
 
     let cancelled = false;
+    const sleep = (ms: number) =>
+      new Promise<void>((r) => {
+        const t = setTimeout(r, ms);
+        sleepTimersRef.current.add(t);
+      });
+
     const runAsync = async () => {
       try {
-        await new Promise((r) => setTimeout(r, 500));
+        await sleep(420);
         if (cancelled) return;
 
         if (isConfused(battle, "enemy")) {
@@ -246,21 +265,33 @@ export function BattleClient({
             console.error("consumeConfusion threw", err);
           }
           tick();
-          await new Promise((r) => setTimeout(r, 350));
+          await sleep(350);
         } else {
-          try {
-            runEnemyTurn(battle);
-          } catch (err) {
-            console.error("runEnemyTurn threw", err);
+          // Staged play — one action per loop iteration, with delay
+          // proportional to the action so the screen flow feels natural.
+          const MAX_STEPS = 25;
+          for (let i = 0; i < MAX_STEPS; i++) {
+            if (cancelled) return;
+            if (battle.phase !== "enemy_turn") break;
+            let step;
+            try {
+              step = runEnemyStep(battle);
+            } catch (err) {
+              console.error("runEnemyStep threw", err);
+              break;
+            }
+            tick();
+            if (step.done) break;
+            // card plays get a longer pause so the impact flash finishes;
+            // minion attacks are snappier so chained trades don't drag.
+            await sleep(step.kind === "play" ? 620 : 380);
           }
-          tick();
-          await new Promise((r) => setTimeout(r, 450));
         }
         if (cancelled) return;
 
         // Always attempt to end the enemy turn. endEnemyTurn self-guards
         // on phase !== "enemy_turn" so it's a no-op if the battle already
-        // ended (win/loss) during runEnemyTurn.
+        // ended (win/loss) during the staged loop above.
         endEnemyTurn(battle);
         tick();
       } catch (err) {
@@ -276,7 +307,9 @@ export function BattleClient({
     };
     runAsync();
 
-    // Watchdog: if we haven't left enemy_turn in 3 seconds, force it.
+    // Watchdog: longer now because the staged loop can take up to ~15s in
+    // pathological cases (5 cards × 620ms + 10 attacks × 380ms). Bump to
+    // 20s so we never force-cut a legitimately long turn.
     const watchdog = setTimeout(() => {
       if (battle.phase === "enemy_turn") {
         console.warn("Battle: enemy turn watchdog triggered, forcing end turn");
@@ -289,11 +322,13 @@ export function BattleClient({
         enemyRunningRef.current = false;
         setEnemyThinking(false);
       }
-    }, 3000);
+    }, 20000);
 
     return () => {
       cancelled = true;
       clearTimeout(watchdog);
+      for (const t of sleepTimersRef.current) clearTimeout(t);
+      sleepTimersRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battle.phase]);
@@ -477,6 +512,9 @@ export function BattleClient({
       {/* Card-play impact flash (center of arena) */}
       <ImpactFlashLayer flash={impactFlash} />
 
+      {/* Turn transition banner */}
+      <TurnBanner phase={battle.phase} turn={battle.turn} />
+
       {/* Hurt flash overlay — brief red/gold pulse on the side that just took damage */}
       <AnimatePresence>
         {hurtFlash && (
@@ -554,9 +592,12 @@ export function BattleClient({
           ref={logRef}
           className="relative mx-4 my-2 rounded-lg border border-parchment/10 bg-black/30 backdrop-blur p-3 max-h-24 overflow-y-auto text-xs space-y-0.5"
         >
-          {battle.log.slice(-40).map((l, i) => (
-            <LogLine key={i} entry={l} />
-          ))}
+          {(() => {
+            const base = Math.max(0, battle.log.length - 40);
+            return battle.log.slice(-40).map((l, i) => (
+              <LogLine key={base + i} entry={l} />
+            ));
+          })()}
         </div>
 
         <BoardRow
@@ -867,12 +908,37 @@ function InlineCardDetail({ card }: { card: BattleCard }) {
           </div>
         )}
 
+        <InlineCardAbilities card={card} />
+
         {card.flavor && (
           <p className="mt-3 text-[11px] text-parchment/40 italic font-[family-name:var(--font-noto-serif)]">
             「{card.flavor}」
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+function InlineCardAbilities({ card }: { card: BattleCard }) {
+  const abilities = getAbilityDescriptionsForCard(card.id, card.rarity, card.keywords);
+  if (abilities.length === 0) return null;
+  return (
+    <div className="mt-3 space-y-1">
+      {abilities.map((line, i) => {
+        const [trig, ...rest] = line.split(":");
+        return (
+          <div
+            key={i}
+            className="text-[11px] px-2 py-1.5 rounded bg-gradient-to-r from-rarity-super/10 to-veil/60 border border-rarity-super/40"
+          >
+            <span className="text-rarity-super font-semibold tracking-wider">
+              ◆ {trig}
+            </span>
+            <span className="text-parchment/85 ml-2">{rest.join(":")}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -985,30 +1051,30 @@ function BoardRow({
   const hasTaunt = minions.some((m) => m.keywords.includes("taunt"));
   return (
     <div className="relative h-24 flex items-center justify-center gap-2 px-2 flex-wrap">
-      {minions.map((m) => {
-        const isSelected = selectedUid === m.uid;
-        const canAct =
-          side === "player" &&
-          !m.summonedThisTurn &&
-          m.attacksRemaining > 0;
-        const isAttackableTaunt = side === "enemy" && m.keywords.includes("taunt");
-        const mustAttackThis = attackMode && hasTaunt && !isAttackableTaunt;
-        return (
-          <MinionCard
-            key={m.uid}
-            minion={m}
-            side={side}
-            palette={palette}
-            selected={isSelected}
-            canAct={canAct}
-            highlighted={
-              attackMode && side === "enemy" && !mustAttackThis
-            }
-            dimmed={mustAttackThis}
-            onClick={() => onMinionClick?.(m.uid)}
-          />
-        );
-      })}
+      <AnimatePresence mode="popLayout">
+        {minions.map((m) => {
+          const isSelected = selectedUid === m.uid;
+          const canAct =
+            side === "player" &&
+            !m.summonedThisTurn &&
+            m.attacksRemaining > 0;
+          const isAttackableTaunt = side === "enemy" && m.keywords.includes("taunt");
+          const mustAttackThis = attackMode && hasTaunt && !isAttackableTaunt;
+          return (
+            <MinionCard
+              key={m.uid}
+              minion={m}
+              side={side}
+              palette={palette}
+              selected={isSelected}
+              canAct={canAct}
+              highlighted={attackMode && side === "enemy" && !mustAttackThis}
+              dimmed={mustAttackThis}
+              onClick={() => onMinionClick?.(m.uid)}
+            />
+          );
+        })}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1041,14 +1107,28 @@ function MinionCard({
   const abilityTitle = abilities.length > 0
     ? "\n技能:\n" + abilities.map((a) => `· ${a.description}`).join("\n")
     : "";
+  // Track HP changes so we can flash the card red when it takes damage.
+  const prevHpRef = useRef(minion.hp);
+  const [hurtPulse, setHurtPulse] = useState(0);
+  useEffect(() => {
+    if (minion.hp < prevHpRef.current) {
+      setHurtPulse((k) => k + 1);
+    }
+    prevHpRef.current = minion.hp;
+  }, [minion.hp]);
   return (
-    <button
+    <motion.button
+      layout
+      initial={{ opacity: 0, y: side === "player" ? 30 : -30, scale: 0.7 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.4, rotate: side === "player" ? -12 : 12, filter: "blur(3px)" }}
+      transition={{ duration: 0.28, ease: [0.22, 0.97, 0.32, 1.08] }}
       onClick={onClick}
       title={`${minion.name} · ATK ${minion.atk} / HP ${minion.hp}/${minion.hpMax}${
         minion.keywords.length ? " · " + minion.keywords.join("/") : ""
       }${abilityTitle}`}
       className={cn(
-        "relative rounded-lg border-2 overflow-hidden w-16 h-20 flex flex-col items-center justify-between p-1 transition-all",
+        "relative rounded-lg border-2 overflow-hidden w-16 h-20 flex flex-col items-center justify-between p-1",
         "bg-gradient-to-b from-veil/80 to-veil/40 backdrop-blur",
         selected && "ring-4 ring-gold animate-pulse scale-105",
         highlighted && "ring-2 ring-blood/60 cursor-crosshair hover:scale-105",
@@ -1065,6 +1145,15 @@ function MinionCard({
             : palette.main,
       }}
     >
+      {hurtPulse > 0 && (
+        <motion.span
+          key={hurtPulse}
+          initial={{ opacity: 0.85, scale: 1 }}
+          animate={{ opacity: 0, scale: 1.6 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="absolute inset-0 bg-blood/60 pointer-events-none"
+        />
+      )}
       <div className="text-lg leading-none">
         {minion.rarity === "UR" ? "🌟" : minion.rarity === "SSR" ? "⭐" : minion.rarity === "SR" ? "✦" : "·"}
       </div>
@@ -1100,7 +1189,7 @@ function MinionCard({
           {abilityIcon}
         </span>
       )}
-    </button>
+    </motion.button>
   );
 }
 
@@ -1345,6 +1434,47 @@ function EnemyIntentBadge({ intent }: { intent: EnemyIntent }) {
         </span>
       )}
     </motion.div>
+  );
+}
+
+function TurnBanner({ phase, turn }: { phase: string; turn: number }) {
+  const [showKey, setShowKey] = useState<string | null>(null);
+  const prevRef = useRef<string>("");
+  useEffect(() => {
+    if (phase !== "player_turn" && phase !== "enemy_turn") return;
+    const key = `${phase}-${turn}`;
+    if (prevRef.current === key) return;
+    prevRef.current = key;
+    setShowKey(key);
+    const t = setTimeout(() => setShowKey((k) => (k === key ? null : k)), 900);
+    return () => clearTimeout(t);
+  }, [phase, turn]);
+
+  const visible = showKey !== null;
+  const isPlayer = phase === "player_turn";
+  return (
+    <div className="absolute inset-0 pointer-events-none z-30 flex items-center justify-center">
+      <AnimatePresence>
+        {visible && (
+          <motion.div
+            key={showKey}
+            initial={{ opacity: 0, scale: 0.6, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 1.1, y: -10 }}
+            transition={{ duration: 0.35, ease: [0.22, 0.97, 0.32, 1.08] }}
+            className={cn(
+              "px-8 py-3 rounded-full border-2 backdrop-blur-md shadow-2xl",
+              "display-serif text-2xl tracking-[0.5em]",
+              isPlayer
+                ? "border-gold text-gold bg-gold/10"
+                : "border-blood text-blood bg-blood/10",
+            )}
+          >
+            {isPlayer ? "你的回合" : "敵方回合"}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 

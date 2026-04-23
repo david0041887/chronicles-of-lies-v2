@@ -18,65 +18,86 @@ export interface EnemyIntent {
  * Run the enemy's entire turn: play cards greedily per a simple heuristic
  * until out of mana or out of affordable cards, then attack with any
  * minions that have attacks remaining. Mutates state in place.
+ *
+ * For staged playback (one action per animation tick), see runEnemyStep
+ * — the client uses that so each play / attack is visible instead of
+ * batched into one state mutation.
  */
 export function runEnemyTurn(state: BattleState) {
   if (state.phase !== "enemy_turn") return;
-
-  const MAX_PLAYS = 5;
-  for (let step = 0; step < MAX_PLAYS; step++) {
-    if (state.phase !== "enemy_turn") return;
-    const hand = state.enemy.hand;
-    const playable = hand
-      .map((c, i) => ({ c, i }))
-      .filter(({ c }) => c.cost <= state.enemy.mana);
-    if (playable.length === 0) break;
-
-    const pick = choose(state, playable);
-    playCard(state, "enemy", pick.i);
+  const SAFETY = 25;
+  for (let i = 0; i < SAFETY; i++) {
+    const step = runEnemyStep(state);
+    if (step.done) return;
   }
-
-  // Minion attack phase — pick best target for each attacker until all
-  // attacks are spent.
-  runEnemyMinionAttacks(state);
 }
 
-function runEnemyMinionAttacks(state: BattleState) {
-  const MAX_ATTACKS = 15;
-  for (let i = 0; i < MAX_ATTACKS; i++) {
-    if (state.phase !== "enemy_turn") return;
-    const attacker = state.enemy.board.find(
-      (m) => !m.summonedThisTurn && m.attacksRemaining > 0,
-    );
-    if (!attacker) return;
+export type EnemyStepResult =
+  | { done: true }
+  | { done: false; kind: "play"; cardName: string; cardType: string }
+  | { done: false; kind: "attack"; attackerName: string; target: "face" | "minion" };
 
-    const taunts = state.player.board.filter((m) => m.keywords.includes("taunt"));
-    let target: { kind: "face" } | { kind: "minion"; uid: string };
-    if (taunts.length > 0) {
-      // Must hit a taunt — pick lowest-HP to clear fastest.
-      const t = [...taunts].sort((a, b) => a.hp - b.hp)[0];
-      target = { kind: "minion", uid: t.uid };
-    } else if (state.player.board.length > 0) {
-      // Prefer hitting a minion we can kill without dying, otherwise go
-      // face if we're ≥ player HP remaining.
-      const killable = state.player.board.find(
-        (m) => m.hp <= attacker.atk && attacker.hp > m.atk,
-      );
-      if (killable) {
-        target = { kind: "minion", uid: killable.uid };
-      } else if (attacker.atk >= state.player.hp / 3) {
-        // Big hitter — face.
-        target = { kind: "face" };
-      } else {
-        // Trade into weakest minion.
-        const weakest = [...state.player.board].sort((a, b) => a.hp - b.hp)[0];
-        target = { kind: "minion", uid: weakest.uid };
-      }
-    } else {
-      target = { kind: "face" };
-    }
+/**
+ * Perform exactly one enemy action (either play one card or resolve one
+ * minion attack), mutating state in place. Returns metadata about what
+ * happened so the client can animate / delay between steps.
+ *
+ * Returns `{ done: true }` once the enemy has nothing more to do this
+ * turn. Callers should stop looping on `done`.
+ */
+export function runEnemyStep(state: BattleState): EnemyStepResult {
+  if (state.phase !== "enemy_turn") return { done: true };
 
-    attackWithMinion(state, "enemy", attacker.uid, target);
+  // Prefer playing a card if any is affordable.
+  const playable = state.enemy.hand
+    .map((c, i) => ({ c, i }))
+    .filter(({ c }) => c.cost <= state.enemy.mana);
+  if (playable.length > 0) {
+    const pick = choose(state, playable);
+    const card = pick.c;
+    playCard(state, "enemy", pick.i);
+    return {
+      done: false,
+      kind: "play",
+      cardName: card.name,
+      cardType: card.type,
+    };
   }
+
+  // Otherwise attack with one minion.
+  const attacker = state.enemy.board.find(
+    (m) => !m.summonedThisTurn && m.attacksRemaining > 0,
+  );
+  if (!attacker) return { done: true };
+
+  const taunts = state.player.board.filter((m) => m.keywords.includes("taunt"));
+  let target: { kind: "face" } | { kind: "minion"; uid: string };
+  if (taunts.length > 0) {
+    const t = [...taunts].sort((a, b) => a.hp - b.hp)[0];
+    target = { kind: "minion", uid: t.uid };
+  } else if (state.player.board.length > 0) {
+    const killable = state.player.board.find(
+      (m) => m.hp <= attacker.atk && attacker.hp > m.atk,
+    );
+    if (killable) {
+      target = { kind: "minion", uid: killable.uid };
+    } else if (attacker.atk >= state.player.hp / 3) {
+      target = { kind: "face" };
+    } else {
+      const weakest = [...state.player.board].sort((a, b) => a.hp - b.hp)[0];
+      target = { kind: "minion", uid: weakest.uid };
+    }
+  } else {
+    target = { kind: "face" };
+  }
+
+  attackWithMinion(state, "enemy", attacker.uid, target);
+  return {
+    done: false,
+    kind: "attack",
+    attackerName: attacker.name,
+    target: target.kind,
+  };
 }
 
 function choose(
