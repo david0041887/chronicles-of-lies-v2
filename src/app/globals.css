@@ -217,3 +217,34 @@ body {
     opacity: 0.2 !important;
   }
 }
+
+/* ============================================================
+   Forge success — gold ring flash on the card + sparkle burst.
+   Triggered by .forge-twinkle class (applied for ~1.8s).
+   ============================================================ */
+@keyframes forge-twinkle-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(212, 168, 75, 0.8); }
+  50%  { box-shadow: 0 0 0 10px rgba(212, 168, 75, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(212, 168, 75, 0); }
+}
+.forge-twinkle {
+  animation: forge-twinkle-ring 1.2s ease-out 2;
+  border-radius: 14px;
+}
+
+@keyframes forge-sparkle {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.5); }
+  30%  { opacity: 1; transform: translate(0, -4px) scale(1.2); }
+  70%  { opacity: 1; transform: translate(0, -10px) scale(1); }
+  100% { opacity: 0; transform: translate(0, -18px) scale(0.6); }
+}
+.forge-sparkle {
+  animation: forge-sparkle 1.4s ease-out forwards;
+  text-shadow: 0 0 8px rgba(255, 240, 180, 0.9);
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forge-twinkle { animation: none !important; box-shadow: 0 0 0 4px rgba(212,168,75,0.6) !important; }
+  .forge-sparkle { animation: none !important; opacity: 0.6 !important; }
+}

@@ -344,48 +344,109 @@ function ResultContent({
   }, [result]);
   const best = highestRarity(result);
   const hasJackpot = best === "UR" || best === "SSR";
+  const isTenPull = result.length === 10;
+
+  // Ten-pull: start with all cards face-down, user taps to reveal each.
+  // Single pull: reveal instantly.
+  const [revealed, setRevealed] = useState<boolean[]>(
+    () => result.map(() => !isTenPull),
+  );
+  const allRevealed = revealed.every(Boolean);
+
+  const revealOne = (idx: number) => {
+    if (revealed[idx]) return;
+    setRevealed((prev) => prev.map((r, i) => (i === idx ? true : r)));
+  };
+  const revealAll = () => setRevealed(result.map(() => true));
 
   return (
     <>
       <div
         className={`grid gap-3 ${
-          result.length === 10 ? "grid-cols-5" : "grid-cols-1 place-items-center"
+          isTenPull ? "grid-cols-5" : "grid-cols-1 place-items-center"
         }`}
       >
-        {result.map((c, i) => (
-          <motion.div
-            key={`${c.id}-${i}`}
-            className="flex justify-center"
-            initial={{ rotateY: 180, opacity: 0, scale: 0.75 }}
-            animate={{ rotateY: 0, opacity: 1, scale: 1 }}
-            transition={{
-              delay: i * 0.05,
-              duration: 0.35,
-              ease: [0.22, 0.97, 0.32, 1.08],
-            }}
-            style={{ transformStyle: "preserve-3d" }}
-          >
-            <CardTile card={c} size={result.length === 10 ? "sm" : "md"} tilt />
-          </motion.div>
-        ))}
+        {result.map((c, i) => {
+          const isRevealed = revealed[i];
+          return (
+            <motion.div
+              key={`${c.id}-${i}`}
+              className="flex justify-center"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                delay: i * 0.03,
+                duration: 0.25,
+              }}
+            >
+              {isRevealed ? (
+                <motion.div
+                  initial={{ rotateY: 180, scale: 0.9 }}
+                  animate={{ rotateY: 0, scale: 1 }}
+                  transition={{ duration: 0.45, ease: [0.22, 0.97, 0.32, 1.08] }}
+                  style={{ transformStyle: "preserve-3d" }}
+                >
+                  <CardTile card={c} size={isTenPull ? "sm" : "md"} tilt />
+                </motion.div>
+              ) : (
+                <button
+                  onClick={() => revealOne(i)}
+                  aria-label={`翻開第 ${i + 1} 張牌`}
+                  className="aspect-[3/4] w-32 rounded-xl border-2 border-gold/70 relative overflow-hidden bg-gradient-to-br from-[#2a1b4a] via-veil to-[#0a0612] hover:brightness-125 active:scale-95 transition-all"
+                >
+                  <span
+                    className="absolute inset-0 opacity-40"
+                    style={{
+                      background:
+                        "radial-gradient(circle at 50% 50%, rgba(212,168,75,0.3), transparent 60%)",
+                    }}
+                  />
+                  <span
+                    className="absolute inset-0 flex items-center justify-center text-gold display-serif text-5xl select-none"
+                    style={{ textShadow: "0 0 18px rgba(212,168,75,0.7)" }}
+                  >
+                    謊
+                  </span>
+                  <span className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-gold/70 tracking-widest">
+                    點擊翻開
+                  </span>
+                </button>
+              )}
+            </motion.div>
+          );
+        })}
       </div>
       <div className="mt-6 flex justify-between items-center flex-wrap gap-3">
         <div className="text-xs text-parchment/60 space-x-3">
-          {summary.UR > 0 && <span className="text-gold">UR × {summary.UR}</span>}
-          {summary.SSR > 0 && <span className="text-rarity-super">SSR × {summary.SSR}</span>}
-          <span>SR × {summary.SR}</span>
-          <span>R × {summary.R}</span>
-          <span className="text-parchment/30">
-            · 來自 {POOLS[poolId].name}
-          </span>
+          {allRevealed ? (
+            <>
+              {summary.UR > 0 && <span className="text-gold">UR × {summary.UR}</span>}
+              {summary.SSR > 0 && <span className="text-rarity-super">SSR × {summary.SSR}</span>}
+              <span>SR × {summary.SR}</span>
+              <span>R × {summary.R}</span>
+              <span className="text-parchment/30">
+                · 來自 {POOLS[poolId].name}
+              </span>
+            </>
+          ) : (
+            <span className="text-gold/80 tracking-widest">
+              {revealed.filter(Boolean).length} / {result.length} 已翻開
+            </span>
+          )}
         </div>
-        <Button
-          variant={hasJackpot ? "primary" : "ghost"}
-          size="sm"
-          onClick={onClose}
-        >
-          收下
-        </Button>
+        {allRevealed ? (
+          <Button
+            variant={hasJackpot ? "primary" : "ghost"}
+            size="sm"
+            onClick={onClose}
+          >
+            收下
+          </Button>
+        ) : (
+          <Button variant="ghost" size="sm" onClick={revealAll}>
+            全部翻開
+          </Button>
+        )}
       </div>
     </>
   );

@@ -183,6 +183,7 @@ function UpgradeTab({
     return groups.filter((g) => g.best >= MAX_STARS);
   }, [groups]);
 
+  const [twinkleId, setTwinkleId] = useState<string | null>(null);
   const onUpgrade = (cardId: string) => {
     startTransition(async () => {
       const r = await upgradeCardStars(cardId);
@@ -191,6 +192,8 @@ function UpgradeTab({
         return;
       }
       push(`升星成功 → ${r.newStars}★(消耗 ${r.consumed} 張)`, "success");
+      setTwinkleId(cardId);
+      setTimeout(() => setTwinkleId(null), 1800);
       onSuccess();
     });
   };
@@ -204,7 +207,7 @@ function UpgradeTab({
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {upgradable.map((g) => (
-              <UpgradeCardItem
+              <UpgradeCardItem twinkle={twinkleId === g.cardId}
                 key={g.cardId}
                 group={g}
                 disabled={pending}
@@ -222,7 +225,7 @@ function UpgradeTab({
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {locked.map((g) => (
-              <UpgradeCardItem
+              <UpgradeCardItem twinkle={twinkleId === g.cardId}
                 key={g.cardId}
                 group={g}
                 disabled={true}
@@ -240,7 +243,7 @@ function UpgradeTab({
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {maxed.map((g) => (
-              <UpgradeCardItem
+              <UpgradeCardItem twinkle={twinkleId === g.cardId}
                 key={g.cardId}
                 group={g}
                 disabled={true}
@@ -266,10 +269,12 @@ function UpgradeCardItem({
   group,
   disabled,
   onUpgrade,
+  twinkle = false,
 }: {
   group: Group;
   disabled: boolean;
   onUpgrade: () => void;
+  twinkle?: boolean;
 }) {
   const needed = copiesNeeded(group.best);
   const available = group.count - 1;
@@ -280,11 +285,29 @@ function UpgradeCardItem({
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <div className="relative">
+      <div className={`relative ${twinkle ? "forge-twinkle" : ""}`}>
         <CardTile card={group.card} size="sm" />
         <div className="absolute top-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-gold text-veil font-bold">
           {group.best}★
         </div>
+        {twinkle && (
+          <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-xl">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <span
+                key={i}
+                className="forge-sparkle absolute text-gold text-xl"
+                style={{
+                  left: `${10 + i * 11}%`,
+                  top: `${15 + ((i * 37) % 70)}%`,
+                  animationDelay: `${i * 70}ms`,
+                }}
+                aria-hidden
+              >
+                ✦
+              </span>
+            ))}
+          </div>
+        )}
       </div>
       <div className="w-full text-[10px] text-parchment/60 text-center">
         擁有 {group.count} 張 · 威 {currentPower}
