@@ -768,6 +768,60 @@ function checkWin(state: BattleState) {
   }
 }
 
+/**
+ * One-time starting-hand mulligan. Each card whose hand index is in
+ * `swapIndices` is sent to the bottom of the deck and replaced by a
+ * fresh draw, in roughly the same way Hearthstone does it. Only valid
+ * before any cards have been played (turn 1, no plays yet) so it can't
+ * be abused mid-battle.
+ *
+ * Empty `swapIndices` is allowed — it produces a "keep everything" log
+ * entry without touching the deck so the call site can use this as the
+ * single resolution point regardless of player choice.
+ */
+export function applyMulligan(
+  state: BattleState,
+  sideName: "player" | "enemy",
+  swapIndices: number[],
+): BattleState {
+  if (state.phase !== "player_turn") return state;
+  if (state.turn > 1) return state;
+  const self = state[sideName];
+  if (self.combosThisTurn > 0) return state; // already played a card
+
+  if (swapIndices.length === 0) {
+    state.log.push({
+      turn: 1,
+      side: sideName,
+      kind: "draw",
+      text: "保留全部起手牌",
+    });
+    return state;
+  }
+
+  // Splice out swap targets in descending order so subsequent splices
+  // don't shift indices we haven't visited yet.
+  const sorted = [...new Set(swapIndices)].sort((a, b) => b - a);
+  const removed: BattleCard[] = [];
+  for (const idx of sorted) {
+    if (idx < 0 || idx >= self.hand.length) continue;
+    const card = self.hand.splice(idx, 1)[0];
+    if (card) removed.push(card);
+  }
+
+  // Bottom of the deck so the player can't immediately re-draw the same
+  // duds (matches HS-style mulligan rather than reshuffle).
+  self.deck.push(...removed);
+  draw(self, removed.length, state.log, state.turn, sideName);
+  state.log.push({
+    turn: 1,
+    side: sideName,
+    kind: "draw",
+    text: `重抽 ${removed.length} 張起手牌`,
+  });
+  return state;
+}
+
 export function endPlayerTurn(state: BattleState): BattleState {
   if (state.phase !== "player_turn") return state;
   // Fire end_of_turn for all player minions before flipping sides.

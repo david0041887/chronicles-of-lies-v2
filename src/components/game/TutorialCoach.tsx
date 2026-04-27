@@ -151,6 +151,16 @@ function computeStep(
   // summon_minion auto-advances when player has any minion on board
   if (state.player.board.length > 0) idx = consider("attack_with_minion");
 
+  // Skip-ahead — if the starter deck never gives the player an SR+ to
+  // summon, don't strand them. After turn 4 has begun and they still
+  // haven't produced a minion, jump past the minion-related steps so
+  // they can still see the intent-preview lesson before victory.
+  const stuckOnMinionTeach =
+    state.turn >= 4 &&
+    state.phase === "player_turn" &&
+    state.player.board.length === 0;
+  if (stuckOnMinionTeach) idx = consider("watch_intent");
+
   // attack_with_minion auto-advances after first attack — detected via
   // log entries containing the minion_attack event from player side.
   const playerAttacked = state.log.some(

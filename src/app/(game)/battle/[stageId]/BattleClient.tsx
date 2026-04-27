@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { previewEnemyIntent, runEnemyStep, type EnemyIntent } from "@/lib/battle/ai";
+import { getBossOpener } from "@/lib/battle/boss-lines";
 import { getAbilitiesFor, getAbilityDescriptionsForCard } from "@/lib/battle/card-abilities";
 import { signBattleResult } from "@/lib/battle/client-sig";
 import {
+  applyMulligan,
   attackWithMinion,
   consumeConfusion,
   createBattle,
@@ -162,6 +164,26 @@ export function BattleClient({
     targetKind: "face" | "minion";
     ts: number;
   } | null>(null);
+  /** Starting-hand mulligan: shown once at battle start, dismissed by
+   *  the player (skipped automatically in tutorial mode so onboarding
+   *  doesn't have to teach two layers at once). */
+  const [mulliganDone, setMulliganDone] = useState<boolean>(tutorialMode);
+  const [mulliganPicks, setMulliganPicks] = useState<Set<string>>(new Set());
+
+  /** Boss opener overlay — only fires for boss/prime stages, briefly
+   *  blocks the mulligan so the line can read uninterrupted. */
+  const bossOpener = useMemo(() => {
+    if (!stage.isBoss) return null;
+    return getBossOpener(stage.eraId, stage.mode);
+  }, [stage]);
+  const [openerVisible, setOpenerVisible] = useState<boolean>(!!bossOpener && !tutorialMode);
+  useEffect(() => {
+    if (!openerVisible) return;
+    // Curtain pulls back at ~900ms, opener mounts after, holds ~2200ms,
+    // then fades for the mulligan to take over.
+    const t = setTimeout(() => setOpenerVisible(false), 2900);
+    return () => clearTimeout(t);
+  }, [openerVisible]);
   const logRef = useRef<HTMLDivElement>(null);
   const prevLogLenRef = useRef(0);
   const sleepTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -286,6 +308,45 @@ export function BattleClient({
       }
     }
   }, [battle.player.hp, battle.enemy.hp]);
+
+  /** Whether the current player turn is being auto-skipped because the
+   *  player is confused. Drives a full-screen telegraph overlay so the
+   *  player understands why they can't act for a moment. */
+  const [playerConfusedTurn, setPlayerConfusedTurn] = useState(false);
+
+  // Player-side confused turn handler — when phase is player_turn AND
+  // the player is confused, show a brief telegraph overlay then auto-end
+  // the turn. Mirrors the engine's enemy-turn confusion path so the
+  // mechanic feels symmetrical.
+  useEffect(() => {
+    if (battle.phase !== "player_turn") {
+      setPlayerConfusedTurn(false);
+      return;
+    }
+    if (!isConfused(battle, "player")) return;
+    if (playerConfusedTurn) return;
+    if (!mulliganDone) return; // wait until the player has chosen a hand
+    setPlayerConfusedTurn(true);
+    const t1 = setTimeout(() => {
+      consumeConfusion(battle, "player");
+      tick();
+    }, 1100);
+    const t2 = setTimeout(() => {
+      // Auto-end after the consume so HP-tick shields etc. all flush.
+      if (battle.phase === "player_turn") {
+        endPlayerTurn(battle);
+        tick();
+      }
+      setPlayerConfusedTurn(false);
+    }, 1800);
+    sleepTimersRef.current.add(t1);
+    sleepTimersRef.current.add(t2);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [battle.phase, battle.turn, mulliganDone]);
 
   // Clear any pending attacker selection when the phase leaves player_turn
   // — otherwise a mid-select phase flip (e.g. you deselect-then-end-turn,
@@ -531,6 +592,26 @@ export function BattleClient({
     tick();
   };
 
+  const onConfirmMulligan = () => {
+    const indices: number[] = [];
+    battle.player.hand.forEach((c, i) => {
+      if (mulliganPicks.has(c.uid)) indices.push(i);
+    });
+    applyMulligan(battle, "player", indices);
+    setMulliganPicks(new Set());
+    setMulliganDone(true);
+    tick();
+  };
+
+  const toggleMulliganPick = (uid: string) => {
+    setMulliganPicks((s) => {
+      const n = new Set(s);
+      if (n.has(uid)) n.delete(uid);
+      else n.add(uid);
+      return n;
+    });
+  };
+
   const onSurrender = () => {
     if (battle.phase === "won" || battle.phase === "lost") return;
     battle.player.hp = 0;
@@ -591,9 +672,146 @@ export function BattleClient({
       {/* Turn transition banner */}
       <TurnBanner phase={battle.phase} turn={battle.turn} />
 
+      {/* Confused-turn telegraph: tells the player WHY they can't act
+          right now (1.8s) before the engine auto-skips the turn. */}
+      <AnimatePresence>
+        {playerConfusedTurn && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.05 }}
+            transition={{ duration: 0.32 }}
+            className="absolute inset-0 z-[55] flex items-center justify-center bg-veil/70 backdrop-blur-sm pointer-events-none"
+          >
+            <div className="rounded-2xl border-2 border-purple-400/60 bg-purple-900/60 backdrop-blur-md px-8 py-5 shadow-[0_0_40px_rgba(168,85,247,0.5)] text-center">
+              <div className="text-5xl mb-2 animate-pulse">🌀</div>
+              <div className="display-serif text-2xl text-purple-100 mb-1 tracking-widest">
+                困惑
+              </div>
+              <div className="text-xs text-purple-200/80 tracking-wider">
+                此回合自動跳過
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* BOSS opener — single-line dramatic quote that flashes after the
+          curtain pulls back, before the mulligan. Skipped in tutorial. */}
+      <AnimatePresence>
+        {openerVisible && bossOpener && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4, delay: 0.85 }}
+            className="absolute inset-0 z-[58] flex items-center justify-center bg-veil/80 backdrop-blur-md p-4 pointer-events-none"
+          >
+            <motion.div
+              initial={{ scale: 0.85, y: 20, filter: "blur(8px)" }}
+              animate={{ scale: 1, y: 0, filter: "blur(0px)" }}
+              transition={{ duration: 0.6, ease: [0.22, 0.97, 0.32, 1.08], delay: 0.95 }}
+              className="max-w-2xl w-full text-center"
+            >
+              <div
+                className="display-serif text-[10px] tracking-[0.5em] uppercase mb-3"
+                style={{ color: bg.accent }}
+              >
+                {stage.mode === "prime" ? "Prime Boss" : "Boss"}
+              </div>
+              <div className="display-serif text-3xl sm:text-4xl text-parchment mb-2">
+                {stage.enemyName}
+              </div>
+              <div
+                className="text-sm sm:text-base text-parchment/85 italic font-[family-name:var(--font-noto-serif)] mt-4 leading-relaxed border-l-2 pl-4 inline-block text-left"
+                style={{ borderColor: bg.accent }}
+              >
+                「{bossOpener}」
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mulligan overlay — first thing the player sees after the curtain
+          opens. Lets them swap unwanted starting cards once. */}
+      <AnimatePresence>
+        {!mulliganDone && !openerVisible && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4, delay: 0.9 }}
+            className="absolute inset-0 z-[55] flex items-center justify-center bg-veil/85 backdrop-blur-md p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 12 }}
+              animate={{ scale: 1, y: 0 }}
+              transition={{ duration: 0.45, ease: [0.22, 0.97, 0.32, 1.08], delay: 1.0 }}
+              className="max-w-2xl w-full rounded-2xl border border-gold/40 bg-gradient-to-b from-veil/95 to-[#120820]/95 p-5 sm:p-6 shadow-[0_24px_64px_rgba(0,0,0,0.6)]"
+            >
+              <h2 className="display-serif text-2xl text-sacred mb-1 text-center">
+                選擇起手 — 重抽
+              </h2>
+              <p className="text-xs text-parchment/70 leading-relaxed text-center mb-4">
+                點選不想要的牌標記重抽,被換掉的牌會放回牌堆底部。沒選的話直接「保留全部」。
+              </p>
+              <div className="flex gap-2 justify-center mb-4 flex-wrap">
+                {battle.player.hand.map((c) => {
+                  const picked = mulliganPicks.has(c.uid);
+                  return (
+                    <button
+                      key={c.uid}
+                      onClick={() => toggleMulliganPick(c.uid)}
+                      className={cn(
+                        "shrink-0 w-[22vw] max-w-[112px] min-w-[80px] rounded-xl transition-all",
+                        picked
+                          ? "ring-4 ring-blood/80 -translate-y-1 opacity-65 grayscale"
+                          : "hover:-translate-y-1 hover:ring-2 hover:ring-gold/50",
+                      )}
+                      aria-label={
+                        picked ? `取消重抽 ${c.name}` : `標記重抽 ${c.name}`
+                      }
+                    >
+                      <CardTile card={c} size="sm" />
+                      {picked && (
+                        <div className="text-[10px] tracking-widest text-blood font-bold mt-1">
+                          ✕ 重抽
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-[11px] text-parchment/50 tracking-widest">
+                  {mulliganPicks.size === 0
+                    ? "未選擇任何牌 — 將保留全部"
+                    : `將重抽 ${mulliganPicks.size} 張`}
+                </div>
+                <div className="flex gap-2">
+                  {mulliganPicks.size > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setMulliganPicks(new Set())}
+                    >
+                      清除選擇
+                    </Button>
+                  )}
+                  <Button variant="primary" size="md" onClick={onConfirmMulligan}>
+                    {mulliganPicks.size === 0 ? "保留全部 →" : `重抽 ${mulliganPicks.size} 張 →`}
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Tutorial coach overlay — rendered above battle UI but below modals
           and the result screen. Reads the full battle state on every tick. */}
-      {tutorialOverlay && (
+      {tutorialOverlay && mulliganDone && (
         <div className="absolute inset-0 z-[60] pointer-events-none">
           {tutorialOverlay(battle)}
         </div>
