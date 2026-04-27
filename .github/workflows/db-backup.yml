@@ -1,0 +1,93 @@
+name: DB Backup
+
+# Daily Postgres backup of Railway production data, stored as workflow
+# artifacts (free, 90-day retention by default). Manual runs are also
+# supported via "workflow_dispatch" so a backup can be triggered before
+# any risky migration.
+#
+# Required repo secret:
+#   DATABASE_URL  — postgresql://... (use Railway's DATABASE_PUBLIC_URL)
+#
+# Optional repo variable:
+#   BACKUP_RETENTION_DAYS — artifact retention in days (default 90)
+
+on:
+  schedule:
+    # 03:00 UTC daily (≈ 11:00 in Asia/Taipei)
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      # Pin a Postgres 18 client because Railway's server is on 18 and
+      # pg_dump refuses to run against a newer server.
+      postgres-client:
+        image: postgres:18-alpine
+        options: >-
+          --entrypoint sleep
+        ports: []
+
+    steps:
+      - name: Resolve timestamp
+        id: stamp
+        run: echo "stamp=$(date -u +%Y%m%d-%H%M%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify DATABASE_URL secret
+        env:
+          DB_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::DATABASE_URL repo secret is not set."
+            echo "Set it in: Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+          # Light schema check — must look like a postgresql:// URL.
+          case "$DB_URL" in
+            postgresql://*|postgres://*) echo "ok" ;;
+            *) echo "::error::DATABASE_URL doesn't look like a postgres URL"; exit 1 ;;
+          esac
+
+      - name: Run pg_dump (custom + schema + plain)
+        env:
+          DB_URL: ${{ secrets.DATABASE_URL }}
+          STAMP: ${{ steps.stamp.outputs.stamp }}
+        run: |
+          mkdir -p out
+          docker run --rm postgres:18-alpine pg_dump "$DB_URL" \
+            --format=custom --compress=9 --no-owner --no-acl \
+            > "out/chronicles-${STAMP}.dump"
+          docker run --rm postgres:18-alpine pg_dump "$DB_URL" \
+            --schema-only --no-owner --no-acl \
+            > "out/chronicles-${STAMP}-schema.sql"
+          docker run --rm postgres:18-alpine pg_dump "$DB_URL" \
+            --no-owner --no-acl \
+            > "out/chronicles-${STAMP}-data.sql"
+          ls -la out/
+          # Sanity — the custom dump must be PostgreSQL custom format.
+          head -c 5 "out/chronicles-${STAMP}.dump" | xxd
+          file "out/chronicles-${STAMP}.dump"
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chronicles-${{ steps.stamp.outputs.stamp }}
+          path: out/
+          retention-days: ${{ vars.BACKUP_RETENTION_DAYS || 90 }}
+          if-no-files-found: error
+          compression-level: 0  # already compressed
+
+      - name: Summary
+        run: |
+          {
+            echo "## DB backup ${{ steps.stamp.outputs.stamp }}"
+            echo ""
+            echo "Artifact: \`chronicles-${{ steps.stamp.outputs.stamp }}\`"
+            echo ""
+            ls -la out/ | sed 's/^/    /'
+          } >> "$GITHUB_STEP_SUMMARY"
