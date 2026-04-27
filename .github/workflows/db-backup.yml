@@ -38,24 +38,31 @@ jobs:
         id: stamp
         run: echo "stamp=$(date -u +%Y%m%d-%H%M%SZ)" >> "$GITHUB_OUTPUT"
 
-      - name: Verify DATABASE_URL secret
+      - name: Verify and sanitise DATABASE_URL secret
         env:
-          DB_URL: ${{ secrets.DATABASE_URL }}
+          DB_URL_RAW: ${{ secrets.DATABASE_URL }}
         run: |
-          if [ -z "$DB_URL" ]; then
+          if [ -z "$DB_URL_RAW" ]; then
             echo "::error::DATABASE_URL repo secret is not set."
             echo "Set it in: Settings → Secrets and variables → Actions → New repository secret"
             exit 1
           fi
-          # Light schema check — must look like a postgresql:// URL.
+          # Copy-paste from a terminal frequently leaves a trailing CR/LF
+          # on the secret value. Postgres treats the newline as part of
+          # the database name and fails with `database "railway\n" does
+          # not exist`. Strip CR/LF + surrounding whitespace defensively.
+          DB_URL="$(printf '%s' "$DB_URL_RAW" | tr -d '\r\n' | awk '{$1=$1; print}')"
           case "$DB_URL" in
-            postgresql://*|postgres://*) echo "ok" ;;
+            postgresql://*|postgres://*) ;;
             *) echo "::error::DATABASE_URL doesn't look like a postgres URL"; exit 1 ;;
           esac
+          # Mask the cleaned value so it doesn't leak into later step
+          # logs, then export for downstream jobs.
+          echo "::add-mask::$DB_URL"
+          echo "DB_URL=$DB_URL" >> "$GITHUB_ENV"
 
       - name: Run pg_dump (custom + schema + plain)
         env:
-          DB_URL: ${{ secrets.DATABASE_URL }}
           STAMP: ${{ steps.stamp.outputs.stamp }}
         run: |
           mkdir -p out
