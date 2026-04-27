@@ -65,19 +65,25 @@ export function WelcomeClient({ username }: Props) {
           </motion.div>
         </AnimatePresence>
 
-        {/* Progress dots */}
+        {/* Progress dots — clickable so the player can jump around. */}
         <div className="flex justify-center gap-2 mb-8">
           {PAGES.map((_, i) => (
-            <span
+            <button
               key={i}
+              onClick={() => setPage(i)}
               className={`h-1.5 rounded-full transition-all ${
-                i === page ? "w-8 bg-gold" : "w-2 bg-parchment/20"
+                i === page
+                  ? "w-8 bg-gold"
+                  : i < page
+                    ? "w-2 bg-gold/40 hover:bg-gold/60"
+                    : "w-2 bg-parchment/20 hover:bg-parchment/40"
               }`}
+              aria-label={`第 ${i + 1} 頁`}
             />
           ))}
         </div>
 
-        <div className="flex justify-center gap-3">
+        <div className="flex justify-center items-center gap-3 flex-wrap">
           {page > 0 && (
             <Button variant="ghost" size="md" onClick={() => setPage(page - 1)}>
               上一頁
@@ -96,6 +102,20 @@ export function WelcomeClient({ username }: Props) {
             </Link>
           )}
         </div>
+
+        {/* Skip link — small, low-key, never the primary action. Available
+            from page 1+ so players who already know the lore can jump
+            straight to the practice battle. */}
+        {!last && (
+          <div className="flex justify-center mt-6">
+            <Link
+              href="/welcome/tutorial"
+              className="text-[11px] text-parchment/40 hover:text-parchment/70 tracking-widest min-h-[28px] px-2"
+            >
+              跳過序章 → 直接戰鬥
+            </Link>
+          </div>
+        )}
       </div>
     </main>
   );

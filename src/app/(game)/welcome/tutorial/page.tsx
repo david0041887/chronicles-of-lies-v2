@@ -30,9 +30,17 @@ const TUTORIAL_ENEMY_CARDS = [
   "r_eg_001", "r_eg_002", "r_eg_003", "r_eg_007",
 ] satisfies string[];
 
-export default async function TutorialBattlePage() {
+interface PageProps {
+  searchParams: Promise<{ replay?: string }>;
+}
+
+export default async function TutorialBattlePage({ searchParams }: PageProps) {
   const user = await requireUser();
-  if (user.tutorialDone) redirect("/home");
+  const sp = await searchParams;
+  const isReplay = sp.replay === "1";
+  // Players who finished the tutorial bounce home unless they explicitly
+  // opted into replay mode from settings (?replay=1).
+  if (user.tutorialDone && !isReplay) redirect("/home");
 
   const allIds = [...new Set([...TUTORIAL_PLAYER_CARDS, ...TUTORIAL_ENEMY_CARDS])];
   const rows = await prisma.card.findMany({

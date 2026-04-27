@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
 import { t } from "@/lib/i18n";
 import { signOut } from "next-auth/react";
+import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 
 // i18n is scaffolded for when translations are complete; for now everything
@@ -184,6 +185,28 @@ export function SettingsClient({ user }: Props) {
         <p className="text-[11px] text-parchment/40 mt-3">
           進入時代會自動切換不同 BGM,首次互動後(點一下任意處)自動啟動。
         </p>
+      </section>
+
+      {/* Tutorial replay — lets returning players brush up on the basics
+          without resetting any progress (the API endpoint is idempotent). */}
+      <section className="rounded-xl border border-parchment/10 bg-veil/40 p-5">
+        <h2 className="text-xs text-parchment/50 tracking-widest mb-3 font-[family-name:var(--font-cinzel)]">
+          教學
+        </h2>
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="text-sm text-parchment mb-1">重看新手教學</div>
+            <p className="text-[11px] text-parchment/50 leading-relaxed">
+              重新體驗一場練習戰 — 不會影響任何資源、進度或既有獎勵。
+            </p>
+          </div>
+          <Link
+            href="/welcome/tutorial?replay=1"
+            className="shrink-0 px-4 py-2 rounded-lg border border-gold/50 text-gold hover:bg-gold/10 text-xs tracking-widest min-h-[36px] flex items-center"
+          >
+            🎓 重看
+          </Link>
+        </div>
       </section>
 
       {/* Danger zone */}

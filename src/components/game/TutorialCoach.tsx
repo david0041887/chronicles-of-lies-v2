@@ -3,26 +3,28 @@
 /**
  * Contextual onboarding coach — shows ONE short tip at a time anchored to
  * the relevant region of the battle screen, advancing as the player
- * actually performs each step. Designed around the principles the user
- * called out:
+ * actually performs each step. Designed around the principles a good
+ * tutorial follows:
  *
  *  · Show, don't tell — every tip points at the actual UI doing the
  *    thing, never explains in the abstract.
  *  · Pacing — one mechanic per tip, never a wall.
  *  · Positive feedback — a brief gold flash + check icon when each step
- *    completes, before the next tip slides in.
+ *    completes (visible because tipKey changes), and a different
+ *    message on win vs loss so a tutorial death isn't celebrated.
  *  · Safe environment — runs inside the existing tutorial battle, where
  *    failure has zero consequences.
  *  · Contextual — tooltips dock to the relevant region (hand/board/end
  *    turn / enemy intent), they never take over the full screen.
  *
- * Step state is computed purely from battle state (no event hooks
- * needed); the coach uses `maxStepReached` so once the player advances
- * past a step it stays past, even if the underlying state oscillates.
+ * Step state is computed purely from battle state; the coach uses
+ * `maxStepReached` so once the player advances past a step it stays
+ * past, even if the underlying state oscillates. Transitions also fire
+ * a brief celebration overlay so the player FEELS the progress.
  */
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BattleState } from "@/lib/battle/types";
 
 const STEPS = [
@@ -36,7 +38,7 @@ const STEPS = [
   "watch_intent",
   "victory",
 ] as const;
-type StepKey = (typeof STEPS)[number];
+type StepKey = (typeof STEPS)[number] | "defeated";
 
 interface StepDef {
   key: StepKey;
@@ -109,8 +111,15 @@ const STEP_DEFS: Record<StepKey, StepDef> = {
   victory: {
     key: "victory",
     anchor: "center",
-    title: "你掌握了基礎",
-    body: "繼續打到勝利就完成教學了。之後你還會在實戰中遇到更多機制 — 卡牌技能、狀態效果、副本…放心,每個都不難。",
+    title: "你掌握了基礎 ✨",
+    body: "做得好 — 你已經理解帷幕的韻律。之後你還會在實戰中遇到更多機制(卡牌技能、狀態效果、副本…),但每個都會像今天這樣循序漸進地教你。",
+    manualAdvance: true,
+  },
+  defeated: {
+    key: "defeated",
+    anchor: "center",
+    title: "別擔心 — 教學失敗無懲罰",
+    body: "練習關不會扣任何資源。你已經學會大部分操作了,獎勵照樣領取,正式遊戲再用熟練的姿態回來。",
     manualAdvance: true,
   },
 };
@@ -125,12 +134,15 @@ function computeStep(
   introDismissed: boolean,
   manualAdvancePassed: Set<StepKey>,
 ): StepKey {
-  // Hard win override — collapse to victory regardless of where we were.
-  if (state.phase === "won" || state.phase === "lost") return "victory";
+  // Hard win/loss override — distinct ending screens so a tutorial loss
+  // doesn't get a "you mastered it" message.
+  if (state.phase === "lost") return "defeated";
+  if (state.phase === "won") return "victory";
 
   const passedManual = (k: StepKey) => manualAdvancePassed.has(k);
-  const maxIdx = STEPS.indexOf(maxReached);
-  const consider = (k: StepKey) => Math.max(maxIdx, STEPS.indexOf(k));
+  const maxIdx = STEPS.indexOf(maxReached as (typeof STEPS)[number]);
+  const consider = (k: (typeof STEPS)[number]) =>
+    Math.max(maxIdx, STEPS.indexOf(k));
 
   let idx = 0;
   // intro — manual dismiss
@@ -138,13 +150,11 @@ function computeStep(
   else idx = STEPS.indexOf("tap_hand");
 
   // tap_hand → play_card auto-advances when first card is played
-  // We use combosThisTurn as the indicator — engine increments it on each play.
   if (state.player.combosThisTurn >= 1) idx = consider("end_turn");
 
   // end_turn auto-advances when turn ticks past 1
   if (state.turn >= 2 && state.phase === "player_turn") {
     idx = consider("mana_grew");
-    // mana_grew is manual-advance — once dismissed move to summon_minion
     if (passedManual("mana_grew")) idx = consider("summon_minion");
   }
 
@@ -161,8 +171,7 @@ function computeStep(
     state.player.board.length === 0;
   if (stuckOnMinionTeach) idx = consider("watch_intent");
 
-  // attack_with_minion auto-advances after first attack — detected via
-  // log entries containing the minion_attack event from player side.
+  // attack_with_minion auto-advances after first attack
   const playerAttacked = state.log.some(
     (l) => l.data?.event === "minion_attack" && l.side === "player",
   );
@@ -177,7 +186,7 @@ function computeStep(
 interface CoachProps {
   state: BattleState;
   /** Called when the coach has nothing left to teach (player dismissed
-   *  the victory step) so the wrapper can hide the overlay. */
+   *  the victory or defeated step) so the wrapper can hide the overlay. */
   onComplete?: () => void;
 }
 
@@ -186,13 +195,31 @@ export function TutorialCoach({ state, onComplete }: CoachProps) {
   const [maxReached, setMaxReached] = useState<StepKey>("intro");
   const [manualPassed, setManualPassed] = useState<Set<StepKey>>(new Set());
   const [hidden, setHidden] = useState(false);
+  /** Bumps when the step transitions, drives the "✓ 做得好!" celebration
+   *  overlay so auto-advances feel rewarded instead of silent. */
+  const [celebrateKey, setCelebrateKey] = useState(0);
+  const prevStepRef = useRef<StepKey>("intro");
 
   const step = computeStep(state, maxReached, introDismissed, manualPassed);
 
-  // Track highest step monotonically.
+  // Track highest step monotonically, fire celebration on transitions.
   useEffect(() => {
-    if (STEPS.indexOf(step) > STEPS.indexOf(maxReached)) {
-      setMaxReached(step);
+    if (step !== prevStepRef.current) {
+      // Don't celebrate the very first render or end-state transitions —
+      // those have their own dedicated screens.
+      if (
+        prevStepRef.current !== "intro" &&
+        step !== "victory" &&
+        step !== "defeated"
+      ) {
+        setCelebrateKey((k) => k + 1);
+      }
+      prevStepRef.current = step;
+    }
+    if (step !== "defeated") {
+      const stepIdx = STEPS.indexOf(step as (typeof STEPS)[number]);
+      const maxIdx = STEPS.indexOf(maxReached as (typeof STEPS)[number]);
+      if (stepIdx > maxIdx) setMaxReached(step);
     }
   }, [step, maxReached]);
 
@@ -221,12 +248,45 @@ export function TutorialCoach({ state, onComplete }: CoachProps) {
   };
 
   const isVictory = step === "victory";
+  const isDefeated = step === "defeated";
+  const isEndState = isVictory || isDefeated;
+
+  // Step number for progress display — only counts the linear journey,
+  // not the end-state cards.
+  const stepNum =
+    step === "defeated"
+      ? null
+      : Math.max(1, Math.min(STEPS.length, STEPS.indexOf(step as (typeof STEPS)[number]) + 1));
+  const totalSteps = STEPS.length;
 
   return (
     <>
       {/* Spotlight pulse — drawn over the relevant region so the player's
           eye lands on the right place even before reading the tooltip. */}
       <AnchorSpotlight anchor={def.anchor} />
+
+      {/* Step-complete celebration — gold check appears briefly when an
+          auto-advance fires, so the action they just performed feels
+          rewarded instead of silent. */}
+      <AnimatePresence>
+        {celebrateKey > 0 && (
+          <motion.div
+            key={celebrateKey}
+            initial={{ opacity: 0, scale: 0.6 }}
+            animate={{ opacity: [0, 1, 1, 0], scale: [0.6, 1.1, 1, 1.1] }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.95, ease: "easeOut", times: [0, 0.2, 0.7, 1] }}
+            className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex flex-col items-center"
+          >
+            <div className="rounded-full bg-gold/95 text-veil w-14 h-14 flex items-center justify-center text-3xl font-bold shadow-[0_0_32px_rgba(212,168,75,0.8)]">
+              ✓
+            </div>
+            <div className="mt-2 px-3 py-1 rounded-full bg-veil/90 border border-gold/60 text-gold text-xs tracking-widest font-[family-name:var(--font-cinzel)]">
+              做得好
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Tooltip card */}
       <AnimatePresence mode="wait">
@@ -238,9 +298,37 @@ export function TutorialCoach({ state, onComplete }: CoachProps) {
           transition={{ duration: 0.32, ease: [0.22, 0.97, 0.32, 1.08] }}
           className={anchorClass(def.anchor)}
         >
-          <div className="pointer-events-auto rounded-xl border border-gold/50 bg-gradient-to-b from-veil/95 to-[#160820]/95 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.6)] px-4 py-3 max-w-sm">
+          <div
+            className={cn(
+              "pointer-events-auto rounded-xl border backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.6)] px-4 py-3 max-w-sm",
+              isDefeated
+                ? "border-blood/50 bg-gradient-to-b from-veil/95 to-[#200810]/95"
+                : "border-gold/50 bg-gradient-to-b from-veil/95 to-[#160820]/95",
+            )}
+          >
+            {/* Progress bar — only for the linear journey */}
+            {stepNum !== null && (
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[10px] text-gold/70 tracking-widest font-[family-name:var(--font-cinzel)] shrink-0">
+                  {stepNum} / {totalSteps}
+                </span>
+                <div className="flex-1 h-1 rounded-full bg-parchment/10 overflow-hidden">
+                  <motion.div
+                    className="h-full bg-gradient-to-r from-gold/60 to-gold rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(stepNum / totalSteps) * 100}%` }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                  />
+                </div>
+              </div>
+            )}
             <div className="flex items-start gap-2 mb-1">
-              <span className="display-serif text-base text-gold leading-tight tracking-wide">
+              <span
+                className={cn(
+                  "display-serif text-base leading-tight tracking-wide",
+                  isDefeated ? "text-blood" : "text-gold",
+                )}
+              >
                 {def.title}
               </span>
               <button
@@ -259,7 +347,7 @@ export function TutorialCoach({ state, onComplete }: CoachProps) {
                 {def.hint}
               </p>
             )}
-            {def.manualAdvance && !isVictory && (
+            {def.manualAdvance && !isEndState && (
               <div className="flex justify-end mt-3">
                 <button
                   onClick={advance}
@@ -269,13 +357,18 @@ export function TutorialCoach({ state, onComplete }: CoachProps) {
                 </button>
               </div>
             )}
-            {isVictory && (
+            {isEndState && (
               <div className="flex justify-end mt-3">
                 <button
                   onClick={dismissAll}
-                  className="px-4 py-1.5 rounded-lg bg-gold text-veil font-semibold text-xs shadow-[0_2px_10px_rgba(212,168,75,0.4)] min-h-[36px]"
+                  className={cn(
+                    "px-4 py-1.5 rounded-lg font-semibold text-xs min-h-[36px]",
+                    isVictory
+                      ? "bg-gold text-veil shadow-[0_2px_10px_rgba(212,168,75,0.4)]"
+                      : "bg-blood/80 text-parchment shadow-[0_2px_10px_rgba(190,40,40,0.4)]",
+                  )}
                 >
-                  完成 ✓
+                  {isVictory ? "完成 ✓" : "領取獎勵"}
                 </button>
               </div>
             )}
@@ -335,8 +428,6 @@ function anchorClass(anchor: StepDef["anchor"]): string {
 }
 
 function anchorOffset(anchor: StepDef["anchor"]): number {
-  // Slide direction so the tip enters from "the side it points at" — feels
-  // like the UI itself is whispering, not a popup snapping in.
   switch (anchor) {
     case "center":
     case "hand":
@@ -350,4 +441,8 @@ function anchorOffset(anchor: StepDef["anchor"]): number {
     default:
       return 12;
   }
+}
+
+function cn(...classes: (string | false | null | undefined)[]) {
+  return classes.filter(Boolean).join(" ");
 }
