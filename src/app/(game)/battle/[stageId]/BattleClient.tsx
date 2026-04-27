@@ -23,7 +23,7 @@ import type { BattleCard, BattleState, LogEntry, Minion, SideState } from "@/lib
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 interface StageData {
   id: string;
@@ -85,6 +85,11 @@ interface Props {
    *  /api/battle/complete to prove this battle actually started. Not used
    *  in tutorial mode. */
   ticket?: string;
+  /** Render-prop slot for an interactive coach overlay (used by the
+   *  onboarding tutorial). Receives the current battle state on every
+   *  tick so the coach can compute which step the player is on. Mounted
+   *  at z-[60], above the battle UI but below modals. */
+  tutorialOverlay?: (state: BattleState) => ReactNode;
 }
 
 const AUTO_LEAVE_MS = 2000;
@@ -106,6 +111,7 @@ export function BattleClient({
   nextStage = null,
   enemyMods = {},
   ticket,
+  tutorialOverlay,
 }: Props) {
   const router = useRouter();
   const { push } = useToast();
@@ -584,6 +590,14 @@ export function BattleClient({
 
       {/* Turn transition banner */}
       <TurnBanner phase={battle.phase} turn={battle.turn} />
+
+      {/* Tutorial coach overlay — rendered above battle UI but below modals
+          and the result screen. Reads the full battle state on every tick. */}
+      {tutorialOverlay && (
+        <div className="absolute inset-0 z-[60] pointer-events-none">
+          {tutorialOverlay(battle)}
+        </div>
+      )}
 
       {/* Hurt flash overlay — brief red/gold pulse on the side that just took damage */}
       <AnimatePresence>
