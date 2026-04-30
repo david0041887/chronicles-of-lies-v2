@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { ERAS } from "@/lib/constants/eras";
 import { csrfGate } from "@/lib/csrf";
 import { prisma } from "@/lib/prisma";
 import { takeBurst } from "@/lib/rate-limit";
@@ -12,6 +13,8 @@ import {
 } from "@/lib/spread";
 import { NextResponse } from "next/server";
 import crypto from "crypto";
+
+const VALID_ERA_IDS = new Set<string>(ERAS.map((e) => e.id));
 
 export async function POST(req: Request) {
   const csrf = csrfGate(req);
@@ -36,6 +39,12 @@ export async function POST(req: Request) {
   const { eraId, legendIdx } = (body as Record<string, unknown>) ?? {};
   if (typeof eraId !== "string") {
     return NextResponse.json({ error: "Missing eraId" }, { status: 400 });
+  }
+  // Whitelist eraId against the canonical 10-era set so attackers can't
+  // pollute EraProgress with arbitrary keys (a fake `eraId` would silently
+  // upsert a row that no UI surface ever reads).
+  if (!VALID_ERA_IDS.has(eraId)) {
+    return NextResponse.json({ error: "Invalid eraId" }, { status: 400 });
   }
   if (
     typeof legendIdx !== "number" ||
@@ -73,10 +82,17 @@ export async function POST(req: Request) {
   const dom = dominantIndex(counts);
   const now = new Date();
 
+  // Single user.update sets both fields in one round-trip + atomic write,
+  // so a partial transaction commit can never desynchronise lastSpreadAt
+  // from the believer total. EraProgress upsert stays a separate op
+  // because it touches a different row.
   const [, updated] = await prisma.$transaction([
     prisma.user.update({
       where: { id: user.id },
-      data: { lastSpreadAt: now },
+      data: {
+        lastSpreadAt: now,
+        totalBelievers: { increment: believerReward },
+      },
     }),
     prisma.eraProgress.upsert({
       where: { userId_eraId: { userId: user.id, eraId } },
@@ -94,10 +110,6 @@ export async function POST(req: Request) {
         spreadsTotal: { increment: 1 },
         dominantLegend: dom,
       },
-    }),
-    prisma.user.update({
-      where: { id: user.id },
-      data: { totalBelievers: { increment: believerReward } },
     }),
   ]);
 

@@ -195,6 +195,10 @@ model OwnedCard {
 
   @@index([userId])
   @@index([cardId])
+  // Hot path: collection + deck pages filter by userId then group/lookup
+  // by cardId. Composite index covers both predicates with one seek
+  // instead of @@index([userId]) + row-level filter.
+  @@index([userId, cardId])
 }
 
 // ============================================================
@@ -250,6 +254,10 @@ model Stage {
 
   @@index([eraId, orderNum])
   @@index([mode])
+  // /era/[id] and battle stage routing filter by (eraId, mode) constantly;
+  // composite avoids scanning every stage for the era to find the prime
+  // subset (and vice versa).
+  @@index([eraId, mode, orderNum])
 }
 
 enum StageMode {
