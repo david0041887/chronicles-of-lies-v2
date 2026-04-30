@@ -590,6 +590,129 @@ function TypeGlyph({ type, color }: { type: string; color: string }) {
 }
 
 // =====================================================
+// =====================================================
+// Rarity backdrop — scattered themed motifs that sit BEHIND the era
+// silhouette but ABOVE the base gradient. Gives each rarity a felt
+// identity beyond the frame color: R is unembellished, SR sparks,
+// SSR golden filigree, UR scattered stars + radial rays.
+// =====================================================
+function RarityBackdrop({
+  rarity,
+  seedN,
+}: {
+  rarity: Rarity;
+  seedN: number;
+}) {
+  if (rarity === "R") return null;
+  const { stroke: line, accent } = RARITY_FRAME[rarity];
+
+  if (rarity === "SR") {
+    // Diagonal "sparks" — small thin lines + tiny dots, low opacity.
+    return (
+      <g opacity="0.55">
+        {Array.from({ length: 9 }).map((_, i) => {
+          const x = 12 + ((seedN + i * 37) % 156);
+          const y = 14 + ((seedN + i * 53) % 220);
+          const len = 4 + ((seedN + i * 11) % 8);
+          return (
+            <line
+              key={i}
+              x1={x}
+              y1={y}
+              x2={x + len}
+              y2={y - len}
+              stroke={accent}
+              strokeWidth="0.6"
+              strokeLinecap="round"
+              opacity={0.4 + ((i * 0.08) % 0.4)}
+            />
+          );
+        })}
+      </g>
+    );
+  }
+
+  if (rarity === "SSR") {
+    // Filigree corner brackets — ornate L-shaped golden swirls. Very
+    // small, sit inside the rarity frame.
+    return (
+      <g opacity="0.7">
+        {[
+          { x: 14, y: 14, sx: 1, sy: 1 },
+          { x: 166, y: 14, sx: -1, sy: 1 },
+          { x: 14, y: 226, sx: 1, sy: -1 },
+          { x: 166, y: 226, sx: -1, sy: -1 },
+        ].map((c, i) => (
+          <g key={i} transform={`translate(${c.x},${c.y}) scale(${c.sx},${c.sy})`}>
+            <path
+              d="M 0 0 Q 6 2 8 6 Q 4 8 2 12 M 8 6 L 14 6 M 2 12 L 2 16"
+              fill="none"
+              stroke={line}
+              strokeWidth="0.8"
+              strokeLinecap="round"
+              opacity="0.85"
+            />
+            <circle cx="8" cy="6" r="1.2" fill={accent} opacity="0.9" />
+          </g>
+        ))}
+        {/* Faint diagonal lattice across the middle band */}
+        {Array.from({ length: 6 }).map((_, i) => (
+          <line
+            key={`l-${i}`}
+            x1={10}
+            y1={70 + i * 18}
+            x2={170}
+            y2={70 + i * 18 - 8}
+            stroke={accent}
+            strokeWidth="0.3"
+            opacity="0.18"
+          />
+        ))}
+      </g>
+    );
+  }
+
+  // UR — radial rays + constellation of small stars
+  return (
+    <g>
+      {/* Centred sun-rays — long thin triangles emerging from a focal
+          point. Low opacity so they don't blot the silhouette. */}
+      <g transform="translate(90, 110)" opacity="0.22">
+        {Array.from({ length: 16 }).map((_, i) => {
+          const a = (i * 22.5 * Math.PI) / 180;
+          return (
+            <polygon
+              key={i}
+              points={`0,0 ${Math.cos(a) * 110},${Math.sin(a) * 110} ${Math.cos(a + 0.04) * 110},${Math.sin(a + 0.04) * 110}`}
+              fill={accent}
+            />
+          );
+        })}
+      </g>
+      {/* Stars scattered across — 4-pointed asterisks of various sizes */}
+      <g opacity="0.85">
+        {Array.from({ length: 14 }).map((_, i) => {
+          const x = 16 + ((seedN + i * 41) % 152);
+          const y = 16 + ((seedN + i * 73) % 210);
+          const sz = 1.4 + ((i * 0.3) % 1.8);
+          return (
+            <g key={i} transform={`translate(${x},${y})`}>
+              <path
+                d={`M 0 -${sz * 2} L 0 ${sz * 2} M -${sz * 2} 0 L ${sz * 2} 0`}
+                stroke={accent}
+                strokeWidth={sz * 0.45}
+                strokeLinecap="round"
+                opacity="0.9"
+              />
+              <circle r={sz * 0.6} fill={accent} />
+            </g>
+          );
+        })}
+      </g>
+    </g>
+  );
+}
+
 // Rarity ornate corner flourishes
 // =====================================================
 function RarityFrame({ rarity }: { rarity: Rarity }) {
@@ -691,6 +814,7 @@ export function CardArt({ cardId, eraId, type, rarity, name, className }: Props)
       <rect width="180" height="240" filter={`url(#noise-${uid})`} opacity="0.6" />
 
       <EraBackdrop era={eraId} seedN={seedN} />
+      <RarityBackdrop rarity={rarity} seedN={seedN} />
       <TypeGlyph type={type} color={rarityColor} />
       <RarityFrame rarity={rarity} />
 

@@ -200,8 +200,26 @@ function CardTileInner({
 
       {/* Overlays */}
       <div className="relative flex items-start justify-between p-2">
-        <span className="font-[family-name:var(--font-mono)] font-bold text-parchment bg-black/60 px-1.5 rounded">
-          {card.cost}
+        {/* Cost gem — rotated square with rarity-tinted glow so it
+            reads as a crystal/relic instead of a flat label. The
+            inner span counter-rotates so the cost number stays
+            upright. Sized to scale with `size` so md/lg cards get
+            a more prominent gem too. */}
+        <span
+          className={cn(
+            "relative flex items-center justify-center rotate-45 bg-gradient-to-br from-[#3A2A6E] to-[#0E1632] border border-gold/70 shadow-[0_0_10px_rgba(212,168,75,0.45),inset_0_0_6px_rgba(212,168,75,0.35)] shrink-0",
+            size === "sm" ? "w-6 h-6" : size === "md" ? "w-7 h-7" : "w-9 h-9",
+          )}
+          aria-label={`費用 ${card.cost}`}
+        >
+          <span
+            className={cn(
+              "-rotate-45 font-[family-name:var(--font-mono)] font-bold text-gold tabular-nums leading-none",
+              size === "sm" ? "text-xs" : size === "md" ? "text-sm" : "text-lg",
+            )}
+          >
+            {card.cost}
+          </span>
         </span>
         <span className={cn("text-xs font-bold tracking-wider drop-shadow-[0_0_6px_rgba(0,0,0,0.8)]", RARITY_TINT[card.rarity])}>
           {card.rarity}
