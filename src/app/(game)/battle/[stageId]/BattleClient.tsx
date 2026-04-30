@@ -27,6 +27,14 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+type StatusStampTone =
+  | "poison"
+  | "blood"
+  | "muted"
+  | "pink"
+  | "gold"
+  | "info";
+
 interface StageData {
   id: string;
   name: string;
@@ -347,6 +355,33 @@ export function BattleClient({
    *  player understands why they can't act for a moment. */
   const [playerConfusedTurn, setPlayerConfusedTurn] = useState(false);
 
+  /** Active status-application stamps. Each stamp pops a big icon over
+   *  the affected side for ~1.1s when a status value increases (poison
+   *  applied, shield gained, vulnerable inflicted, etc.) so the player
+   *  sees WHAT just happened to whom without log-scanning. */
+  const [statusStamps, setStatusStamps] = useState<
+    { id: number; side: "player" | "enemy"; icon: string; label: string; tone: StatusStampTone }[]
+  >([]);
+  // Snapshot of the last seen status values so we can detect increases.
+  // Initialised lazily to the very first battle state — first render
+  // never fires a stamp on its own.
+  const prevStatusRef = useRef({
+    pPoison: battle.player.poison,
+    pVuln: battle.player.vulnerableTurns,
+    pWeak: battle.player.weakTurns,
+    pCurse: battle.player.curseStacks,
+    pCharm: battle.player.charmStacks,
+    pStrength: battle.player.strength,
+    pShield: battle.player.shield,
+    ePoison: battle.enemy.poison,
+    eVuln: battle.enemy.vulnerableTurns,
+    eWeak: battle.enemy.weakTurns,
+    eCurse: battle.enemy.curseStacks,
+    eCharm: battle.enemy.charmStacks,
+    eStrength: battle.enemy.strength,
+    eShield: battle.enemy.shield,
+  });
+
   // Player-side confused turn handler — when phase is player_turn AND
   // the player is confused, show a brief telegraph overlay then auto-end
   // the turn. Mirrors the engine's enemy-turn confusion path so the
@@ -384,6 +419,88 @@ export function BattleClient({
     // because the engine mutates in place and tick() rerenders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battle.phase, battle.turn, mulliganDone]);
+
+  // Status-application stamps. Compares each tracked status field to the
+  // previous snapshot; any field that INCREASED gets a stamp pushed onto
+  // the visible queue with the appropriate icon and tone. Decreases are
+  // ignored (the existing log + status-tray covers ramp-down cases).
+  useEffect(() => {
+    const p = battle.player;
+    const e = battle.enemy;
+    const prev = prevStatusRef.current;
+    const fresh: typeof statusStamps = [];
+    const push = (
+      side: "player" | "enemy",
+      icon: string,
+      label: string,
+      tone: StatusStampTone,
+    ) => {
+      fresh.push({
+        id: Date.now() + Math.random() + fresh.length,
+        side,
+        icon,
+        label,
+        tone,
+      });
+    };
+    if (p.poison > prev.pPoison) push("player", "☠", "中毒", "poison");
+    if (p.vulnerableTurns > prev.pVuln) push("player", "🩸", "破綻", "blood");
+    if (p.weakTurns > prev.pWeak) push("player", "🪶", "虛弱", "muted");
+    if (p.curseStacks > prev.pCurse) push("player", "🕯", "詛咒", "blood");
+    if (p.charmStacks > prev.pCharm) push("player", "💋", "魅惑", "pink");
+    if (p.strength > prev.pStrength) push("player", "💪", "力量", "gold");
+    if (p.shield > prev.pShield) push("player", "🛡", "護盾", "info");
+    if (e.poison > prev.ePoison) push("enemy", "☠", "中毒", "poison");
+    if (e.vulnerableTurns > prev.eVuln) push("enemy", "🩸", "破綻", "blood");
+    if (e.weakTurns > prev.eWeak) push("enemy", "🪶", "虛弱", "muted");
+    if (e.curseStacks > prev.eCurse) push("enemy", "🕯", "詛咒", "blood");
+    if (e.charmStacks > prev.eCharm) push("enemy", "💋", "魅惑", "pink");
+    if (e.strength > prev.eStrength) push("enemy", "💪", "力量", "gold");
+    if (e.shield > prev.eShield) push("enemy", "🛡", "護盾", "info");
+
+    // Always update the snapshot so decreases (turn-tick decay) don't
+    // re-fire stamps later when the value climbs back.
+    prevStatusRef.current = {
+      pPoison: p.poison,
+      pVuln: p.vulnerableTurns,
+      pWeak: p.weakTurns,
+      pCurse: p.curseStacks,
+      pCharm: p.charmStacks,
+      pStrength: p.strength,
+      pShield: p.shield,
+      ePoison: e.poison,
+      eVuln: e.vulnerableTurns,
+      eWeak: e.weakTurns,
+      eCurse: e.curseStacks,
+      eCharm: e.charmStacks,
+      eStrength: e.strength,
+      eShield: e.shield,
+    };
+
+    if (fresh.length === 0) return;
+    setStatusStamps((s) => [...s, ...fresh]);
+    const ids = fresh.map((f) => f.id);
+    scheduleTimer(() => {
+      setStatusStamps((s) => s.filter((x) => !ids.includes(x.id)));
+    }, 1100);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    // Single-value deps so we only re-run when something actually changed.
+    battle.player.poison,
+    battle.player.vulnerableTurns,
+    battle.player.weakTurns,
+    battle.player.curseStacks,
+    battle.player.charmStacks,
+    battle.player.strength,
+    battle.player.shield,
+    battle.enemy.poison,
+    battle.enemy.vulnerableTurns,
+    battle.enemy.weakTurns,
+    battle.enemy.curseStacks,
+    battle.enemy.charmStacks,
+    battle.enemy.strength,
+    battle.enemy.shield,
+  ]);
 
   // Clear any pending attacker selection when the phase leaves player_turn
   // — otherwise a mid-select phase flip (e.g. you deselect-then-end-turn,
@@ -723,6 +840,11 @@ export function BattleClient({
 
       {/* Card-play impact flash (center of arena) */}
       <ImpactFlashLayer flash={impactFlash} />
+
+      {/* Status-application stamps — fire when poison/vulnerable/etc.
+          values increase on either side. Telegraphs WHAT just happened
+          to whom in 1 second, alongside the existing log entry. */}
+      <StatusStampLayer stamps={statusStamps} />
 
       {/* Turn transition banner */}
       <TurnBanner phase={battle.phase} turn={battle.turn} />
@@ -1959,6 +2081,21 @@ function Hand({
   onTap: (idx: number) => void;
 }) {
   const canPlay = phase === "player_turn";
+  // Cards that target the SELF side (player face / friendly board) fly
+  // downward / inward when played, while offensive cards fly upward
+  // toward the enemy. Driven by the card's `type` so the engine doesn't
+  // need to coordinate with the UI: each card knows where it should go.
+  const exitForType = (type: string) => {
+    const towardSelf = type === "heal" || type === "spread" || type === "buff";
+    return {
+      y: towardSelf ? 60 : -200,
+      x: 0,
+      opacity: 0,
+      scale: towardSelf ? 0.6 : 1.2,
+      rotate: towardSelf ? 0 : -4,
+      transition: { duration: 0.45, ease: [0.4, 0, 0.2, 1] as const },
+    };
+  };
   return (
     <div className="relative h-[40vh] max-h-[300px] flex items-end justify-center px-2 pb-3 gap-1 overflow-x-auto">
       <AnimatePresence mode="popLayout">
@@ -1975,12 +2112,7 @@ function Hand({
                 opacity: 1,
                 scale: canPlay && affordable ? 1 : 0.92,
               }}
-              exit={{
-                y: -180,
-                opacity: 0,
-                scale: 1.15,
-                transition: { duration: 0.35, ease: [0.22, 0.97, 0.32, 1.08] },
-              }}
+              exit={exitForType(c.type)}
               transition={{ duration: 0.25, ease: [0.22, 0.97, 0.32, 1.08] }}
               whileHover={{ y: -12, scale: 1.05 }}
               className={cn(
@@ -2184,6 +2316,112 @@ function ImpactFlashLayer({
             </motion.div>
           );
         })()}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/**
+ * Big icon "stamps" that pop on the affected side when a status effect
+ * is freshly applied — poison, vulnerable, curse, weaken, charm, or the
+ * self-buffs strength + shield. Distinct from the in-StatusTray pills
+ * (which are persistent) and the floaters (HP deltas only): a stamp
+ * lasts ~1.1s and animates from invisible → big → fading, anchored to
+ * the affected side's central area.
+ */
+const STAMP_TONE_TINT: Record<StatusStampTone, { ring: string; bg: string; text: string }> = {
+  poison: {
+    ring: "border-emerald-400/80",
+    bg: "bg-emerald-900/45",
+    text: "text-emerald-300",
+  },
+  blood: {
+    ring: "border-blood/80",
+    bg: "bg-blood/30",
+    text: "text-blood",
+  },
+  muted: {
+    ring: "border-parchment/45",
+    bg: "bg-veil/60",
+    text: "text-parchment/85",
+  },
+  pink: {
+    ring: "border-pink-400/80",
+    bg: "bg-pink-800/35",
+    text: "text-pink-200",
+  },
+  gold: {
+    ring: "border-gold/85",
+    bg: "bg-gold/15",
+    text: "text-gold",
+  },
+  info: {
+    ring: "border-info/85",
+    bg: "bg-info/20",
+    text: "text-info",
+  },
+};
+
+function StatusStampLayer({
+  stamps,
+}: {
+  stamps: {
+    id: number;
+    side: "player" | "enemy";
+    icon: string;
+    label: string;
+    tone: StatusStampTone;
+  }[];
+}) {
+  return (
+    <div className="absolute inset-0 pointer-events-none z-30">
+      <AnimatePresence>
+        {stamps.map((s, i) => {
+          const tint = STAMP_TONE_TINT[s.tone];
+          // Stagger same-side stamps so two simultaneous applications
+          // don't overlap into one unreadable smear.
+          const offsetY = (i % 3) * 14 - 14;
+          const baseY = s.side === "enemy" ? "18%" : "60%";
+          return (
+            <motion.div
+              key={s.id}
+              initial={{ opacity: 0, scale: 0.4, y: offsetY }}
+              animate={{
+                opacity: [0, 1, 1, 0],
+                scale: [0.4, 1.25, 1.1, 1.05],
+                y: [offsetY, offsetY - 6, offsetY - 12, offsetY - 24],
+              }}
+              exit={{ opacity: 0 }}
+              transition={{
+                duration: 1.05,
+                ease: "easeOut",
+                times: [0, 0.18, 0.65, 1],
+              }}
+              className="absolute left-1/2 -translate-x-1/2"
+              style={{ top: baseY }}
+            >
+              <div
+                className={cn(
+                  "rounded-full border-2 backdrop-blur-md px-4 py-2.5 flex items-center gap-2 shadow-2xl",
+                  tint.ring,
+                  tint.bg,
+                )}
+              >
+                <span className="text-3xl leading-none" aria-hidden>
+                  {s.icon}
+                </span>
+                <span
+                  className={cn(
+                    "display-serif text-lg tracking-widest",
+                    tint.text,
+                  )}
+                >
+                  {s.label}
+                </span>
+              </div>
+            </motion.div>
+          );
+        })}
       </AnimatePresence>
     </div>
   );
