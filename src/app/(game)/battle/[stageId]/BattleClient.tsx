@@ -1,13 +1,13 @@
 "use client";
 
 import { EraArenaBackdrop } from "@/components/fx/EraArenaBackdrop";
-import { CardDetailModal } from "@/components/game/CardDetailModal";
 import { CardTile } from "@/components/game/CardTile";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { previewEnemyIntent, runEnemyStep, type EnemyIntent } from "@/lib/battle/ai";
 import { getBossOpener } from "@/lib/battle/boss-lines";
+import { cardArtUrl } from "@/lib/card-art";
 import { getAbilitiesFor, getAbilityDescriptionsForCard } from "@/lib/battle/card-abilities";
 import { signBattleResult } from "@/lib/battle/client-sig";
 import {
@@ -194,6 +194,23 @@ export function BattleClient({
 
   const tick = () => setBattle((b) => ({ ...b }));
 
+  /**
+   * Schedule a timer that auto-cleans itself from sleepTimersRef when it
+   * fires. Use this everywhere setTimeout is paired with the ref so the
+   * Set doesn't accumulate handles across a long battle (40-turn fights
+   * × ~10 timers each = 400 stale entries by end-game otherwise). The
+   * unmount path still iterates the ref to clearTimeout any pending
+   * timers — only completed ones are auto-pruned.
+   */
+  const scheduleTimer = (fn: () => void, ms: number) => {
+    const t: ReturnType<typeof setTimeout> = setTimeout(() => {
+      sleepTimersRef.current.delete(t);
+      fn();
+    }, ms);
+    sleepTimersRef.current.add(t);
+    return t;
+  };
+
   // Log auto-scroll + react to newly-appended structured events:
   //  · enemy card plays → impact flash
   //  · minion_attack markers → attacker slide animation
@@ -221,14 +238,13 @@ export function BattleClient({
         if (uid) {
           const key = Date.now() + Math.random();
           setTriggerFlashes((f) => ({ ...f, [uid]: key }));
-          const t = setTimeout(() => {
+          scheduleTimer(() => {
             setTriggerFlashes((f) => {
               if (f[uid] !== key) return f;
               const { [uid]: _omit, ...rest } = f;
               return rest;
             });
           }, 650);
-          sleepTimersRef.current.add(t);
         }
       } else if (entry.kind === "play" && entry.side === "enemy") {
         // Enemy card-play impact flash (non-attack plays only — text starts
@@ -237,15 +253,20 @@ export function BattleClient({
         if (m) triggerImpact(m[1], "enemy");
       }
     }
+    // SAFE: keyed on log length only. The body reads battle.log[i] for
+    // newly-appended entries (slice(prevLen)), but we DON'T want to re-run
+    // on every state mutation — log entries are append-only, so length is
+    // a sufficient change-detection signal. triggerImpact / setTriggerFlashes
+    // are stable closures over component-scope state setters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battle.log.length]);
 
   // Clear attack animation shortly after it fires so the attacker snaps back.
   useEffect(() => {
     if (!attackAnim) return;
-    const t = setTimeout(() => setAttackAnim(null), 380);
-    sleepTimersRef.current.add(t);
+    const t = scheduleTimer(() => setAttackAnim(null), 380);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attackAnim]);
 
   // Recompute enemy intent whenever player is up. Skip during enemy turn
@@ -260,6 +281,11 @@ export function BattleClient({
     } else if (battle.phase === "won" || battle.phase === "lost") {
       setEnemyIntent(null);
     }
+    // SAFE: previewEnemyIntent reads the whole `battle` object, but adding
+    // `battle` to deps would re-run on every tick(), thrashing the
+    // expensive cloneState simulation 5-10x per turn. The deps list below
+    // captures every field whose change can MEANINGFULLY shift the
+    // forecast (turn rolls, enemy hp/board takes a hit, player hp moves).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     battle.phase,
@@ -327,11 +353,11 @@ export function BattleClient({
     if (playerConfusedTurn) return;
     if (!mulliganDone) return; // wait until the player has chosen a hand
     setPlayerConfusedTurn(true);
-    const t1 = setTimeout(() => {
+    const t1 = scheduleTimer(() => {
       consumeConfusion(battle, "player");
       tick();
     }, 1100);
-    const t2 = setTimeout(() => {
+    const t2 = scheduleTimer(() => {
       // Auto-end after the consume so HP-tick shields etc. all flush.
       if (battle.phase === "player_turn") {
         endPlayerTurn(battle);
@@ -339,12 +365,16 @@ export function BattleClient({
       }
       setPlayerConfusedTurn(false);
     }, 1800);
-    sleepTimersRef.current.add(t1);
-    sleepTimersRef.current.add(t2);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
     };
+    // SAFE: should fire EXACTLY ONCE per player_turn that happens to be
+    // confused. Phase + turn pin it to a unique turn; mulliganDone delays
+    // until the player has chosen their hand. Adding `battle` would
+    // re-fire on every mutation mid-skip, breaking the timer chain.
+    // The body reads battle.* fields current at fire time, which is fine
+    // because the engine mutates in place and tick() rerenders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battle.phase, battle.turn, mulliganDone]);
 
@@ -381,8 +411,7 @@ export function BattleClient({
     let cancelled = false;
     const sleep = (ms: number) =>
       new Promise<void>((r) => {
-        const t = setTimeout(r, ms);
-        sleepTimersRef.current.add(t);
+        scheduleTimer(r, ms);
       });
 
     const runAsync = async () => {
@@ -462,6 +491,12 @@ export function BattleClient({
       for (const t of sleepTimersRef.current) clearTimeout(t);
       sleepTimersRef.current.clear();
     };
+    // SAFE: the runner is a self-contained async loop that drives the
+    // entire enemy turn — re-running mid-flight would spawn a second
+    // parallel runner. The enemyRunningRef guard + phase check at top of
+    // every iteration are how we stay single-instance. Body reads
+    // battle.* at each step (engine mutates in place, runner doesn't
+    // close over stale snapshots).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battle.phase]);
 
@@ -511,6 +546,12 @@ export function BattleClient({
         push("結算失敗(無連線)", "danger");
       }
     })();
+    // SAFE: must fire EXACTLY ONCE per battle. The reportSent guard at
+    // the top of the body provides idempotence within a session; deps
+    // are the minimal set that needs to wake it up — phase flipping to
+    // won/lost and reportSent's own toggle to detect re-runs. Adding
+    // battle.* would resend on every minor mutation; adding push/ticket
+    // identities would resend if the toast factory ever changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battle.phase, reportSent]);
 
@@ -523,6 +564,11 @@ export function BattleClient({
     const dest = tutorialMode ? "/home" : `/era/${stage.eraId}`;
     const t = setTimeout(() => router.push(dest), AUTO_LEAVE_MS);
     return () => clearTimeout(t);
+    // SAFE: schedules a one-shot navigation when the battle ends. router,
+    // stage.eraId, nextStage, tutorialMode are all stable per page mount
+    // (stage props don't change for the lifetime of a battle). Re-running
+    // because router identity changed (which it shouldn't) would just
+    // re-arm an identical timer — harmless but pointless.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battle.phase]);
 
@@ -1142,7 +1188,7 @@ function CardDetailModalContent({ card }: { card: BattleCard }) {
 }
 
 function InlineCardDetail({ card }: { card: BattleCard }) {
-  const artUrl = card.imageUrl || (card.hasImage ? `/api/cards/${card.id}/art` : null);
+  const artUrl = cardArtUrl(card);
   const typeMap: Record<string, { label: string; emoji: string; desc: string }> = {
     attack: { label: "攻擊", emoji: "⚔️", desc: "削減對手信徒" },
     spread: { label: "傳播", emoji: "📢", desc: "穩定增加自己信徒 + 抽 1 張" },

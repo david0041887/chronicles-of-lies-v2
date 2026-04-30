@@ -3,6 +3,7 @@
 import { CardArt } from "@/components/game/CardArt";
 import { Modal } from "@/components/ui/Modal";
 import { getAbilityDescriptionsForCard } from "@/lib/battle/card-abilities";
+import { cardArtUrl } from "@/lib/card-art";
 import { ERAS } from "@/lib/constants/eras";
 import { cn } from "@/lib/utils";
 import type { Rarity } from "@prisma/client";
@@ -69,7 +70,7 @@ export function CardDetailModal({ card, ownedCount, onClose }: Props) {
   if (!card) return null;
   const era = ERAS.find((e) => e.id === card.eraId);
   const typeInfo = TYPE_LABEL[card.type] ?? { label: card.type, emoji: "?", desc: "" };
-  const artUrl = card.imageUrl || (card.hasImage ? `/api/cards/${card.id}/art` : null);
+  const artUrl = cardArtUrl(card);
 
   return (
     <Modal open={true} onClose={onClose} className="max-w-3xl">

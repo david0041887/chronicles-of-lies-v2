@@ -2,9 +2,11 @@
 
 import { cn } from "@/lib/utils";
 import { getAbilityDescriptionsForCard } from "@/lib/battle/card-abilities";
+import { cardArtUrl } from "@/lib/card-art";
 import { keywordTitle } from "@/lib/keyword-meta";
 import { motion, useMotionTemplate, useMotionValue, useSpring } from "framer-motion";
 import type { Rarity } from "@prisma/client";
+import { memo } from "react";
 import { CardArt } from "./CardArt";
 
 interface Card {
@@ -76,7 +78,7 @@ const SIZES = {
   lg: "w-56 text-base",
 };
 
-export function CardTile({
+function CardTileInner({
   card,
   ownedCount,
   revealed = true,
@@ -151,7 +153,7 @@ export function CardTile({
     return { icon, trig, desc: rest.join(":").trim(), all: lines };
   })();
 
-  const artUrl = card.imageUrl || (card.hasImage ? `/api/cards/${card.id}/art` : null);
+  const artUrl = cardArtUrl(card);
   const artLayer = artUrl ? (
     <img
       src={artUrl}
@@ -279,3 +281,25 @@ export function CardTile({
     </Wrapper>
   );
 }
+
+/**
+ * Memoised export. Custom equality skips the `onClick` prop because every
+ * caller passes a fresh inline closure (`() => setSelected(c)` etc.) per
+ * render — comparing function identity would defeat the memo. The card
+ * itself, owned count, rarity, and visibility flags are what actually
+ * drive what's painted; if those don't change, the tile is identical.
+ *
+ * If a future caller does want a click-handler swap to re-render the
+ * tile (e.g. switching from "open detail" to "add to deck" mode), pass
+ * a different `card` reference or a sentinel via the `tilt`/`size` prop.
+ */
+export const CardTile = memo(CardTileInner, (prev, next) => {
+  return (
+    prev.card === next.card &&
+    prev.ownedCount === next.ownedCount &&
+    prev.revealed === next.revealed &&
+    prev.size === next.size &&
+    prev.tilt === next.tilt &&
+    prev.isNew === next.isNew
+  );
+});
