@@ -2,6 +2,7 @@ import { OrnamentDivider } from "@/components/fx/OrnamentDivider";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ERAS } from "@/lib/constants/eras";
 import { requireOnboarded } from "@/lib/auth-helpers";
+import { readTowerState } from "@/lib/dungeon/service";
 import { prisma } from "@/lib/prisma";
 import { levelProgress, MILESTONES } from "@/lib/weaver";
 import Link from "next/link";
@@ -26,6 +27,7 @@ export default async function ProfilePage() {
     bossesCleared,
     totalStageClears,
     eraProgress,
+    towerRun,
   ] = await Promise.all([
     prisma.ownedCard
       .groupBy({ by: ["cardId"], where: { userId: user.id } })
@@ -51,7 +53,21 @@ export default async function ProfilePage() {
         highestStage: true,
       },
     }),
+    prisma.dungeonRun.findUnique({
+      where: { userId_kind: { userId: user.id, kind: "tower" } },
+    }),
   ]);
+
+  // Tower stats are optional — players who haven't entered yet skip
+  // the section entirely so the profile doesn't show a row of zeroes.
+  const tower = towerRun
+    ? {
+        currentLevel: towerRun.level,
+        highestLevel: towerRun.highestLevel,
+        totalClears: towerRun.totalClears,
+        towerTokens: readTowerState(towerRun).towerTokens,
+      }
+    : null;
 
   const lp = levelProgress(user.totalBelievers);
   const winRate =
@@ -229,6 +245,58 @@ export default async function ProfilePage() {
           );
         })}
       </div>
+
+      {/* Tower progress — only renders if the player has entered the
+          tower at least once, so first-time players don't see a panel
+          full of zeroes. */}
+      {tower && (
+        <>
+          <SectionTitle>幽音塔</SectionTitle>
+          <Link
+            href="/dungeon/tower"
+            className="block rounded-xl border border-gold/30 bg-gradient-to-br from-veil/60 to-[#1a0830]/60 p-4 mb-6 hover:border-gold/50 transition-colors"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-parchment/55 tracking-widest font-[family-name:var(--font-cinzel)]">
+                Tower of Whispers
+              </span>
+              <span className="text-[10px] text-gold/70 tracking-wider">
+                點擊進入 →
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Stat
+                label="目前層數"
+                value={tower.currentLevel === 0 ? "—" : tower.currentLevel}
+                hint={tower.currentLevel === 0 ? "下次開始第 1 層" : undefined}
+              />
+              <Stat
+                label="最高紀錄"
+                value={tower.highestLevel}
+                tone="legend"
+                hint={
+                  tower.highestLevel >= 5
+                    ? `第 ${Math.floor(tower.highestLevel / 5)} 段征服`
+                    : undefined
+                }
+              />
+              <Stat
+                label="累計通過"
+                value={tower.totalClears}
+                hint="所有層數總計"
+              />
+              <Stat
+                label="🪙 塔幣"
+                value={tower.towerTokens}
+                tone={tower.towerTokens > 0 ? "info" : "neutral"}
+                hint={
+                  tower.towerTokens > 0 ? "可在塔內兌換" : "守關 BOSS 掉落"
+                }
+              />
+            </div>
+          </Link>
+        </>
+      )}
 
       {/* Milestones progress */}
       <SectionTitle>里程碑</SectionTitle>

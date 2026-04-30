@@ -7,6 +7,7 @@ import {
   TOWER_FLOORS_PER_WING,
   planTowerFloor,
 } from "@/lib/dungeon/tower";
+import { TOWER_SHOP_OFFERS } from "@/lib/dungeon/tower-shop";
 import { TowerHubClient } from "./TowerHubClient";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +49,14 @@ export default async function TowerHubPage() {
           modBadges: modBadges(upcoming.enemyMods),
           reward: upcoming.rewardPreview,
         }}
+        shopOffers={TOWER_SHOP_OFFERS.map((o) => ({
+          id: o.id,
+          cost: o.cost,
+          title: o.title,
+          desc: o.desc,
+          emoji: o.emoji,
+          rewards: o.rewards,
+        }))}
       />
 
       <OrnamentDivider />

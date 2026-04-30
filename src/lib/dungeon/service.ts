@@ -135,7 +135,43 @@ export function readTowerState(run: DungeonRun) {
   return { towerTokens: readTokensFromState(run.state) };
 }
 
-// TODO(dungeon): tower-token spend mechanism. When designed, add a new
-// service helper (e.g. spendTowerTokens(userId, n, reason)) that runs
-// inside its own $transaction, deducts via jsonb subtraction, and logs
-// the audit trail. Don't promote tokens to a User column.
+/** Spend tower tokens atomically. Used by /api/dungeon/tower/redeem
+ *  to convert tokens into other currencies. Returns the resulting
+ *  balance so the UI can update. Throws if balance < cost (the route
+ *  catches and returns 400). */
+export async function spendTowerTokens(
+  userId: string,
+  cost: number,
+  rewards: { essence?: number; crystals?: number; faith?: number },
+): Promise<{ remainingTokens: number }> {
+  if (cost <= 0) throw new Error("INVALID_COST");
+
+  return prisma.$transaction(async (tx) => {
+    const run = await tx.dungeonRun.findUnique({
+      where: { userId_kind: { userId, kind: "tower" } },
+    });
+    const balance = readTokensFromState(run?.state);
+    if (balance < cost) {
+      // Caller distinguishes by message text since action results
+      // surface this to the user verbatim.
+      throw new Error("INSUFFICIENT_TOKENS");
+    }
+    const remaining = balance - cost;
+
+    await tx.dungeonRun.update({
+      where: { userId_kind: { userId, kind: "tower" } },
+      data: { state: { towerTokens: remaining } },
+    });
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        ...(rewards.essence ? { essence: { increment: rewards.essence } } : {}),
+        ...(rewards.crystals
+          ? { crystals: { increment: rewards.crystals } }
+          : {}),
+        ...(rewards.faith ? { faith: { increment: rewards.faith } } : {}),
+      },
+    });
+    return { remainingTokens: remaining };
+  });
+}

@@ -32,6 +32,15 @@ interface NextFloor {
   };
 }
 
+interface ShopOffer {
+  id: string;
+  cost: number;
+  title: string;
+  desc: string;
+  emoji: string;
+  rewards: { essence?: number; crystals?: number; faith?: number };
+}
+
 const TINT_CLS: Record<string, string> = {
   info: "border-info/40 text-info",
   gold: "border-gold/40 text-gold",
@@ -41,13 +50,20 @@ const TINT_CLS: Record<string, string> = {
 export function TowerHubClient({
   run,
   nextFloor,
+  shopOffers,
 }: {
   run: RunSummary;
   nextFloor: NextFloor;
+  shopOffers: ShopOffer[];
 }) {
   const { push } = useToast();
   const [confirmAbandon, setConfirmAbandon] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Mirror the server-side token balance locally so redeeming reflects
+  // immediately without a router refresh. Initialised from the SSR run
+  // and bumped on each successful redeem response.
+  const [liveTokens, setLiveTokens] = useState<number>(run.towerTokens);
+  const [redeeming, setRedeeming] = useState<string | null>(null);
 
   // Wing progress: floors cleared within the current wing. The naive
   // `level % floorsPerWing` returns 0 right after clearing a wing boss
@@ -62,6 +78,36 @@ export function TowerHubClient({
         ? run.floorsPerWing
         : run.currentLevel % run.floorsPerWing;
   const isFirstClear = nextFloor.floor > run.highestLevel;
+
+  const onRedeem = async (offerId: string, cost: number) => {
+    if (liveTokens < cost) {
+      push("塔幣不足", "warning");
+      return;
+    }
+    setRedeeming(offerId);
+    try {
+      const r = await fetch("/api/dungeon/tower/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ offerId }),
+      });
+      const body = await r.json();
+      if (!r.ok || !body?.ok) {
+        push(body?.error ?? "兌換失敗", "danger");
+        return;
+      }
+      setLiveTokens(body.remainingTokens);
+      const parts: string[] = [];
+      if (body.rewards.essence) parts.push(`✨ ${body.rewards.essence}`);
+      if (body.rewards.crystals) parts.push(`💎 ${body.rewards.crystals}`);
+      if (body.rewards.faith) parts.push(`🕯️ ${body.rewards.faith}`);
+      push(`兌換成功 ${parts.join(" + ")}`, "success");
+    } catch {
+      push("兌換失敗(無連線)", "danger");
+    } finally {
+      setRedeeming(null);
+    }
+  };
 
   const onAbandon = async () => {
     setBusy(true);
@@ -126,9 +172,9 @@ export function TowerHubClient({
           </span>
         </div>
 
-        {run.towerTokens > 0 && (
+        {liveTokens > 0 && (
           <div className="text-[11px] text-gold/80 tracking-wide">
-            🪙 持有塔幣 ×{run.towerTokens}
+            🪙 持有塔幣 ×{liveTokens}
           </div>
         )}
       </section>
@@ -234,6 +280,60 @@ export function TowerHubClient({
           </Link>
         </div>
       </section>
+
+      {/* Tower-token exchange. Hidden until the player has at least one
+          token so a brand-new player isn't shown an empty shop. */}
+      {liveTokens > 0 && shopOffers.length > 0 && (
+        <>
+          <h3 className="display-serif text-xs text-parchment/60 tracking-[0.3em] uppercase mb-3 mt-2 font-[family-name:var(--font-cinzel)]">
+            塔幣兌換
+          </h3>
+          <section className="rounded-2xl border border-gold/30 bg-veil/40 p-4 mb-6">
+            <div className="text-[11px] text-parchment/60 mb-3 leading-relaxed">
+              用守關獲得的塔幣兌換素材。塔幣保留至下次撤離後也不會消失。
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {shopOffers.map((offer) => {
+                const canAfford = liveTokens >= offer.cost;
+                const isThisRedeeming = redeeming === offer.id;
+                const rewardParts: string[] = [];
+                if (offer.rewards.essence) rewardParts.push(`✨ ${offer.rewards.essence}`);
+                if (offer.rewards.crystals) rewardParts.push(`💎 ${offer.rewards.crystals}`);
+                if (offer.rewards.faith) rewardParts.push(`🕯️ ${offer.rewards.faith}`);
+                return (
+                  <button
+                    key={offer.id}
+                    onClick={() => onRedeem(offer.id, offer.cost)}
+                    disabled={!canAfford || isThisRedeeming || redeeming !== null}
+                    className={
+                      "text-left rounded-lg border p-3 transition-all min-h-[64px] " +
+                      (canAfford
+                        ? "border-gold/40 bg-black/30 hover:bg-gold/10 hover:-translate-y-0.5"
+                        : "border-parchment/10 bg-black/20 opacity-50 cursor-not-allowed")
+                    }
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-sm text-parchment flex items-center gap-1.5">
+                        <span aria-hidden>{offer.emoji}</span>
+                        <span>{offer.title}</span>
+                      </span>
+                      <span className="text-[11px] text-gold tabular-nums shrink-0">
+                        🪙 ×{offer.cost}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-parchment/55 leading-snug mb-1.5">
+                      {offer.desc}
+                    </div>
+                    <div className="text-[11px] text-parchment/85 tabular-nums">
+                      {isThisRedeeming ? "兌換中…" : `→ ${rewardParts.join(" + ")}`}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </>
+      )}
 
       <Modal
         open={confirmAbandon}
