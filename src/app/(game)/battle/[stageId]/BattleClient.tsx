@@ -207,6 +207,13 @@ export function BattleClient({
     enemy: battle.enemy.hp,
   });
 
+  /** Set of player-hand uids that just entered the hand. Drives a brief
+   *  gold halo on those cards so the player notices what was drawn. */
+  const [freshHandUids, setFreshHandUids] = useState<Set<string>>(new Set());
+  const prevHandUidsRef = useRef<Set<string>>(
+    new Set(battle.player.hand.map((c) => c.uid)),
+  );
+
   const tick = () => setBattle((b) => ({ ...b }));
 
   /**
@@ -419,6 +426,34 @@ export function BattleClient({
     // because the engine mutates in place and tick() rerenders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battle.phase, battle.turn, mulliganDone]);
+
+  // Detect newly-drawn cards (uids in current hand that weren't in the
+  // previous snapshot) and mark them fresh so the Hand renders a brief
+  // gold halo. Each fresh tag clears after 1.5s so the highlight fades
+  // naturally without crowding the visual when many cards arrive at
+  // once (e.g., post-mulligan opening hand).
+  useEffect(() => {
+    const currentUids = new Set(battle.player.hand.map((c) => c.uid));
+    const fresh: string[] = [];
+    for (const uid of currentUids) {
+      if (!prevHandUidsRef.current.has(uid)) fresh.push(uid);
+    }
+    prevHandUidsRef.current = currentUids;
+    if (fresh.length === 0) return;
+    setFreshHandUids((s) => {
+      const next = new Set(s);
+      for (const uid of fresh) next.add(uid);
+      return next;
+    });
+    scheduleTimer(() => {
+      setFreshHandUids((s) => {
+        const next = new Set(s);
+        for (const uid of fresh) next.delete(uid);
+        return next;
+      });
+    }, 1500);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [battle.player.hand]);
 
   // Status-application stamps. Compares each tracked status field to the
   // previous snapshot; any field that INCREASED gets a stamp pushed onto
@@ -1164,6 +1199,7 @@ export function BattleClient({
           mana={battle.player.mana}
           phase={battle.phase}
           combosThisTurn={battle.player.combosThisTurn}
+          freshUids={freshHandUids}
           onTap={openPreview}
         />
       </div>
@@ -2011,8 +2047,19 @@ function StatusTray({
         title="牌堆 / 棄牌堆"
         tone="muted"
       />
+      {/* Hand pill — shows current count out of cap. Goes red at the
+          cap (5/5) because the next draw will burn silently. */}
       {side.hand.length >= 0 && (
-        <StatusPill icon="🎴" value={`${side.hand.length}`} title="手牌" tone="muted" />
+        <StatusPill
+          icon="🎴"
+          value={`${side.hand.length}/5`}
+          title={
+            side.hand.length >= 5
+              ? "手牌已滿 — 下次抽牌會消失"
+              : "手牌"
+          }
+          tone={side.hand.length >= 5 ? "danger" : "muted"}
+        />
       )}
       {side.shield > 0 && (
         <PulsePillWrapper bumpKey={shieldKey} active={animate}>
@@ -2148,6 +2195,24 @@ function PlayerHUD({
   enemyThinking: boolean;
   onEndTurn: () => void;
 }) {
+  // "Idle" detection — player has nothing meaningful left to do this
+  // turn, so the End-Turn button pulses to suggest moving on. Idle =
+  //   · NO card in hand is affordable (or hand is empty), AND
+  //   · NO minion can attack (all summoned this turn or out of swings)
+  // Only triggers during player_turn (button enabled) so the pulse
+  // never fires while the engine is still resolving.
+  const idle = useMemo(() => {
+    if (phase !== "player_turn") return false;
+    if (enemyThinking) return false;
+    const anyAffordable = player.hand.some((c) => c.cost <= player.mana);
+    if (anyAffordable) return false;
+    const anyAttacker = player.board.some(
+      (m) => !m.summonedThisTurn && m.attacksRemaining > 0,
+    );
+    if (anyAttacker) return false;
+    return true;
+  }, [phase, enemyThinking, player.hand, player.mana, player.board]);
+
   return (
     <div className="relative px-4 pt-2 pb-1 border-t border-parchment/10 bg-veil/50 backdrop-blur">
       <div className="flex items-center justify-between gap-3">
@@ -2160,15 +2225,36 @@ function PlayerHUD({
           <HpBar value={player.hp} max={player.hpMax} color="#D4A84B" />
           <StatusTray side={player} showBuffNext showEcho animate />
         </div>
-        <Button
-          variant={phase === "player_turn" ? "primary" : "ghost"}
-          size="md"
-          disabled={phase !== "player_turn" || enemyThinking}
-          onClick={onEndTurn}
-          className="min-h-[44px] shrink-0"
+        <motion.div
+          animate={
+            idle
+              ? {
+                  scale: [1, 1.06, 1],
+                  filter: [
+                    "drop-shadow(0 0 0 transparent)",
+                    "drop-shadow(0 0 12px rgba(212,168,75,0.85))",
+                    "drop-shadow(0 0 0 transparent)",
+                  ],
+                }
+              : { scale: 1, filter: "drop-shadow(0 0 0 transparent)" }
+          }
+          transition={
+            idle
+              ? { duration: 1.6, repeat: Infinity, ease: "easeInOut" }
+              : { duration: 0.2 }
+          }
+          className="shrink-0"
         >
-          {phase === "enemy_turn" ? "敵回合…" : "結束回合"}
-        </Button>
+          <Button
+            variant={phase === "player_turn" ? "primary" : "ghost"}
+            size="md"
+            disabled={phase !== "player_turn" || enemyThinking}
+            onClick={onEndTurn}
+            className="min-h-[44px]"
+          >
+            {phase === "enemy_turn" ? "敵回合…" : "結束回合"}
+          </Button>
+        </motion.div>
       </div>
     </div>
   );
@@ -2179,6 +2265,7 @@ function Hand({
   mana,
   phase,
   combosThisTurn,
+  freshUids,
   onTap,
 }: {
   hand: BattleCard[];
@@ -2187,6 +2274,9 @@ function Hand({
   /** Drives the combo-card readiness glow — when ≥ 2 the next combo
    *  card in hand pays out at ×1.5, so we light up combo cards extra. */
   combosThisTurn: number;
+  /** Card uids that just entered the hand. Each gets a 1.5s gold
+   *  halo so the player notices what was drawn. */
+  freshUids?: Set<string>;
   onTap: (idx: number) => void;
 }) {
   const canPlay = phase === "player_turn";
@@ -2217,6 +2307,11 @@ function Hand({
           // "this is the moment" without having to remember rules.
           const comboReady =
             comboArmed && c.keywords.includes("combo") && affordable && canPlay;
+          // Freshly-drawn card highlight: 1.5s gold halo when the
+          // card was just dealt this tick, so the player sees what
+          // came in. Subordinate to comboReady's emerald halo if both
+          // are true (combo signal carries more strategic meaning).
+          const isFresh = freshUids?.has(c.uid) ?? false;
           return (
             <motion.button
               key={c.uid}
@@ -2250,6 +2345,23 @@ function Hand({
                     boxShadow:
                       "0 0 14px 4px rgba(80,220,140,0.55), inset 0 0 10px rgba(140,255,180,0.35)",
                     border: "1px solid rgba(80,220,140,0.65)",
+                  }}
+                />
+              )}
+              {/* Fresh-draw halo — gold one-shot fade matching the
+                  fresh-tag lifetime. Skipped when comboReady wins
+                  the visual since both share the same anchor. */}
+              {isFresh && !comboReady && (
+                <motion.span
+                  aria-hidden
+                  initial={{ opacity: 0.95, scale: 1.04 }}
+                  animate={{ opacity: 0, scale: 1 }}
+                  transition={{ duration: 1.4, ease: "easeOut" }}
+                  className="absolute -inset-1 rounded-xl pointer-events-none"
+                  style={{
+                    boxShadow:
+                      "0 0 18px 6px rgba(212,168,75,0.7), inset 0 0 12px rgba(255,230,160,0.5)",
+                    border: "1px solid rgba(212,168,75,0.7)",
                   }}
                 />
               )}
@@ -2664,8 +2776,32 @@ function FloaterLayer({
 
 function HpBar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
+  // Critical zone: ≤ 25% triggers a slow blood-red border pulse so the
+  // player feels the urgency without needing to read the number. Gates
+  // on value > 0 so the dead-state result modal isn't competing with
+  // a stress signal.
+  const critical = value > 0 && value / max <= 0.25;
   return (
-    <div className="relative h-3 rounded-full bg-black/40 border border-parchment/10 overflow-hidden">
+    <motion.div
+      className="relative h-3 rounded-full bg-black/40 overflow-hidden border"
+      style={{ borderColor: critical ? "rgba(190,40,40,0.85)" : "rgba(248,240,224,0.1)" }}
+      animate={
+        critical
+          ? {
+              boxShadow: [
+                "0 0 0 0 rgba(190,40,40,0)",
+                "0 0 12px 2px rgba(190,40,40,0.7)",
+                "0 0 0 0 rgba(190,40,40,0)",
+              ],
+            }
+          : { boxShadow: "0 0 0 0 rgba(190,40,40,0)" }
+      }
+      transition={
+        critical
+          ? { duration: 1.4, repeat: Infinity, ease: "easeInOut" }
+          : { duration: 0.2 }
+      }
+    >
       <motion.div
         className="absolute inset-y-0 left-0"
         style={{
@@ -2678,7 +2814,7 @@ function HpBar({ value, max, color }: { value: number; max: number; color: strin
       <div className="relative flex items-center justify-center text-[10px] font-[family-name:var(--font-mono)] tabular-nums text-parchment h-full drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]">
         {value} / {max}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
