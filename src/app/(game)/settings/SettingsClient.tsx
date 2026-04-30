@@ -15,6 +15,8 @@ const LOCALE = "zh" as const;
 const VOLUME_KEY = "chronicles.volume";
 const MUTED_KEY = "chronicles.muted";
 const BGM_ENABLED_KEY = "chronicles.bgm_enabled";
+const REDUCE_MOTION_KEY = "chronicles.reduceMotion";
+const HIGH_CONTRAST_KEY = "chronicles.highContrast";
 
 interface Props {
   user: {
@@ -32,6 +34,9 @@ export function SettingsClient({ user }: Props) {
   const [volume, setVolume] = useState(70);
   const [muted, setMuted] = useState(false);
   const [bgmEnabled, setBgmEnabled] = useState(true);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [highContrast, setHighContrast] = useState(false);
+  const [osPrefersReducedMotion, setOsPrefersReducedMotion] = useState(false);
   const [binding, setBinding] = useState(false);
 
   useEffect(() => {
@@ -40,6 +45,13 @@ export function SettingsClient({ user }: Props) {
     setMuted(localStorage.getItem(MUTED_KEY) === "1");
     const e = localStorage.getItem(BGM_ENABLED_KEY);
     setBgmEnabled(e === null ? true : e === "1");
+    setReduceMotion(localStorage.getItem(REDUCE_MOTION_KEY) === "1");
+    setHighContrast(localStorage.getItem(HIGH_CONTRAST_KEY) === "1");
+    if (typeof window !== "undefined" && window.matchMedia) {
+      setOsPrefersReducedMotion(
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+      );
+    }
   }, []);
 
   const onVolumeChange = (v: number) => {
@@ -60,12 +72,28 @@ export function SettingsClient({ user }: Props) {
     window.dispatchEvent(new CustomEvent("chronicles:bgm", { detail: { enabled } }));
   };
 
+  const onReduceMotionChange = (on: boolean) => {
+    setReduceMotion(on);
+    localStorage.setItem(REDUCE_MOTION_KEY, on ? "1" : "0");
+    // SettingsBoot listens for this event and re-stamps the html data
+    // attribute so the change applies instantly without a full reload.
+    window.dispatchEvent(new CustomEvent("chronicles:settings-changed"));
+  };
+
+  const onHighContrastChange = (on: boolean) => {
+    setHighContrast(on);
+    localStorage.setItem(HIGH_CONTRAST_KEY, on ? "1" : "0");
+    window.dispatchEvent(new CustomEvent("chronicles:settings-changed"));
+  };
+
   const onClearLocal = () => {
     if (!confirm(t("settings.clearConfirm", locale))) return;
     const keys = [
       VOLUME_KEY,
       MUTED_KEY,
       BGM_ENABLED_KEY,
+      REDUCE_MOTION_KEY,
+      HIGH_CONTRAST_KEY,
       "chronicles.locale",
       "chronicles.deviceId",
     ];
@@ -74,6 +102,9 @@ export function SettingsClient({ user }: Props) {
     setVolume(70);
     setMuted(false);
     setBgmEnabled(true);
+    setReduceMotion(false);
+    setHighContrast(false);
+    window.dispatchEvent(new CustomEvent("chronicles:settings-changed"));
   };
 
   const onBind = async (e: FormEvent<HTMLFormElement>) => {
@@ -185,6 +216,49 @@ export function SettingsClient({ user }: Props) {
         <p className="text-[11px] text-parchment/40 mt-3">
           進入時代會自動切換不同 BGM,首次互動後(點一下任意處)自動啟動。
         </p>
+      </section>
+
+      {/* Accessibility / display */}
+      <section className="rounded-xl border border-parchment/10 bg-veil/40 p-5">
+        <h2 className="text-xs text-parchment/50 tracking-widest mb-3 font-[family-name:var(--font-cinzel)]">
+          無障礙
+        </h2>
+
+        <label className="flex items-start gap-3 cursor-pointer mb-4">
+          <input
+            type="checkbox"
+            checked={reduceMotion}
+            onChange={(e) => onReduceMotionChange(e.target.checked)}
+            className="accent-gold mt-1 shrink-0"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm text-parchment">減少動畫</div>
+            <p className="text-[11px] text-parchment/55 leading-relaxed mt-0.5">
+              關閉頁面背景脈動、戰場粒子、旗幟掃描等持續性動畫,降低暈眩
+              與處理器負擔。事件動畫(出牌、戰鬥反饋)仍會保留。
+            </p>
+            {osPrefersReducedMotion && !reduceMotion && (
+              <p className="text-[10px] text-info/80 tracking-wide mt-1">
+                💡 你的系統已要求減少動畫,可勾選上方強制套用。
+              </p>
+            )}
+          </div>
+        </label>
+
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={highContrast}
+            onChange={(e) => onHighContrastChange(e.target.checked)}
+            className="accent-gold mt-1 shrink-0"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm text-parchment">高對比模式</div>
+            <p className="text-[11px] text-parchment/55 leading-relaxed mt-0.5">
+              提高文字與邊框的清晰度,適合在強光環境或視覺障礙時閱讀。
+            </p>
+          </div>
+        </label>
       </section>
 
       {/* Tutorial replay — lets returning players brush up on the basics

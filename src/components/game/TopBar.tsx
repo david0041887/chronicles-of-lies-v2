@@ -43,12 +43,20 @@ export async function TopBar() {
 
         {/* Currency strip */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 overflow-x-auto text-[11px] sm:text-xs tabular-nums font-[family-name:var(--font-mono)] min-w-0 flex-1 justify-end">
-          <Pill
-            emoji="🎖️"
-            value={`Lv.${level}`}
-            tint="text-gold"
-            title={`編織者 · ${user.username}`}
-          />
+          {/* Level pill doubles as the entry point to the Weaver profile
+              page. Hover lifts a hairline so it reads as actionable. */}
+          <Link
+            href="/profile"
+            className="shrink-0 hover:-translate-y-px transition-transform"
+            aria-label={`編織者檔案:${user.username}`}
+          >
+            <Pill
+              emoji="🎖️"
+              value={`Lv.${level}`}
+              tint="text-gold"
+              title={`點擊查看 ${user.username} 的檔案`}
+            />
+          </Link>
           <Pill
             emoji="💎"
             value={user.crystals.toLocaleString()}

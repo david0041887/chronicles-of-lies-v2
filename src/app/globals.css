@@ -188,6 +188,33 @@ body {
   }
 }
 
+/* User-toggled "force reduce motion" override — same rules as the OS
+   media query. Set on <html data-reduce-motion="true"> by SettingsBoot. */
+:root[data-reduce-motion="true"] .title-sheen,
+:root[data-reduce-motion="true"] .enemy-pulse,
+:root[data-reduce-motion="true"] .veil-blob-a,
+:root[data-reduce-motion="true"] .veil-blob-b,
+:root[data-reduce-motion="true"] .veil-threads,
+:root[data-reduce-motion="true"] .veil-breathe,
+:root[data-reduce-motion="true"] .era-scene-breathe {
+  animation: none !important;
+}
+:root[data-reduce-motion="true"] .era-drift-layer > span,
+:root[data-reduce-motion="true"] .era-atmosphere-layer > span {
+  animation: none !important;
+  opacity: 0.2 !important;
+}
+
+/* High-contrast mode — bumps text contrast for readability without
+   changing the palette character of the game. */
+:root[data-high-contrast="true"] .text-parchment\/40 { color: rgba(248, 240, 224, 0.65) !important; }
+:root[data-high-contrast="true"] .text-parchment\/50 { color: rgba(248, 240, 224, 0.75) !important; }
+:root[data-high-contrast="true"] .text-parchment\/60 { color: rgba(248, 240, 224, 0.85) !important; }
+:root[data-high-contrast="true"] .text-parchment\/70 { color: rgba(248, 240, 224, 0.95) !important; }
+:root[data-high-contrast="true"] .border-parchment\/10 { border-color: rgba(248, 240, 224, 0.25) !important; }
+:root[data-high-contrast="true"] .border-parchment\/15 { border-color: rgba(248, 240, 224, 0.35) !important; }
+:root[data-high-contrast="true"] .border-parchment\/20 { border-color: rgba(248, 240, 224, 0.45) !important; }
+
 /* ============================================================
    Forge success — gold ring flash on the card + sparkle burst.
    Triggered by .forge-twinkle class (applied for ~1.8s).
