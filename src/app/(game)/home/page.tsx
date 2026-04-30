@@ -52,6 +52,13 @@ const QUICK_ACTIONS = [
     emoji: "🗼",
     tone: "#8B5DE5",
   },
+  {
+    href: "/leaderboard",
+    label: "排行榜",
+    desc: "塔層 · 信徒 · 征服",
+    emoji: "🏆",
+    tone: "#F5CA5A",
+  },
 ];
 
 export default async function HomePage() {
@@ -121,7 +128,7 @@ export default async function HomePage() {
       <section>
         <h3 className="display-serif text-xl text-sacred mb-3">今日行動</h3>
         <OrnamentDivider className="mb-4" />
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {QUICK_ACTIONS.map((a) => (
             <Link
               key={a.href}
