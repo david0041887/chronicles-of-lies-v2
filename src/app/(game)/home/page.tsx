@@ -121,7 +121,7 @@ export default async function HomePage() {
       <section>
         <h3 className="display-serif text-xl text-sacred mb-3">今日行動</h3>
         <OrnamentDivider className="mb-4" />
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {QUICK_ACTIONS.map((a) => (
             <Link
               key={a.href}

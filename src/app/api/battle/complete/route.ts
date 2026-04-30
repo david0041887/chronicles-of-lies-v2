@@ -197,6 +197,7 @@ export async function POST(req: Request) {
       tower: {
         currentLevel: floor,
         highestLevel: result.run.highestLevel,
+        totalClears: result.run.totalClears,
       },
     });
   }

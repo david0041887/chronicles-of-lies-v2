@@ -49,9 +49,18 @@ export function TowerHubClient({
   const [confirmAbandon, setConfirmAbandon] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // Wing progress: floors cleared within the current wing.
-  const inWing = run.currentLevel % run.floorsPerWing;
-  const wingProgress = run.currentLevel > 0 ? inWing : 0;
+  // Wing progress: floors cleared within the current wing. The naive
+  // `level % floorsPerWing` returns 0 right after clearing a wing boss
+  // (level=5 → 5%5=0), which would falsely show the bar empty just as
+  // it should celebrate a full wing. Special-case that boundary so the
+  // bar fills completely on a wing-boss clear, then resets to 0 only
+  // when the next floor (the new wing's first) actually starts.
+  const wingProgress =
+    run.currentLevel === 0
+      ? 0
+      : run.currentLevel % run.floorsPerWing === 0
+        ? run.floorsPerWing
+        : run.currentLevel % run.floorsPerWing;
   const isFirstClear = nextFloor.floor > run.highestLevel;
 
   const onAbandon = async () => {

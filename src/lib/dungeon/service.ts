@@ -25,9 +25,18 @@ export async function getOrCreateRun(
   });
 }
 
-/** Mark a floor as cleared and award rewards atomically. Returns the
- *  updated run + the rewards granted (nothing is awarded if the floor
- *  was a repeat clear of the user's high-water-mark). */
+/**
+ * Mark a floor as cleared and award rewards atomically.
+ *
+ * Race-safe: every read + every write happens INSIDE a single
+ * `$transaction` callback so two concurrent submissions on the same
+ * floor can't both award the first-clear bonus. Prisma's interactive
+ * transaction serialises the body via the connection's own
+ * BEGIN/COMMIT, so the second caller sees the first caller's writes.
+ *
+ * Returns the run row + the rewards actually granted (firstClearEssence
+ * is zero if this floor was a repeat of the high-water mark).
+ */
 export async function recordTowerFloorClear(
   userId: string,
   floor: number,
@@ -38,20 +47,22 @@ export async function recordTowerFloorClear(
     firstClearEssence: number;
   },
 ) {
-  const isFirstClear = await prisma.dungeonRun
-    .findUnique({
-      where: { userId_kind: { userId, kind: "tower" } },
-    })
-    .then((r) => !r || floor > (r.highestLevel ?? 0));
-
-  const totalEssence = rewards.essence + (isFirstClear ? rewards.firstClearEssence : 0);
   const now = new Date();
 
-  // Single transaction: bump the run + credit currencies. The state
-  // JSON tracks tokens (we don't have a top-level User.towerTokens —
-  // tokens are dungeon-local until exchanged).
-  const [run] = await prisma.$transaction([
-    prisma.dungeonRun.upsert({
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.dungeonRun.findUnique({
+      where: { userId_kind: { userId, kind: "tower" } },
+    });
+
+    const isFirstClear = !existing || floor > (existing.highestLevel ?? 0);
+    const firstClearBonus = isFirstClear ? rewards.firstClearEssence : 0;
+    const totalEssence = rewards.essence + firstClearBonus;
+
+    const prevTokens = readTokensFromState(existing?.state);
+    const nextTokens = prevTokens + rewards.towerTokens;
+    const nextHighest = Math.max(existing?.highestLevel ?? 0, floor);
+
+    const run = await tx.dungeonRun.upsert({
       where: { userId_kind: { userId, kind: "tower" } },
       create: {
         userId,
@@ -64,45 +75,40 @@ export async function recordTowerFloorClear(
       },
       update: {
         level: floor,
-        highestLevel: { set: undefined } as never, // placeholder, replaced below
+        highestLevel: nextHighest,
+        totalClears: { increment: 1 },
+        lastFloorAt: now,
+        state: { towerTokens: nextTokens },
       },
-    }),
-    prisma.user.update({
+    });
+
+    await tx.user.update({
       where: { id: userId },
       data: {
         essence: { increment: totalEssence },
         crystals: { increment: rewards.crystals },
       },
-    }),
-  ]);
+    });
 
-  // Prisma can't conditionally `Math.max` on update inline, so do a
-  // follow-up that sets highestLevel via raw expression. Cheaper than
-  // a separate read+max+write.
-  await prisma.$executeRaw`
-    UPDATE "DungeonRun"
-    SET
-      "highestLevel" = GREATEST("highestLevel", ${floor}),
-      "totalClears"  = "totalClears" + 1,
-      "lastFloorAt"  = ${now},
-      "state"        = jsonb_set(
-        COALESCE("state", '{}'::jsonb),
-        '{towerTokens}',
-        to_jsonb(COALESCE(("state"->>'towerTokens')::int, 0) + ${rewards.towerTokens})
-      )
-    WHERE "userId" = ${userId} AND "kind"::text = 'tower'
-  `;
+    return {
+      run,
+      rewards: {
+        essence: totalEssence,
+        towerTokens: rewards.towerTokens,
+        crystals: rewards.crystals,
+        firstClearEssence: firstClearBonus,
+        isFirstClear,
+      },
+    };
+  });
+}
 
-  return {
-    run,
-    rewards: {
-      essence: totalEssence,
-      towerTokens: rewards.towerTokens,
-      crystals: rewards.crystals,
-      firstClearEssence: isFirstClear ? rewards.firstClearEssence : 0,
-      isFirstClear,
-    },
-  };
+/** Internal — read tower-tokens count out of the loose state JSON
+ *  (DungeonRun.state is a Json column, so the read needs a guard). */
+function readTokensFromState(state: unknown): number {
+  if (!state || typeof state !== "object") return 0;
+  const v = (state as Record<string, unknown>).towerTokens;
+  return typeof v === "number" && v >= 0 ? v : 0;
 }
 
 /**
@@ -116,10 +122,20 @@ export async function abandonRun(userId: string, kind: DungeonKind) {
   });
 }
 
-/** Read-only — what's in a run's state JSON, normalised. */
+/** Read-only — what's in a run's state JSON, normalised.
+ *
+ * NOTE: tower tokens accumulate here but currently have NO spend
+ * mechanism. Players collect them as a vanity counter on the hub
+ * until a future "tower exchange" feature ships (e.g., trade tokens
+ * for an awakening reagent or a bypass pass). Don't add a top-level
+ * User.towerTokens column — the JSON-on-DungeonRun shape is
+ * intentional so each dungeon kind keeps its currency local to its
+ * run record. See the TODO at the bottom of this file. */
 export function readTowerState(run: DungeonRun) {
-  const state = (run.state as Record<string, unknown>) ?? {};
-  return {
-    towerTokens: typeof state.towerTokens === "number" ? state.towerTokens : 0,
-  };
+  return { towerTokens: readTokensFromState(run.state) };
 }
+
+// TODO(dungeon): tower-token spend mechanism. When designed, add a new
+// service helper (e.g. spendTowerTokens(userId, n, reason)) that runs
+// inside its own $transaction, deducts via jsonb subtraction, and logs
+// the audit trail. Don't promote tokens to a User column.

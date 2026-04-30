@@ -71,6 +71,10 @@ export function EraArenaBackdrop({ eraId, palette }: Props) {
         @media (prefers-reduced-motion: reduce) {
           .era-scene-breathe { animation: none !important; opacity: 0.95 !important; }
         }
+        :root[data-reduce-motion="true"] .era-scene-breathe {
+          animation: none !important;
+          opacity: 0.95 !important;
+        }
       `}</style>
     </div>
   );
@@ -430,6 +434,11 @@ function DriftLayer({
             transform: translate3d(0, -55vh, 0);
           }
         }
+        :root[data-reduce-motion="true"] .era-drift-layer > span {
+          animation: none !important;
+          opacity: 0.25 !important;
+          transform: translate3d(0, -55vh, 0);
+        }
       `}</style>
     </div>
   );
@@ -492,6 +501,11 @@ function AtmosphereLayer({
             opacity: 0.18 !important;
             transform: translate3d(0, -60vh, 0);
           }
+        }
+        :root[data-reduce-motion="true"] .era-atmosphere-layer > span {
+          animation: none !important;
+          opacity: 0.18 !important;
+          transform: translate3d(0, -60vh, 0);
         }
       `}</style>
     </div>

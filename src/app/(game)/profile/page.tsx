@@ -66,7 +66,11 @@ export default async function ProfilePage() {
 
   const factionMeta = FACTION_LABEL[user.faction] ?? FACTION_LABEL.weavers;
 
-  // Era-keyed progress map for the era-by-era list.
+  // Era-keyed progress map for the era-by-era list. Iteration below is
+  // driven by the canonical ERAS array, so any eraProgress row with a
+  // non-canonical eraId (legacy / pre-whitelist data) is silently
+  // ignored — that's intentional. /api/era/spread now whitelists writes
+  // so new garbage can't accumulate.
   const eraById = new Map(eraProgress.map((e) => [e.eraId, e]));
 
   return (
