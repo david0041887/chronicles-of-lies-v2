@@ -67,6 +67,10 @@ model User {
   // Tutorial & milestone rewards
   tutorialDone      Boolean  @default(false)
   freePulls         Int      @default(0)
+  /** Which Deck slot (1..3) is used in battles. Players can save up to
+   *  3 decks and switch between them; defaults to slot 1 which is the
+   *  auto-migrated deck for existing users. */
+  activeDeckSlot    Int      @default(1)
   claimedMilestones String[] @default([])
 
   // Daily missions — JSON: { date: "YYYY-MM-DD", slots: [{id, progress, target, claimed}, ...] }
@@ -211,10 +215,18 @@ model Deck {
   name      String
   eraId     String?  // dominant era (for resonance)
   cardIds   String[] // ordered list of OwnedCard ids
+  /** Slot index 1..3 — players can keep up to 3 saved decks. Slot 1 is
+   *  auto-created at first save; the active one (per User.activeDeckSlot)
+   *  is what battles draw from. */
+  slot      Int      @default(1)
   createdAt DateTime @default(now())
+  // @default(now()) handles the backfill on existing rows; @updatedAt
+  // keeps it auto-bumped on subsequent updates.
+  updatedAt DateTime @default(now()) @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, slot])
   @@index([userId])
 }
 

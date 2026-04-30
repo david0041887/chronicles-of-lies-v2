@@ -11,8 +11,14 @@ import { DECK_SIZE, MAX_COPIES_PER_CARD } from "@/lib/battle/deck";
 import { ERAS } from "@/lib/constants/eras";
 import { cn } from "@/lib/utils";
 import type { Rarity } from "@prisma/client";
-import { useMemo, useState, useTransition } from "react";
-import { saveDeck } from "./actions";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  clearDeckSlot,
+  copyDeckSlot,
+  saveDeck,
+  switchActiveSlot,
+} from "./actions";
+import { SLOT_LABEL } from "./constants";
 
 interface Card {
   id: string;
@@ -32,7 +38,13 @@ interface Card {
 
 interface Props {
   ownedCards: Card[];
-  initialDeck: string[];
+  /** Card ids saved in each slot 1..maxSlots. Empty arrays for unused
+   *  slots so the UI can render placeholder tabs. */
+  slotDecks: Record<number, string[]>;
+  /** Slot used in battles. Switching is a separate server action. */
+  activeSlot: number;
+  /** Total slots available (currently 3). */
+  maxSlots: number;
 }
 
 type RFilter = "ALL" | Rarity;
@@ -40,31 +52,62 @@ type EFilter = "ALL" | string;
 
 const RARITIES: RFilter[] = ["ALL", "UR", "SSR", "SR", "R"];
 
-export function DeckClient({ ownedCards, initialDeck }: Props) {
+function countsFromIds(ids: string[]): Record<string, number> {
+  const m: Record<string, number> = {};
+  for (const id of ids) m[id] = (m[id] ?? 0) + 1;
+  return m;
+}
+
+function idsFromCounts(counts: Record<string, number>): string[] {
+  const out: string[] = [];
+  for (const [id, n] of Object.entries(counts)) {
+    for (let i = 0; i < n; i++) out.push(id);
+  }
+  return out;
+}
+
+export function DeckClient({
+  ownedCards,
+  slotDecks,
+  activeSlot: initialActiveSlot,
+  maxSlots,
+}: Props) {
   const { push } = useToast();
   const [pending, startTransition] = useTransition();
 
-  // Deck as count-by-cardId
-  const initialCounts = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const id of initialDeck) m[id] = (m[id] ?? 0) + 1;
-    return m;
-  }, [initialDeck]);
+  // Which slot the user is currently editing (UI state — independent of
+  // which slot is "active in battle"). Defaults to the active slot.
+  const [editSlot, setEditSlot] = useState<number>(initialActiveSlot);
+  // Snapshot of the in-DB cardIds list per slot. Updated on save / copy
+  // / clear so the dirty check is correct against the latest server
+  // state without needing a router.refresh().
+  const [savedSlots, setSavedSlots] =
+    useState<Record<number, string[]>>(slotDecks);
+  // Which slot the server thinks is the active one. Updated locally
+  // when switchActiveSlot succeeds so UI feedback is instant.
+  const [activeSlot, setActiveSlot] = useState<number>(initialActiveSlot);
 
-  const [counts, setCounts] = useState<Record<string, number>>(initialCounts);
+  // Counts for the slot currently being edited.
+  const [counts, setCounts] = useState<Record<string, number>>(() =>
+    countsFromIds(savedSlots[initialActiveSlot] ?? []),
+  );
+  // When the user switches tabs, re-load that slot's contents into the
+  // editor. Switching only via the slot-tabs UI path so we won't fight
+  // unrelated re-renders.
+  useEffect(() => {
+    setCounts(countsFromIds(savedSlots[editSlot] ?? []));
+  }, [editSlot, savedSlots]);
+
   const [rFilter, setRFilter] = useState<RFilter>("ALL");
   const [eFilter, setEFilter] = useState<EFilter>("ALL");
   const [preview, setPreview] = useState<Card | null>(null);
 
   const total = Object.values(counts).reduce((s, n) => s + n, 0);
   const dirty = useMemo(() => {
-    const current = Object.entries(counts)
-      .flatMap(([id, n]) => Array(n).fill(id))
-      .sort()
-      .join(",");
-    const init = [...initialDeck].sort().join(",");
+    const current = idsFromCounts(counts).sort().join(",");
+    const init = [...(savedSlots[editSlot] ?? [])].sort().join(",");
     return current !== init;
-  }, [counts, initialDeck]);
+  }, [counts, savedSlots, editSlot]);
 
   // Mana curve: bucket deck cards by cost (0-1, 2, 3, 4, 5+).
   const { curveBuckets, avgCost, typeTotals } = useMemo(() => {
@@ -145,17 +188,79 @@ export function DeckClient({ ownedCards, initialDeck }: Props) {
       push(`需要 ${DECK_SIZE} 張,目前 ${total}`, "warning");
       return;
     }
-    const cardIds: string[] = [];
-    for (const [id, n] of Object.entries(counts)) {
-      for (let i = 0; i < n; i++) cardIds.push(id);
-    }
+    const cardIds = idsFromCounts(counts);
     startTransition(async () => {
-      const r = await saveDeck(cardIds);
+      const r = await saveDeck(cardIds, editSlot);
       if (!r.ok) {
         push(r.error, "danger");
         return;
       }
-      push("牌組已儲存", "success");
+      // Mirror the just-saved cardIds into local state so the dirty
+      // check flips back to clean without waiting for a router refresh.
+      setSavedSlots((s) => ({ ...s, [r.slot]: cardIds }));
+      push(
+        `${SLOT_LABEL[r.slot] ?? `欄位 ${r.slot}`} 已儲存`,
+        "success",
+      );
+    });
+  };
+
+  const onSwitchActive = () => {
+    if (editSlot === activeSlot) return;
+    if ((savedSlots[editSlot]?.length ?? 0) !== DECK_SIZE) {
+      push("此欄位牌組不完整,無法設為使用中", "warning");
+      return;
+    }
+    startTransition(async () => {
+      const r = await switchActiveSlot(editSlot);
+      if (!r.ok) {
+        push(r.error, "danger");
+        return;
+      }
+      setActiveSlot(r.slot);
+      push(`已切換為「${SLOT_LABEL[r.slot] ?? `欄位 ${r.slot}`}」`, "success");
+    });
+  };
+
+  const onCopyToHere = (fromSlot: number) => {
+    if (fromSlot === editSlot) return;
+    if ((savedSlots[fromSlot]?.length ?? 0) !== DECK_SIZE) {
+      push("來源牌組不完整", "warning");
+      return;
+    }
+    startTransition(async () => {
+      const r = await copyDeckSlot(fromSlot, editSlot);
+      if (!r.ok) {
+        push(r.error, "danger");
+        return;
+      }
+      const sourceIds = savedSlots[fromSlot] ?? [];
+      setSavedSlots((s) => ({ ...s, [r.toSlot]: sourceIds }));
+      setCounts(countsFromIds(sourceIds));
+      push("已複製到此欄位", "success");
+    });
+  };
+
+  const onClearSlot = () => {
+    if (editSlot === 1) {
+      push("主牌組不可刪除,可改為儲存其他內容", "warning");
+      return;
+    }
+    if (!window.confirm(`確定要清空「${SLOT_LABEL[editSlot] ?? `欄位 ${editSlot}`}」?`)) {
+      return;
+    }
+    startTransition(async () => {
+      const r = await clearDeckSlot(editSlot);
+      if (!r.ok) {
+        push(r.error, "danger");
+        return;
+      }
+      setSavedSlots((s) => ({ ...s, [r.slot]: [] }));
+      setCounts({});
+      // Server may have reset activeSlot to 1 if we just deleted the
+      // active one — mirror that locally.
+      if (activeSlot === r.slot) setActiveSlot(1);
+      push("欄位已清空", "success");
     });
   };
 
@@ -189,6 +294,103 @@ export function DeckClient({ ownedCards, initialDeck }: Props) {
           )}
           style={{ width: `${(total / DECK_SIZE) * 100}%` }}
         />
+      </div>
+
+      {/* Slot tabs — switch which deck the user is editing */}
+      <div className="flex items-stretch gap-2 mb-3">
+        {Array.from({ length: maxSlots }).map((_, i) => {
+          const slot = i + 1;
+          const cardCount = savedSlots[slot]?.length ?? 0;
+          const isEditing = editSlot === slot;
+          const isActive = activeSlot === slot;
+          return (
+            <button
+              key={slot}
+              onClick={() => {
+                if (dirty && slot !== editSlot) {
+                  if (!window.confirm("目前牌組有未儲存變更,要切換嗎?")) return;
+                }
+                setEditSlot(slot);
+              }}
+              className={cn(
+                "flex-1 rounded-lg border-2 px-3 py-2 text-left transition-all min-h-[56px]",
+                isEditing
+                  ? "border-gold bg-gold/10"
+                  : "border-parchment/15 bg-veil/40 hover:bg-veil/60",
+                pending && "opacity-60",
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className={cn(
+                    "text-xs tracking-widest font-[family-name:var(--font-cinzel)]",
+                    isEditing ? "text-gold" : "text-parchment/70",
+                  )}
+                >
+                  {SLOT_LABEL[slot] ?? `欄位 ${slot}`}
+                </span>
+                {isActive && (
+                  <span className="text-[9px] tracking-widest bg-gold text-veil rounded px-1.5 py-0.5 font-bold">
+                    使用中
+                  </span>
+                )}
+              </div>
+              <div className="text-[11px] text-parchment/50 tabular-nums mt-0.5">
+                {cardCount === 0
+                  ? "空欄位"
+                  : cardCount === DECK_SIZE
+                    ? "完整 · 30 張"
+                    : `未完成 · ${cardCount}/${DECK_SIZE}`}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Slot management bar — set as active / copy from another slot /
+          clear this slot. Only shown when there are multiple slots in
+          play, so first-time players don't see clutter. */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        {editSlot !== activeSlot && (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onSwitchActive}
+            disabled={
+              pending ||
+              (savedSlots[editSlot]?.length ?? 0) !== DECK_SIZE
+            }
+          >
+            ⚔️ 設為使用中
+          </Button>
+        )}
+        {/* Per-other-slot copy buttons */}
+        {Array.from({ length: maxSlots })
+          .map((_, i) => i + 1)
+          .filter((s) => s !== editSlot && (savedSlots[s]?.length ?? 0) === DECK_SIZE)
+          .map((s) => (
+            <Button
+              key={s}
+              variant="ghost"
+              size="sm"
+              onClick={() => onCopyToHere(s)}
+              disabled={pending}
+              className="text-xs"
+            >
+              📋 從「{SLOT_LABEL[s] ?? `欄位 ${s}`}」複製
+            </Button>
+          ))}
+        {editSlot !== 1 && (savedSlots[editSlot]?.length ?? 0) > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClearSlot}
+            disabled={pending}
+            className="text-blood/80"
+          >
+            🗑 清空此欄
+          </Button>
+        )}
       </div>
 
       {/* Mana curve + type mix */}

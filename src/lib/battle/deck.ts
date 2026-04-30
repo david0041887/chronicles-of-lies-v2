@@ -44,6 +44,14 @@ export function applyDailyLegendBuff(
  *  4. Deduplicate by card id up to per-rarity limits
  */
 export async function buildPlayerDeck(userId: string): Promise<BattleCard[]> {
+  // Look up which slot the user has active (default 1) so we read the
+  // right deck row when there are multiple saved slots.
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { activeDeckSlot: true },
+  });
+  const activeSlot = user?.activeDeckSlot ?? 1;
+
   const [ownedRaw, activeDeck] = await Promise.all([
     prisma.ownedCard.findMany({
       where: { userId },
@@ -53,7 +61,18 @@ export async function buildPlayerDeck(userId: string): Promise<BattleCard[]> {
         },
       },
     }),
-    prisma.deck.findFirst({ where: { userId }, orderBy: { createdAt: "desc" } }),
+    // Try the active slot first; fall back to any deck if the active
+    // slot is empty (e.g. legacy users who pre-date the slot field).
+    prisma.deck
+      .findUnique({ where: { userId_slot: { userId, slot: activeSlot } } })
+      .then(
+        (d) =>
+          d ??
+          prisma.deck.findFirst({
+            where: { userId },
+            orderBy: { createdAt: "desc" },
+          }),
+      ),
   ]);
 
   const ownedById = new Map<string, typeof ownedRaw>();
