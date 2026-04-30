@@ -3,6 +3,8 @@ import { audit, clientIpOf } from "@/lib/audit";
 import { verifyResult, verifyTicket } from "@/lib/battle/ticket";
 import { csrfGate } from "@/lib/csrf";
 import { progressMission } from "@/lib/daily-missions";
+import { abandonRun, recordTowerFloorClear } from "@/lib/dungeon/service";
+import { planTowerReward } from "@/lib/dungeon/tower";
 import {
   grantEraTickets,
   TICKETS_BOSS_FIRST_CLEAR,
@@ -14,6 +16,9 @@ import { prisma } from "@/lib/prisma";
 import { takeBurst } from "@/lib/rate-limit";
 import { ensureLegendCounts, dominantIndex as computeDominant } from "@/lib/spread";
 import { NextResponse } from "next/server";
+
+/** Synthetic stageId prefix used by /dungeon/tower battles. */
+const TOWER_STAGE_PREFIX = "__tower:";
 
 // Repeat clears give 15% of first-clear rewards.
 const REPEAT_MULT = 0.15;
@@ -140,6 +145,60 @@ export async function POST(req: Request) {
       { error: "Enemy HP out of range" },
       { status: 400 },
     );
+  }
+
+  // ── Tower of Whispers branch — synthetic stageIds (`__tower:N`) don't
+  //    map to a Stage row; reward / progression is handled by the
+  //    DungeonRun service and the response shape here mirrors what the
+  //    BattleClient already expects for normal stage completion.
+  if (stageId.startsWith(TOWER_STAGE_PREFIX)) {
+    const floor = parseInt(stageId.slice(TOWER_STAGE_PREFIX.length), 10);
+    if (!Number.isInteger(floor) || floor < 1 || floor > 200) {
+      return NextResponse.json(
+        { error: "Invalid tower floor" },
+        { status: 400 },
+      );
+    }
+    if (!won) {
+      // Reset run to floor 0 — high-water mark is preserved server-side.
+      await abandonRun(userId, "tower");
+      // Loss of stamina: still count toward the global lost-battles tally.
+      await prisma.user.update({
+        where: { id: userId },
+        data: { battlesLost: { increment: 1 } },
+      });
+      return NextResponse.json({
+        ok: true,
+        firstClear: false,
+        rewards: null,
+        tower: { resetTo: 0 },
+      });
+    }
+    const planned = planTowerReward(floor);
+    const result = await recordTowerFloorClear(userId, floor, planned);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { battlesWon: { increment: 1 } },
+    });
+    return NextResponse.json({
+      ok: true,
+      firstClear: result.rewards.isFirstClear,
+      rewards: {
+        crystals: result.rewards.crystals,
+        exp: 0,
+        believers: 0,
+        // Surface the dungeon-specific currencies under their names so
+        // the BattleClient reward modal can render them too.
+        essence: result.rewards.essence,
+        towerTokens: result.rewards.towerTokens,
+        levelBefore: 0,
+        levelAfter: 0,
+      },
+      tower: {
+        currentLevel: floor,
+        highestLevel: result.run.highestLevel,
+      },
+    });
   }
 
   const stage = await prisma.stage.findUnique({ where: { id: stageId } });

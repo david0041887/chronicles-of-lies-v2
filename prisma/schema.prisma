@@ -88,6 +88,7 @@ model User {
   ownedCards     OwnedCard[]
   decks          Deck[]
   eraProgress    EraProgress[]
+  dungeonRuns    DungeonRun[]
   startingReward StartingReward?
 }
 
@@ -301,6 +302,42 @@ model StartingReward {
 // ============================================================
 // Per-era progress
 // ============================================================
+// ============================================================
+// Dungeon — Tower of Whispers (and future: Hunt, Abyss, Inquisition)
+//
+// One row per active run per (user, dungeon kind). The row is
+// re-used as the player ascends floors; a successful clear bumps
+// `level`, a defeat resets it to 0 and stamps `lastResetAt`.
+//
+// `state` is opaque JSON for per-dungeon-kind extras (cumulative HP
+// carry-over for Abyss, faction-rep for Inquisition, etc.) so we
+// don't need a column-per-feature schema migration each time we add
+// a dungeon kind.
+// ============================================================
+model DungeonRun {
+  id            String   @id @default(cuid())
+  userId        String
+  kind          DungeonKind
+  level         Int      @default(0)        // current floor (0 = not yet entered today)
+  highestLevel  Int      @default(0)        // best floor ever reached (for vanity / stats)
+  lastFloorAt   DateTime?                   // when the player last cleared a floor
+  lastResetAt   DateTime?                   // when the run last reset (defeat or weekly tick)
+  totalClears   Int      @default(0)        // lifetime floor-clear count for this kind
+  state         Json     @default("{}")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind])
+  @@index([userId])
+}
+
+enum DungeonKind {
+  tower         // 幽音塔 — endless vertical gauntlet
+  hunt          // 共鳴獵殺 — weekly legend raid (scaffold)
+  abyss         // 深淵回響 — boss gauntlet w/ state carry (scaffold)
+  inquisition   // 守真者審判 — choice-based campaign (scaffold)
+}
+
 model EraProgress {
   id             String @id @default(cuid())
   userId         String

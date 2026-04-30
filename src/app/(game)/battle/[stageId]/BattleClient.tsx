@@ -92,6 +92,12 @@ interface Props {
    *  tick so the coach can compute which step the player is on. Mounted
    *  at z-[60], above the battle UI but below modals. */
   tutorialOverlay?: (state: BattleState) => ReactNode;
+  /** Override destination for the post-battle auto-leave timer + the
+   *  "返回時代" buttons on the result modal. Used by /dungeon/tower
+   *  battles so a tower win/loss returns the player to the tower hub
+   *  instead of dumping them on a random era page. Defaults to
+   *  `/era/${stage.eraId}`. */
+  returnHref?: string;
 }
 
 const AUTO_LEAVE_MS = 2000;
@@ -114,6 +120,7 @@ export function BattleClient({
   enemyMods = {},
   ticket,
   tutorialOverlay,
+  returnHref,
 }: Props) {
   const router = useRouter();
   const { push } = useToast();
@@ -561,7 +568,9 @@ export function BattleClient({
     if (battle.phase !== "won" && battle.phase !== "lost") return;
     // Skip auto-leave on win when a next stage exists (we surface a button).
     if (battle.phase === "won" && nextStage && !tutorialMode) return;
-    const dest = tutorialMode ? "/home" : `/era/${stage.eraId}`;
+    const dest = tutorialMode
+      ? "/home"
+      : returnHref ?? `/era/${stage.eraId}`;
     const t = setTimeout(() => router.push(dest), AUTO_LEAVE_MS);
     return () => clearTimeout(t);
     // SAFE: schedules a one-shot navigation when the battle ends. router,
@@ -1102,9 +1111,11 @@ export function BattleClient({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => router.push(`/era/${stage.eraId}`)}
+                    onClick={() =>
+                      router.push(returnHref ?? `/era/${stage.eraId}`)
+                    }
                   >
-                    返回時代
+                    {returnHref ? "返回" : "返回時代"}
                   </Button>
                 </div>
               ) : battle.phase === "won" && !tutorialMode ? (
@@ -1112,9 +1123,11 @@ export function BattleClient({
                   <Button
                     variant="primary"
                     size="md"
-                    onClick={() => router.push(`/era/${stage.eraId}`)}
+                    onClick={() =>
+                      router.push(returnHref ?? `/era/${stage.eraId}`)
+                    }
                   >
-                    🏆 返回時代 · 終末已達
+                    {returnHref ? "🏆 返回 · 已通關" : "🏆 返回時代 · 終末已達"}
                   </Button>
                 </div>
               ) : (

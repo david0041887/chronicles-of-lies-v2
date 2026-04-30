@@ -45,6 +45,13 @@ const QUICK_ACTIONS = [
     emoji: "⚒️",
     tone: "#EF4444",
   },
+  {
+    href: "/dungeon/tower",
+    label: "幽音塔",
+    desc: "無盡塔層 · 低語層層",
+    emoji: "🗼",
+    tone: "#8B5DE5",
+  },
 ];
 
 export default async function HomePage() {
