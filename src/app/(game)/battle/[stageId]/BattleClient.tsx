@@ -1535,6 +1535,35 @@ function MinionCard({
     prevHpRef.current = minion.hp;
   }, [minion.hp]);
 
+  // Track ATK / max-HP changes so buff abilities (e.g., 「友軍 +1/+2」)
+  // surface visually on the affected minion instead of only in the log.
+  // Only INCREASES fire the glow — decreases (silence, debuff) get
+  // their own visuals or are silent by design.
+  const prevAtkRef = useRef(minion.atk);
+  const prevHpMaxRef = useRef(minion.hpMax);
+  const [buffPulse, setBuffPulse] = useState(0);
+  const [buffNumbers, setBuffNumbers] = useState<
+    { id: number; atk: number; hp: number }[]
+  >([]);
+  useEffect(() => {
+    const dAtk = minion.atk - prevAtkRef.current;
+    const dHpMax = minion.hpMax - prevHpMaxRef.current;
+    if (dAtk > 0 || dHpMax > 0) {
+      setBuffPulse((k) => k + 1);
+      const id = Date.now() + Math.random();
+      setBuffNumbers((n) => [...n, { id, atk: dAtk, hp: dHpMax }]);
+      const t = setTimeout(() => {
+        setBuffNumbers((n) => n.filter((h) => h.id !== id));
+      }, 1100);
+      prevAtkRef.current = minion.atk;
+      prevHpMaxRef.current = minion.hpMax;
+      return () => clearTimeout(t);
+    }
+    // Silently track decreases so the next increase calc is right.
+    prevAtkRef.current = minion.atk;
+    prevHpMaxRef.current = minion.hpMax;
+  }, [minion.atk, minion.hpMax]);
+
   // Slide-to-target keyframe: when this minion is the current attacker,
   // briefly offset it toward the opposing side (big leap for face hits,
   // small step for minion trades) then snap back. Direction is inverted
@@ -1624,6 +1653,38 @@ function MinionCard({
           </motion.span>
         ))}
       </AnimatePresence>
+      {/* Buff glow + per-minion +ATK/+HP numbers when an ally ability
+          stat-boosts this minion. Distinct from the hurt pulse so a
+          buff/debuff swap on the same minion across turns reads
+          unambiguously. */}
+      {buffPulse > 0 && (
+        <motion.span
+          key={`buff-${buffPulse}`}
+          initial={{ opacity: 0.85, scale: 0.9 }}
+          animate={{ opacity: 0, scale: 1.5 }}
+          transition={{ duration: 0.55, ease: "easeOut" }}
+          className="absolute inset-0 rounded-lg pointer-events-none"
+          style={{
+            boxShadow: "0 0 16px 4px rgba(120,255,170,0.8), inset 0 0 12px rgba(180,255,200,0.5)",
+          }}
+        />
+      )}
+      <AnimatePresence>
+        {buffNumbers.map((b) => (
+          <motion.span
+            key={b.id}
+            initial={{ opacity: 0, y: 0, scale: 0.6 }}
+            animate={{ opacity: [0, 1, 1, 0], y: -28, scale: 1.2 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.05, ease: "easeOut", times: [0, 0.15, 0.7, 1] }}
+            className="absolute left-1/2 -translate-x-1/2 top-1 text-emerald-300 text-[11px] font-bold drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] pointer-events-none font-[family-name:var(--font-mono)] tabular-nums whitespace-nowrap"
+          >
+            {b.atk > 0 && `+${b.atk}`}
+            {b.atk > 0 && b.hp > 0 && "/"}
+            {b.hp > 0 && `+${b.hp}`}
+          </motion.span>
+        ))}
+      </AnimatePresence>
       <div className="text-lg leading-none">
         {minion.rarity === "UR" ? "🌟" : minion.rarity === "SSR" ? "⭐" : minion.rarity === "SR" ? "✦" : "·"}
       </div>
@@ -1672,18 +1733,51 @@ const ABILITY_TRIGGER_ICON: Record<string, string> = {
   on_damaged: "🩸",
 };
 
+/**
+ * Hook: bumps a numeric key whenever `value` changes. Used to drive
+ * key-based motion animations (each new key remounts the wrapped
+ * element, replaying its `initial → animate` transition).
+ */
+function usePulseKey(value: number): number {
+  const prev = useRef(value);
+  const [key, setKey] = useState(0);
+  useEffect(() => {
+    if (value !== prev.current) {
+      setKey((k) => k + 1);
+      prev.current = value;
+    }
+  }, [value]);
+  return key;
+}
+
 function StatusTray({
   side,
   showEcho = true,
   showBuffNext = false,
+  animate = false,
 }: {
   side: SideState;
   showEcho?: boolean;
   showBuffNext?: boolean;
+  /** When true, the mana / shield pills react to value changes with a
+   *  brief pulse so the player gets visual feedback for spend, ramp,
+   *  and shield absorbs. Off for the enemy tray to avoid noise. */
+  animate?: boolean;
 }) {
+  // Two separate pulse keys summed, so the mana pill animates on EITHER
+  // spend (mana decrement) OR ramp (manaMax increment). Each hook tracks
+  // its own value independently; summing the bump-counters guarantees
+  // a fresh key whenever either fires.
+  const manaSpentKey = usePulseKey(side.mana);
+  const manaRampKey = usePulseKey(side.manaMax);
+  const manaKey = manaSpentKey + manaRampKey;
+  const shieldKey = usePulseKey(side.shield);
+
   return (
     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-      <StatusPill icon="⚡" value={`${side.mana}/${side.manaMax}`} title="信仰池" tone="gold" />
+      <PulsePillWrapper bumpKey={manaKey} active={animate}>
+        <StatusPill icon="⚡" value={`${side.mana}/${side.manaMax}`} title="信仰池" tone="gold" />
+      </PulsePillWrapper>
       <StatusPill
         icon="🂠"
         value={`${side.deck.length}/${side.discard.length}`}
@@ -1694,7 +1788,9 @@ function StatusTray({
         <StatusPill icon="🎴" value={`${side.hand.length}`} title="手牌" tone="muted" />
       )}
       {side.shield > 0 && (
-        <StatusPill icon="🛡" value={`${side.shield}`} title="護盾" tone="info" />
+        <PulsePillWrapper bumpKey={shieldKey} active={animate}>
+          <StatusPill icon="🛡" value={`${side.shield}`} title="護盾" tone="info" />
+        </PulsePillWrapper>
       )}
       {showBuffNext && side.buffNextCard > 1 && (
         <StatusPill icon="⬆︎" value="×2" title="下張威力加倍" tone="legend" />
@@ -1742,6 +1838,42 @@ function StatusTray({
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Animation wrapper that flashes its child on every bump of `bumpKey`.
+ * Used to highlight mana spend / mana ramp / shield absorb in real-time
+ * so the player connects "I just played a card" with the resource drop.
+ * No-ops when active=false (enemy tray) or before the first bump.
+ */
+function PulsePillWrapper({
+  bumpKey,
+  active,
+  children,
+}: {
+  bumpKey: number;
+  active: boolean;
+  children: ReactNode;
+}) {
+  if (!active || bumpKey === 0) return <>{children}</>;
+  return (
+    <motion.span
+      key={bumpKey}
+      initial={{ scale: 1, filter: "drop-shadow(0 0 0 transparent)" }}
+      animate={{
+        scale: [1, 1.18, 1],
+        filter: [
+          "drop-shadow(0 0 0 transparent)",
+          "drop-shadow(0 0 8px rgba(212,168,75,0.85))",
+          "drop-shadow(0 0 0 transparent)",
+        ],
+      }}
+      transition={{ duration: 0.45, ease: "easeOut" }}
+      className="inline-flex"
+    >
+      {children}
+    </motion.span>
   );
 }
 
@@ -1799,7 +1931,7 @@ function PlayerHUD({
             </span>
           </div>
           <HpBar value={player.hp} max={player.hpMax} color="#D4A84B" />
-          <StatusTray side={player} showBuffNext showEcho />
+          <StatusTray side={player} showBuffNext showEcho animate />
         </div>
         <Button
           variant={phase === "player_turn" ? "primary" : "ghost"}
