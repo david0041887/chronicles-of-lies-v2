@@ -1717,6 +1717,22 @@ function StatusTray({
       {side.charmStacks > 0 && (
         <StatusPill icon="💋" value={`×${side.charmStacks}`} title="魅惑 — 下張攻擊自傷" tone="pink" />
       )}
+      {/* Combo counter — surfaces what was previously hidden. The
+          combo keyword pays out at ≥2 prior plays, so the threshold
+          glow at 2+ tells the player when their next combo card will
+          actually multiply (×1.5). */}
+      {side.combosThisTurn > 0 && (
+        <StatusPill
+          icon="🔗"
+          value={
+            side.combosThisTurn >= 2
+              ? `${side.combosThisTurn} · 連擊已啟動`
+              : `${side.combosThisTurn}`
+          }
+          title="本回合出牌數 — 第 3 張起 combo 卡 +50% 威力"
+          tone={side.combosThisTurn >= 2 ? "legend" : "muted"}
+        />
+      )}
       {showEcho && side.echoPending && (
         <StatusPill
           icon="🔁"

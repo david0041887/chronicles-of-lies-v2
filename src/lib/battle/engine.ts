@@ -662,6 +662,10 @@ export function attackWithMinion(
   let dealtToTarget = 0;
 
   if (target.kind === "face") {
+    // Face damage flows through dealDamage which applies both attacker
+    // weak (−25% out) and defender vulnerable (+50% in) before shield.
+    // dealtToTarget is the post-shield amount actually clipped against
+    // hp; used for lifesteal cap below.
     const dmg = attacker.atk;
     dealtToTarget = Math.min(other.hp, dmg);
     dealDamage(self, other, dmg, state.log, state.turn, {
@@ -672,22 +676,48 @@ export function attackWithMinion(
     const targetMinion = other.board.find((m) => m.uid === target.uid);
     if (!targetMinion) return state;
 
-    // Divine shield absorb (target)
-    if (targetMinion.shielded) {
+    // Minion-vs-minion path manually applies the same status-mod
+    // pipeline (weak/vulnerable) so trades respect the same rules
+    // face attacks do. Note minions don't have face-side `shield`
+    // — only divine-shield (`shielded`) — so pierce isn't in play
+    // here either.
+    let inboundDmg = attacker.atk;
+    if (self.weakTurns > 0) inboundDmg = Math.floor(inboundDmg * 0.75);
+    if (other.vulnerableTurns > 0) inboundDmg = Math.floor(inboundDmg * 1.5);
+    inboundDmg = Math.max(0, inboundDmg);
+
+    if (targetMinion.shielded && inboundDmg > 0) {
       targetMinion.shielded = false;
       atkLog(`🛡 ${targetMinion.name} 聖盾吸收`, "buff");
-    } else {
-      targetMinion.hp -= attacker.atk;
-      dealtToTarget = attacker.atk;
-      atkLog(`⚔️ ${attacker.name} ×${attacker.atk} → ${targetMinion.name}`, "play");
+    } else if (inboundDmg > 0) {
+      targetMinion.hp -= inboundDmg;
+      dealtToTarget = inboundDmg;
+      atkLog(`⚔️ ${attacker.name} ×${inboundDmg} → ${targetMinion.name}`, "play");
+      // Fire on_damaged on the target before the death check so reactive
+      // abilities (reflect, retaliate) get to run while the minion still
+      // has its full state.
+      if (targetMinion.hp > 0) {
+        const otherSide = sideName === "player" ? "enemy" : "player";
+        fireAbility(state, otherSide, targetMinion, "on_damaged");
+      }
     }
 
-    // Counter-damage to attacker (divine shield absorb check)
-    if (attacker.shielded && targetMinion.atk > 0) {
+    // Counter-damage from defender to attacker — same mod pipeline
+    // mirrored: defender's weak nerfs its counter; attacker's
+    // vulnerable amplifies what it takes back.
+    let counter = targetMinion.atk;
+    if (other.weakTurns > 0) counter = Math.floor(counter * 0.75);
+    if (self.vulnerableTurns > 0) counter = Math.floor(counter * 1.5);
+    counter = Math.max(0, counter);
+
+    if (attacker.shielded && counter > 0) {
       attacker.shielded = false;
       atkLog(`🛡 ${attacker.name} 聖盾吸收`, "buff");
-    } else if (targetMinion.atk > 0) {
-      attacker.hp -= targetMinion.atk;
+    } else if (counter > 0) {
+      attacker.hp -= counter;
+      if (attacker.hp > 0) {
+        fireAbility(state, sideName, attacker, "on_damaged");
+      }
     }
   }
 
