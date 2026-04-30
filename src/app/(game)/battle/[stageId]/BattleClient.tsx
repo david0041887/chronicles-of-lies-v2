@@ -806,6 +806,63 @@ export function BattleClient({
     battle.phase === "player_turn" &&
     previewCard.cost <= battle.player.mana;
 
+  /**
+   * Lethal-this-turn check: would the player's currently-playable
+   * resources alone be enough to kill the enemy face this turn?
+   *
+   * Conservative greedy simulation rather than the engine's full
+   * resolver — close enough to be useful as a strategic hint, simple
+   * enough to recompute every render without measurable cost. Only
+   * fires when:
+   *   · player phase + battle in progress
+   *   · enemy has no taunt minions (a taunt blocks the face)
+   *   · enemy isn't already dead (no false-positive on result screen)
+   *   · summed potential damage ≥ enemy hp + shield
+   *
+   * Damage sources counted:
+   *   · all minions on player's board with attacksRemaining > 0 and
+   *     not summoned this turn — adds atk, double for windfury
+   *   · cards in hand of attack/ritual/debuff type, played in cost-
+   *     ascending order until mana runs out, contributing power each
+   *
+   * Skips: combo bonus, sacrifice bonus, buff multipliers (would need
+   * a full resolver). Errs on the side of NOT showing lethal — better
+   * a missed signal than a false promise.
+   */
+  const lethalThisTurn = useMemo(() => {
+    if (battle.phase !== "player_turn") return false;
+    if (battle.enemy.hp <= 0) return false;
+    if (battle.enemy.board.some((m) => m.keywords.includes("taunt"))) return false;
+    let dmg = 0;
+    for (const m of battle.player.board) {
+      if (m.summonedThisTurn) continue;
+      if (m.attacksRemaining <= 0) continue;
+      const swings = m.keywords.includes("windfury") ? 2 : 1;
+      dmg += m.atk * swings;
+    }
+    let mana = battle.player.mana;
+    const hand = [...battle.player.hand]
+      .filter((c) => c.type === "attack" || c.type === "ritual" || c.type === "debuff")
+      .sort((a, b) => a.cost - b.cost);
+    for (const c of hand) {
+      if (c.cost > mana) continue;
+      mana -= c.cost;
+      // debuff cards deal 70% of base power per resolveCardEffect
+      const factor = c.type === "debuff" ? 0.7 : 1;
+      dmg += Math.floor(c.power * factor);
+    }
+    const defense = battle.enemy.hp + battle.enemy.shield;
+    return dmg >= defense;
+  }, [
+    battle.phase,
+    battle.enemy.hp,
+    battle.enemy.shield,
+    battle.enemy.board,
+    battle.player.hand,
+    battle.player.board,
+    battle.player.mana,
+  ]);
+
   return (
     <motion.div
       key={shakeKey}
@@ -1057,6 +1114,7 @@ export function BattleClient({
           intent={battle.phase === "player_turn" ? enemyIntent : null}
           attackMode={selectedAttackerUid !== null}
           onFaceClick={() => onAttackTarget({ kind: "face" })}
+          isLethalThisTurn={lethalThisTurn}
         />
 
         <BoardRow
@@ -1105,6 +1163,7 @@ export function BattleClient({
           hand={battle.player.hand}
           mana={battle.player.mana}
           phase={battle.phase}
+          combosThisTurn={battle.player.combosThisTurn}
           onTap={openPreview}
         />
       </div>
@@ -1471,6 +1530,7 @@ function EnemyArea({
   intent,
   attackMode,
   onFaceClick,
+  isLethalThisTurn,
 }: {
   enemy: SideState;
   emoji: string;
@@ -1480,10 +1540,35 @@ function EnemyArea({
   intent: EnemyIntent | null;
   attackMode?: boolean;
   onFaceClick?: () => void;
+  /** When true, the player has enough damage available this turn to
+   *  finish the enemy. Drives an attention-grabbing lethal banner. */
+  isLethalThisTurn?: boolean;
 }) {
   return (
     <div className="relative flex items-center gap-3 px-4 pt-3 pb-2">
       {intent && <EnemyIntentBadge intent={intent} />}
+      {isLethalThisTurn && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.7, y: -6 }}
+          animate={{
+            opacity: 1,
+            scale: [0.95, 1.05, 0.95],
+            y: 0,
+          }}
+          transition={{
+            duration: 1.4,
+            ease: "easeInOut",
+            scale: { repeat: Infinity, duration: 1.6 },
+          }}
+          className="absolute top-1 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex items-center gap-1.5 px-3 py-1 rounded-full border-2 border-blood bg-gradient-to-r from-blood/90 via-blood to-blood/90 shadow-[0_0_18px_rgba(190,40,40,0.85)]"
+          aria-label="可一擊致命"
+        >
+          <span aria-hidden className="text-base leading-none">⚡</span>
+          <span className="display-serif text-xs tracking-[0.4em] text-parchment font-bold uppercase">
+            致命斬
+          </span>
+        </motion.div>
+      )}
       <button
         onClick={attackMode ? onFaceClick : undefined}
         disabled={!attackMode}
@@ -1491,6 +1576,11 @@ function EnemyArea({
           "relative w-20 h-20 rounded-full border-2 flex items-center justify-center text-5xl shrink-0",
           thinking && "enemy-pulse",
           attackMode && "cursor-crosshair ring-4 ring-blood/80 animate-pulse",
+          // Subtle blood ring when lethal — exists alongside the banner
+          // so the face itself reads as the target, not just a label.
+          isLethalThisTurn &&
+            !attackMode &&
+            "shadow-[0_0_24px_rgba(190,40,40,0.7)]",
         )}
         style={{
           borderColor: palette.main,
@@ -1760,20 +1850,35 @@ function MinionCard({
           />
         )}
       </AnimatePresence>
-      {/* Per-minion damage numbers floating up from the card */}
+      {/* Per-minion damage numbers floating up from the card.
+          Magnitude-aware: a hit ≥ 7 (relative to typical minion HP)
+          renders bigger + tinted blood-red, signalling a heavy trade. */}
       <AnimatePresence>
-        {hitNumbers.map((h) => (
-          <motion.span
-            key={h.id}
-            initial={{ opacity: 0, y: 0, scale: 0.6 }}
-            animate={{ opacity: [0, 1, 1, 0], y: -34, scale: 1.25 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.05, ease: "easeOut", times: [0, 0.15, 0.7, 1] }}
-            className="absolute left-1/2 -translate-x-1/2 -top-2 text-danger text-base font-bold drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] pointer-events-none font-[family-name:var(--font-mono)] tabular-nums"
-          >
-            {h.delta}
-          </motion.span>
-        ))}
+        {hitNumbers.map((h) => {
+          const mag = Math.abs(h.delta);
+          const isHeavy = mag >= 7;
+          return (
+            <motion.span
+              key={h.id}
+              initial={{ opacity: 0, y: 0, scale: 0.6 }}
+              animate={{
+                opacity: [0, 1, 1, 0],
+                y: isHeavy ? -42 : -34,
+                scale: isHeavy ? 1.5 : 1.25,
+              }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.05, ease: "easeOut", times: [0, 0.15, 0.7, 1] }}
+              className={cn(
+                "absolute left-1/2 -translate-x-1/2 -top-2 font-bold drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] pointer-events-none font-[family-name:var(--font-mono)] tabular-nums",
+                isHeavy
+                  ? "text-blood text-xl drop-shadow-[0_0_8px_rgba(190,40,40,0.85)]"
+                  : "text-danger text-base",
+              )}
+            >
+              {h.delta}
+            </motion.span>
+          );
+        })}
       </AnimatePresence>
       {/* Buff glow + per-minion +ATK/+HP numbers when an ally ability
           stat-boosts this minion. Distinct from the hurt pulse so a
@@ -2073,14 +2178,19 @@ function Hand({
   hand,
   mana,
   phase,
+  combosThisTurn,
   onTap,
 }: {
   hand: BattleCard[];
   mana: number;
   phase: string;
+  /** Drives the combo-card readiness glow — when ≥ 2 the next combo
+   *  card in hand pays out at ×1.5, so we light up combo cards extra. */
+  combosThisTurn: number;
   onTap: (idx: number) => void;
 }) {
   const canPlay = phase === "player_turn";
+  const comboArmed = combosThisTurn >= 2;
   // Cards that target the SELF side (player face / friendly board) fly
   // downward / inward when played, while offensive cards fly upward
   // toward the enemy. Driven by the card's `type` so the engine doesn't
@@ -2101,6 +2211,12 @@ function Hand({
       <AnimatePresence mode="popLayout">
         {hand.map((c, i) => {
           const affordable = c.cost <= mana;
+          // Combo-readiness highlight: when this turn's play count is
+          // already ≥ 2 AND this card has the combo keyword, its next
+          // play actually multiplies. Glow + lift so the player sees
+          // "this is the moment" without having to remember rules.
+          const comboReady =
+            comboArmed && c.keywords.includes("combo") && affordable && canPlay;
           return (
             <motion.button
               key={c.uid}
@@ -2108,19 +2224,44 @@ function Hand({
               onClick={() => onTap(i)}
               initial={{ y: 60, opacity: 0, scale: 0.85 }}
               animate={{
-                y: canPlay && affordable ? 0 : 10,
+                y: canPlay && affordable ? (comboReady ? -8 : 0) : 10,
                 opacity: 1,
-                scale: canPlay && affordable ? 1 : 0.92,
+                scale: canPlay && affordable ? (comboReady ? 1.04 : 1) : 0.92,
               }}
               exit={exitForType(c.type)}
               transition={{ duration: 0.25, ease: [0.22, 0.97, 0.32, 1.08] }}
               whileHover={{ y: -12, scale: 1.05 }}
               className={cn(
-                "shrink-0 w-[22vw] max-w-[112px] min-w-[84px] transition-opacity",
+                "shrink-0 w-[22vw] max-w-[112px] min-w-[84px] transition-opacity relative",
                 !affordable && canPlay && "opacity-60",
               )}
             >
+              {/* Combo readiness halo — only when the combo keyword
+                  card is actually about to pay out. Soft pulsing
+                  emerald ring so it doesn't fight the rarity glow. */}
+              {comboReady && (
+                <motion.span
+                  aria-hidden
+                  initial={{ opacity: 0.4 }}
+                  animate={{ opacity: [0.4, 0.85, 0.4] }}
+                  transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute -inset-1 rounded-xl pointer-events-none"
+                  style={{
+                    boxShadow:
+                      "0 0 14px 4px rgba(80,220,140,0.55), inset 0 0 10px rgba(140,255,180,0.35)",
+                    border: "1px solid rgba(80,220,140,0.65)",
+                  }}
+                />
+              )}
               <CardTile card={c} size="sm" />
+              {comboReady && (
+                <span
+                  className="absolute -top-2 left-1/2 -translate-x-1/2 text-[9px] font-bold tracking-widest bg-emerald-500 text-veil rounded-full px-2 py-0.5 shadow-[0_2px_8px_rgba(80,220,140,0.7)] pointer-events-none"
+                  aria-hidden
+                >
+                  ×1.5
+                </span>
+              )}
             </motion.button>
           );
         })}
@@ -2427,6 +2568,14 @@ function StatusStampLayer({
   );
 }
 
+/**
+ * Floating face-side damage / heal numbers. Magnitude-aware:
+ *   · |delta| ≥ 15 → "暴擊" label + jumbo size + extra glow
+ *   · |delta| ≥ 8  → bigger size, stronger color
+ *   · otherwise    → standard size
+ * Heals get green ascending sparkles around the number; damage gets a
+ * blood-red drop shadow. Both render at the appropriate side anchor.
+ */
 function FloaterLayer({
   floaters,
 }: {
@@ -2437,24 +2586,74 @@ function FloaterLayer({
       <AnimatePresence>
         {floaters.map((f) => {
           const isHeal = f.delta > 0;
+          const mag = Math.abs(f.delta);
+          const isCrit = !isHeal && mag >= 15;
+          const isBig = mag >= 8;
           const topCls = f.side === "enemy" ? "top-[10%]" : "bottom-[30%]";
+          const sizeCls = isCrit
+            ? "text-6xl"
+            : isBig
+              ? "text-4xl"
+              : "text-3xl";
+          const colorCls = isHeal
+            ? "text-success"
+            : isCrit
+              ? "text-blood"
+              : "text-danger";
+          const shadowCls = isCrit
+            ? "drop-shadow-[0_0_18px_rgba(190,40,40,0.95)]"
+            : isHeal
+              ? "drop-shadow-[0_0_12px_rgba(80,220,140,0.6)]"
+              : "drop-shadow-[0_0_10px_rgba(0,0,0,0.6)]";
           return (
             <motion.div
               key={f.id}
               initial={{ opacity: 0, y: 0, scale: 0.8 }}
-              animate={{ opacity: 1, y: -40, scale: 1.3 }}
-              exit={{ opacity: 0, y: -80 }}
+              animate={{
+                opacity: 1,
+                y: isCrit ? -56 : -40,
+                scale: isCrit ? 1.6 : 1.3,
+              }}
+              exit={{ opacity: 0, y: isCrit ? -100 : -80 }}
               transition={{ duration: 1.4, ease: "easeOut" }}
-              className={`absolute left-1/2 -translate-x-1/2 ${topCls}`}
+              className={`absolute left-1/2 -translate-x-1/2 ${topCls} flex flex-col items-center`}
             >
+              {isCrit && (
+                <span className="display-serif text-[11px] tracking-[0.5em] text-blood/95 mb-1 uppercase font-bold drop-shadow-[0_0_6px_rgba(190,40,40,0.9)]">
+                  暴擊
+                </span>
+              )}
               <span
-                className={`display-serif text-3xl font-bold drop-shadow-[0_0_10px_rgba(0,0,0,0.6)] ${
-                  isHeal ? "text-success" : "text-danger"
-                }`}
+                className={`display-serif font-bold ${sizeCls} ${colorCls} ${shadowCls}`}
               >
                 {isHeal ? "+" : ""}
                 {f.delta}
               </span>
+              {/* Heal sparkles — three small "+" marks ascending around
+                  the central number to differentiate from raw damage. */}
+              {isHeal && (
+                <>
+                  {[0, 1, 2].map((i) => (
+                    <motion.span
+                      key={i}
+                      initial={{ opacity: 0, x: (i - 1) * 18, y: 0, scale: 0.5 }}
+                      animate={{
+                        opacity: [0, 1, 0],
+                        y: -32 - i * 8,
+                        scale: 1,
+                      }}
+                      transition={{
+                        duration: 1.0,
+                        ease: "easeOut",
+                        delay: i * 0.08,
+                      }}
+                      className="absolute text-success text-base font-bold drop-shadow-[0_0_6px_rgba(80,220,140,0.8)]"
+                    >
+                      +
+                    </motion.span>
+                  ))}
+                </>
+              )}
             </motion.div>
           );
         })}
