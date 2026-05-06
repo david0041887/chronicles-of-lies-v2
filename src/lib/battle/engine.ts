@@ -61,9 +61,20 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function draw(side: SideState, n: number, log: LogEntry[], turn: number, sideName: "player" | "enemy") {
+function draw(
+  side: SideState,
+  n: number,
+  log: LogEntry[],
+  turn: number,
+  sideName: "player" | "enemy",
+  /** Override the hand-cap for this draw burst. Used at battle start so
+   *  weaver perks that grant `+startHandBonus` can actually reach the
+   *  player; the regular in-turn cap is BASE_HAND_CAP. */
+  capOverride?: number,
+) {
+  const cap = capOverride ?? BASE_HAND_CAP;
   for (let i = 0; i < n; i++) {
-    if (side.hand.length >= BASE_HAND_CAP) break;
+    if (side.hand.length >= cap) break;
     if (side.deck.length === 0) {
       // Shuffle discard back
       side.deck = shuffle(side.discard);
@@ -146,8 +157,10 @@ export function createBattle(
     state.enemy.enrageAt = enemyMods.enrageAt;
   }
 
+  // Pass capOverride so startHandBonus can push the opening hand above
+  // the normal BASE_HAND_CAP (otherwise weaver perks silently cap out).
   const initialDraw = BASE_INITIAL_DRAW + playerPerks.startHandBonus;
-  draw(state.player, initialDraw, state.log, 1, "player");
+  draw(state.player, initialDraw, state.log, 1, "player", initialDraw);
   draw(state.enemy, BASE_INITIAL_DRAW, state.log, 1, "enemy");
 
   if (playerPerks.startHandBonus > 0 || playerPerks.startManaBonus > 0) {
