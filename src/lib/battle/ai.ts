@@ -289,6 +289,20 @@ export function previewEnemyIntent(state: BattleState): EnemyIntent {
     sim.enemy.hp = Math.max(0, sim.enemy.hp - sim.enemy.curseStacks);
     sim.enemy.curseStacks = Math.max(0, sim.enemy.curseStacks - 1);
   }
+  // Poison tick — non-decaying DoT. If the enemy is going to die from
+  // poison before they can act, preview should reflect that as zero
+  // damage / zero plays rather than predicting a turn that won't happen.
+  if (sim.enemy.poison > 0) {
+    sim.enemy.hp = Math.max(0, sim.enemy.hp - sim.enemy.poison);
+  }
+  if (sim.enemy.hp <= 0) {
+    return { damage: 0, heals: 0, cardCount: 0, actions: [], confused: false };
+  }
+  // Vulnerable / weak timers decay at start-of-turn — without this the
+  // preview keeps applying these debuffs through next turn even if they
+  // were due to expire.
+  if (sim.enemy.vulnerableTurns > 0) sim.enemy.vulnerableTurns -= 1;
+  if (sim.enemy.weakTurns > 0) sim.enemy.weakTurns -= 1;
   sim.enemy.manaMax = Math.min(
     sim.enemy.manaCeiling,
     sim.enemy.manaMax + 1,

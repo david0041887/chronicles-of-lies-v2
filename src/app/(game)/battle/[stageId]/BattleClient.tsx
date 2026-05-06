@@ -996,6 +996,7 @@ export function BattleClient({
     battle.player.mana,
     battle.player.weakTurns,
     battle.player.strength,
+    battle.player.damageBonus,
   ]);
 
   return (
