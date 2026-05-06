@@ -174,6 +174,11 @@ export function BattleClient({
     levelAfter: number;
   } | null>(null);
   const [firstClear, setFirstClear] = useState(false);
+  /** Settlement error message, shown in the result modal when the
+   *  /api/battle/complete call rejects or fails. Without this the
+   *  reward block silently disappears and the player has no idea why
+   *  they "won" but got nothing. */
+  const [settleError, setSettleError] = useState<string | null>(null);
   const [previewIdx, setPreviewIdx] = useState<number | null>(null);
   const [surrenderOpen, setSurrenderOpen] = useState(false);
   /** Full-screen battle-log overlay. Tapping the inline log strip opens
@@ -806,10 +811,14 @@ export function BattleClient({
           // 4xx/5xx from the server — surface the reason so the player
           // isn't silently cheated out of rewards (expired ticket, rate
           // limit, sanity check rejection).
-          push(body?.error ?? "結算被拒絕", "danger");
+          const msg = body?.error ?? "結算被拒絕";
+          push(msg, "danger");
+          setSettleError(msg);
         }
       } catch {
-        push("結算失敗(無連線)", "danger");
+        const msg = "結算失敗(無連線),獎勵未發放";
+        push(msg, "danger");
+        setSettleError(msg);
       }
     })();
     // SAFE: must fire EXACTLY ONCE per battle. The reportSent guard at
@@ -1456,6 +1465,14 @@ export function BattleClient({
                   <Reward label="💎 水晶" value={rewards.crystals} />
                   <Reward label="🕯️ 信念" value={rewards.faith ?? 0} />
                   <Reward label="🪙 信徒" value={rewards.believers} />
+                </div>
+              )}
+              {!tutorialMode && settleError && battle.phase === "won" && (
+                <div className="mb-4 px-3 py-2 rounded border border-danger/40 bg-danger/10 text-danger text-sm text-left">
+                  ⚠ {settleError}
+                  <div className="text-xs text-danger/80 mt-1">
+                    請重新整理頁面或返回主頁;若問題持續請聯絡支援。
+                  </div>
                 </div>
               )}
               {!tutorialMode && rewards && rewards.levelAfter > rewards.levelBefore && (
