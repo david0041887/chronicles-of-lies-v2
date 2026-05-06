@@ -868,9 +868,18 @@ export function applyMulligan(
   }
 
   // Bottom of the deck so the player can't immediately re-draw the same
-  // duds (matches HS-style mulligan rather than reshuffle).
+  // duds (matches HS-style mulligan rather than reshuffle). Cap override
+  // = hand.length + removed.length so the replacement draw isn't choked
+  // by BASE_HAND_CAP when the weaver perk pushed the opening hand to 6.
   self.deck.push(...removed);
-  draw(self, removed.length, state.log, state.turn, sideName);
+  draw(
+    self,
+    removed.length,
+    state.log,
+    state.turn,
+    sideName,
+    self.hand.length + removed.length,
+  );
   state.log.push({
     turn: 1,
     side: sideName,

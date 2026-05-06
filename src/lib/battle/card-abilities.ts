@@ -212,17 +212,24 @@ function silenceAllEnemyMinions(ctx: AbilityContext) {
 }
 
 function damageAllMinions(ctx: AbilityContext, amount: number) {
-  const dmg = Math.max(0, Math.floor(amount));
-  if (dmg === 0) return;
-  for (const m of [...ctx.self.board, ...ctx.other.board]) {
+  // Friendly side takes raw damage (self-splash has no attacker/defender
+  // pairing); enemy side goes through the same status pipeline as the
+  // other ability damage helpers so weak/vulnerable land consistently.
+  const selfDmg = Math.max(0, Math.floor(amount));
+  const enemyDmg = applyStatusMods(amount, ctx.self, ctx.other);
+  if (selfDmg === 0 && enemyDmg === 0) return;
+  for (const m of ctx.self.board) {
     if (m.uid === ctx.source.uid) continue;
-    if (m.shielded) {
-      m.shielded = false;
-    } else {
-      m.hp -= dmg;
-    }
+    if (selfDmg === 0) continue;
+    if (m.shielded) m.shielded = false;
+    else m.hp -= selfDmg;
   }
-  log(ctx, `${ctx.source.name} 波及全場 ${dmg} 傷害`, "damage");
+  for (const m of ctx.other.board) {
+    if (enemyDmg === 0) continue;
+    if (m.shielded) m.shielded = false;
+    else m.hp -= enemyDmg;
+  }
+  log(ctx, `${ctx.source.name} 波及全場 ${enemyDmg} 傷害`, "damage");
 }
 
 function healAllFriendlyMinions(ctx: AbilityContext, amount: number) {
