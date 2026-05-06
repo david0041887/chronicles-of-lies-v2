@@ -7,6 +7,7 @@ import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { previewEnemyIntent, runEnemyStep, type EnemyIntent } from "@/lib/battle/ai";
 import { getBossOpener } from "@/lib/battle/boss-lines";
+import { playerCanLethalEnemy } from "@/lib/battle/lethal";
 import { cardArtUrl } from "@/lib/card-art";
 import { getAbilitiesFor, getAbilityDescriptionsForCard } from "@/lib/battle/card-abilities";
 import { signBattleResult } from "@/lib/battle/client-sig";
@@ -878,76 +879,16 @@ export function BattleClient({
     previewCard.cost <= battle.player.mana;
 
   /**
-   * Lethal-this-turn check: would the player's currently-playable
-   * resources alone be enough to kill the enemy face this turn?
-   *
-   * Conservative greedy simulation, close enough to be useful as a
-   * strategic hint without running the full engine. Only fires when:
-   *   · player phase + battle in progress
-   *   · enemy has no taunt minions (a taunt blocks the face)
-   *   · enemy isn't already dead (no false-positive on result screen)
-   *   · enough damage to actually kill, accounting for pierce vs shield
-   *
-   * Damage sources counted (each multiplied by global modifiers):
-   *   · player minions with attacksRemaining > 0 and not summonedThisTurn
-   *     — uses attacksRemaining directly so a windfury minion that
-   *     already used 1 swing only counts the remaining 1
-   *   · cards in hand of attack/ritual/debuff type, played in cost-
-   *     ascending order until mana runs out (debuff at 0.7× per
-   *     resolveCardEffect)
-   *
-   * Modifiers applied at the end:
-   *   · attacker weak −25% on the entire damage pool
-   *   · defender vulnerable +50% on the entire damage pool
-   *   · pierce damage skips shield, normal damage absorbed by shield first
-   *
-   * Skips: combo bonus, sacrifice bonus, buff multipliers, lifesteal-
-   * driven heals on shield, intra-turn enrage. Conservative — under-
-   * reports lethal; never falsely promises one.
+   * Lethal-this-turn check — drives the 致命斬 banner above the enemy
+   * face. Math lives in lib/battle/lethal.ts so the player-side hint
+   * and the AI-side enemyCanLethalPlayer use IDENTICAL evaluation.
+   * Gates on player phase + alive enemy, then defers to the shared
+   * canLethal helper which handles taunt / pierce / shield / strength
+   * / damageBonus / weak / vulnerable.
    */
   const lethalThisTurn = useMemo(() => {
     if (battle.phase !== "player_turn") return false;
-    if (battle.enemy.hp <= 0) return false;
-    if (battle.enemy.board.some((m) => m.keywords.includes("taunt"))) return false;
-
-    let pierceRaw = 0;
-    let normalRaw = 0;
-
-    // Player minion swings — count attacksRemaining, not the keyword
-    // (so a windfury that already swung once this turn doesn't double-
-    // count, and a charged minion gets its real remaining swings).
-    for (const m of battle.player.board) {
-      if (m.summonedThisTurn) continue;
-      if (m.attacksRemaining <= 0) continue;
-      const swingDmg = m.atk * m.attacksRemaining;
-      if (m.keywords.includes("pierce")) pierceRaw += swingDmg;
-      else normalRaw += swingDmg;
-    }
-
-    // Hand cards greedily played cheapest-first until mana runs out.
-    let mana = battle.player.mana;
-    const hand = [...battle.player.hand]
-      .filter((c) => c.type === "attack" || c.type === "ritual" || c.type === "debuff")
-      .sort((a, b) => a.cost - b.cost);
-    for (const c of hand) {
-      if (c.cost > mana) continue;
-      mana -= c.cost;
-      const factor = c.type === "debuff" ? 0.7 : 1;
-      const cardDmg = Math.floor(c.power * factor);
-      if (c.keywords.includes("pierce")) pierceRaw += cardDmg;
-      else normalRaw += cardDmg;
-    }
-
-    // Apply attacker weak / defender vulnerable to the WHOLE pool.
-    const weakMul = battle.player.weakTurns > 0 ? 0.75 : 1;
-    const vulnMul = battle.enemy.vulnerableTurns > 0 ? 1.5 : 1;
-    const totalMul = weakMul * vulnMul;
-    const pierce = Math.floor(pierceRaw * totalMul);
-    const normal = Math.floor(normalRaw * totalMul);
-
-    // Pierce dmg always lands on hp; normal dmg is shaved by shield first.
-    const dmgToHp = pierce + Math.max(0, normal - battle.enemy.shield);
-    return dmgToHp >= battle.enemy.hp;
+    return playerCanLethalEnemy(battle);
   }, [
     battle.phase,
     battle.enemy.hp,
@@ -958,6 +899,7 @@ export function BattleClient({
     battle.player.board,
     battle.player.mana,
     battle.player.weakTurns,
+    battle.player.strength,
   ]);
 
   return (

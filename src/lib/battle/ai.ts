@@ -1,4 +1,5 @@
 import { attackWithMinion, playCard } from "./engine";
+import { enemyCanLethalPlayer } from "./lethal";
 import type { BattleCard, BattleState, LogEntry, SideState } from "./types";
 
 export interface EnemyIntent {
@@ -83,7 +84,7 @@ export function runEnemyStep(state: BattleState): EnemyStepResult {
   if (taunts.length > 0) {
     const t = [...taunts].sort((a, b) => a.hp - b.hp)[0];
     target = { kind: "minion", uid: t.uid };
-  } else if (enemyLethalCheck(state)) {
+  } else if (enemyCanLethalPlayer(state)) {
     // Lethal reachable + no taunts in the way → don't waste swings
     // trading into minions. Every point of face damage is the kill.
     target = { kind: "face" };
@@ -114,52 +115,6 @@ export function runEnemyStep(state: BattleState): EnemyStepResult {
   };
 }
 
-/**
- * Estimate the enemy's max possible face damage this turn — same shape
- * as the client-side lethal indicator but from the enemy's POV. Used
- * to bias card-pick scoring toward closing the game when it's
- * actually closable. Conservative (no combo / buff / sacrifice
- * multipliers) so it doesn't over-promise lethal that isn't there.
- */
-function enemyLethalCheck(state: BattleState): boolean {
-  const self = state.enemy;
-  const other = state.player;
-  if (other.hp <= 0) return false;
-  if (other.board.some((m) => m.keywords.includes("taunt"))) return false;
-
-  let pierceRaw = 0;
-  let normalRaw = 0;
-
-  for (const m of self.board) {
-    if (m.summonedThisTurn) continue;
-    if (m.attacksRemaining <= 0) continue;
-    const swingDmg = m.atk * m.attacksRemaining;
-    if (m.keywords.includes("pierce")) pierceRaw += swingDmg;
-    else normalRaw += swingDmg;
-  }
-
-  let mana = self.mana;
-  const hand = [...self.hand]
-    .filter((c) => c.type === "attack" || c.type === "ritual" || c.type === "debuff")
-    .sort((a, b) => a.cost - b.cost);
-  for (const c of hand) {
-    if (c.cost > mana) continue;
-    mana -= c.cost;
-    const factor = c.type === "debuff" ? 0.7 : 1;
-    const cardDmg = Math.floor(c.power * factor);
-    if (c.keywords.includes("pierce")) pierceRaw += cardDmg;
-    else normalRaw += cardDmg;
-  }
-
-  const weakMul = self.weakTurns > 0 ? 0.75 : 1;
-  const vulnMul = other.vulnerableTurns > 0 ? 1.5 : 1;
-  const totalMul = weakMul * vulnMul;
-  const pierce = Math.floor(pierceRaw * totalMul);
-  const normal = Math.floor(normalRaw * totalMul);
-  const dmgToHp = pierce + Math.max(0, normal - other.shield);
-  return dmgToHp >= other.hp;
-}
-
 function choose(
   state: BattleState,
   playable: { c: BattleCard; i: number }[],
@@ -174,7 +129,7 @@ function choose(
   // player, every face-damage card needs an overwhelming priority
   // bonus so the AI doesn't waste a turn healing or buffing when
   // the kill is one swing away.
-  const lethalReachable = enemyLethalCheck(state);
+  const lethalReachable = enemyCanLethalPlayer(state);
 
   const scored = playable.map(({ c, i }) => {
     const kw = (k: string) => c.keywords.includes(k);
