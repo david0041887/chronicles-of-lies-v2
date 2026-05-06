@@ -1360,6 +1360,30 @@ export function BattleClient({
                   <Reward label="🎯 免費十連" value={10} />
                 </div>
               )}
+              {/* Battle stats — turns + plays + damage exchanged. Useful
+                  for self-evaluation post-fight. Skipped in tutorial since
+                  the tutorial-completion screen has different framing. */}
+              {!tutorialMode && (
+                <div className="grid grid-cols-4 gap-1.5 mb-4 text-center">
+                  <BattleStat
+                    label="回合"
+                    value={battle.turn}
+                  />
+                  <BattleStat
+                    label="出牌"
+                    value={battle.playerPlays.length}
+                  />
+                  <BattleStat
+                    label="造成傷害"
+                    value={Math.max(0, battle.enemy.hpMax - battle.enemy.hp)}
+                  />
+                  <BattleStat
+                    label="承受"
+                    value={Math.max(0, battle.player.hpMax - battle.player.hp)}
+                  />
+                </div>
+              )}
+
               {!tutorialMode && rewards && battle.phase === "won" && (
                 <div className="grid grid-cols-3 gap-2 mb-4">
                   <Reward label="💎 水晶" value={rewards.crystals} />
@@ -1418,6 +1442,20 @@ export function BattleClient({
                     style={{ transformOrigin: "left" }}
                   />
                 </>
+              )}
+
+              {/* Review log — small ghost link below the action row.
+                  Reuses the inline log's expand modal, so the same
+                  full-history view is reachable from the win/loss
+                  screen without leaving the result overlay. */}
+              {!tutorialMode && (
+                <button
+                  type="button"
+                  onClick={() => setLogExpanded(true)}
+                  className="mt-4 text-[11px] text-parchment/50 hover:text-gold tracking-widest min-h-[28px] px-2"
+                >
+                  📜 查看戰鬥紀錄
+                </button>
               )}
             </motion.div>
           </motion.div>
@@ -2882,6 +2920,22 @@ function Reward({ label, value }: { label: string; value: number }) {
       <div className="text-[10px] text-parchment/50 tracking-wider">{label}</div>
       <div className="font-[family-name:var(--font-mono)] text-sm text-parchment tabular-nums mt-1">
         +{value.toLocaleString()}
+      </div>
+    </div>
+  );
+}
+
+/** Compact stat tile for the post-battle summary row. Distinct from
+ *  Reward (no leading "+", lower visual weight) so the player reads it
+ *  as performance data rather than a prize. */
+function BattleStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="px-1.5 py-1.5 rounded bg-black/30 border border-parchment/10">
+      <div className="text-[9px] text-parchment/50 tracking-wider leading-none">
+        {label}
+      </div>
+      <div className="font-[family-name:var(--font-mono)] text-sm text-parchment/90 tabular-nums mt-1 leading-none">
+        {value.toLocaleString()}
       </div>
     </div>
   );
