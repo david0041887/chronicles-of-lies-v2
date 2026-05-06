@@ -161,14 +161,24 @@ function computeStep(
   // summon_minion auto-advances when player has any minion on board
   if (state.player.board.length > 0) idx = consider("attack_with_minion");
 
-  // Skip-ahead — if the starter deck never gives the player an SR+ to
-  // summon, don't strand them. After turn 4 has begun and they still
-  // haven't produced a minion, jump past the minion-related steps so
-  // they can still see the intent-preview lesson before victory.
+  // Skip-ahead — if the starter deck never gives the player a
+  // currently-affordable minion-capable card, don't strand them on
+  // the "summon a minion" step waiting for mana that may never come
+  // before the fight ends. Two paths trip the skip:
+  //   · Turn ≥ 3 and there's NO minion-keyword card the player can
+  //     afford right now (covers slow opening hands).
+  //   · Turn ≥ 5 and the board is still empty regardless (hard
+  //     fail-safe).
+  // Either case jumps past the summon + attack steps to the intent-
+  // preview lesson so the tutorial finishes cleanly even on starter
+  // decks without an early SR+ minion drop.
+  const playerHasAffordableMinion = state.player.hand.some(
+    (c) => c.keywords.includes("minion") && c.cost <= state.player.mana,
+  );
   const stuckOnMinionTeach =
-    state.turn >= 4 &&
     state.phase === "player_turn" &&
-    state.player.board.length === 0;
+    state.player.board.length === 0 &&
+    ((state.turn >= 3 && !playerHasAffordableMinion) || state.turn >= 5);
   if (stuckOnMinionTeach) idx = consider("watch_intent");
 
   // attack_with_minion auto-advances after first attack

@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import { getAbilityDescriptionsForCard } from "@/lib/battle/card-abilities";
 import { cardArtUrl } from "@/lib/card-art";
-import { keywordTitle } from "@/lib/keyword-meta";
+import { keywordTitle, keywordZh } from "@/lib/keyword-meta";
 import { motion, useMotionTemplate, useMotionValue, useSpring } from "framer-motion";
 import type { Rarity } from "@prisma/client";
 import { memo } from "react";
@@ -228,39 +228,64 @@ function CardTileInner({
 
       <div className="relative flex-1" />
 
-      {card.keywords.length > 0 && (
-        <div className="relative flex flex-wrap gap-0.5 justify-center px-1 pb-1">
-          {card.keywords.slice(0, 3).map((k) => (
-            <span
-              key={k}
-              title={keywordTitle(k)}
-              className="text-[9px] tracking-widest px-1 py-0.5 rounded bg-black/60 text-parchment/90 backdrop-blur-sm cursor-help"
-            >
-              {k}
-            </span>
-          ))}
-          {card.keywords.length > 3 && (
-            <span
-              title={card.keywords.slice(3).map(keywordTitle).join("\n")}
-              className="text-[9px] tracking-widest px-1 py-0.5 rounded bg-black/60 text-parchment/60 backdrop-blur-sm cursor-help"
-            >
-              +{card.keywords.length - 3}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Keyword pills — display the Chinese short name (低語 / 穿透 …)
+          rather than the raw English id. We also hide the noisy
+          `minion` keyword from the visible pill row since the card
+          gets a dedicated ATK/HP block below for that — leaving it
+          in the pills was visually redundant. */}
+      {(() => {
+        const visibleKw = card.keywords.filter((k) => k !== "minion");
+        if (visibleKw.length === 0) return null;
+        return (
+          <div className="relative flex flex-wrap gap-0.5 justify-center px-1 pb-1">
+            {visibleKw.slice(0, 3).map((k) => (
+              <span
+                key={k}
+                title={keywordTitle(k)}
+                className="text-[9px] tracking-widest px-1 py-0.5 rounded bg-black/60 text-parchment/90 backdrop-blur-sm cursor-help"
+              >
+                {keywordZh(k)}
+              </span>
+            ))}
+            {visibleKw.length > 3 && (
+              <span
+                title={visibleKw.slice(3).map(keywordTitle).join("\n")}
+                className="text-[9px] tracking-widest px-1 py-0.5 rounded bg-black/60 text-parchment/60 backdrop-blur-sm cursor-help"
+              >
+                +{visibleKw.length - 3}
+              </span>
+            )}
+          </div>
+        );
+      })()}
 
       <div className="relative p-2 border-t border-black/40 bg-gradient-to-t from-black/75 to-black/35 backdrop-blur">
         <div className="flex items-center justify-between">
           <span className="display-serif truncate text-parchment">
             {card.name}
           </span>
-          <span className="flex items-center gap-0.5 text-parchment/90 shrink-0">
-            <span className="text-[10px]">{TYPE_ICON[card.type] ?? "⚔️"}</span>
-            <span className="font-[family-name:var(--font-mono)] text-xs font-bold">
-              {card.power}
+          {/* For SR+ cards that summon a minion, show the resulting
+              ATK / HP the minion will arrive with — same formula as
+              engine.ts resolveCardEffect (atk = power, hp = floor(power
+              × 1.5) + cost). For other cards keep the existing power
+              + type-icon stat block. */}
+          {card.keywords.includes("minion") ? (
+            <span className="flex items-center gap-1 text-parchment shrink-0 font-[family-name:var(--font-mono)] tabular-nums leading-none">
+              <span className="text-orange-300 text-xs font-bold">
+                ⚔{card.power}
+              </span>
+              <span className="text-emerald-300 text-xs font-bold">
+                ❤{Math.max(2, Math.floor(card.power * 1.5) + card.cost)}
+              </span>
             </span>
-          </span>
+          ) : (
+            <span className="flex items-center gap-0.5 text-parchment/90 shrink-0">
+              <span className="text-[10px]">{TYPE_ICON[card.type] ?? "⚔️"}</span>
+              <span className="font-[family-name:var(--font-mono)] text-xs font-bold">
+                {card.power}
+              </span>
+            </span>
+          )}
         </div>
         {card.nameEn && (
           <div className="text-[10px] text-parchment/40 tracking-wider truncate">

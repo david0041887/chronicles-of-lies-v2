@@ -25,7 +25,21 @@ export const KEYWORDS: Record<string, KeywordMeta> = {
   weaken: { zh: "虛弱", desc: "敵人 2 回合內輸出 −25%" },
   strength: { zh: "力量", desc: "永久為每張後續牌 +1 威力" },
   combo: { zh: "連擊", desc: "本回合第 3 張起 +50% 威力" },
+  // Minion-only keywords surfaced by enrichCardKeywords on SR+
+  // attack/ritual cards. Without these entries CardTile would
+  // display the raw English id ("minion" / "taunt" / …) which broke
+  // immersion in zh-TW play.
+  minion: { zh: "怪物", desc: "出牌後留在戰場,每回合可以攻擊" },
+  taunt: { zh: "嘲諷", desc: "敵方必須先攻擊它,才能打臉或其他怪物" },
+  divine_shield: { zh: "聖盾", desc: "吸收一次傷害後消失" },
+  charge: { zh: "衝鋒", desc: "出場當回合就能攻擊" },
+  windfury: { zh: "風怒", desc: "一回合可以攻擊兩次" },
 };
+
+/** Short Chinese name for in-card pill display ("低語" / "穿透" / …). */
+export function keywordZh(k: string): string {
+  return KEYWORDS[k]?.zh ?? k;
+}
 
 export function keywordTitle(k: string): string {
   const m = KEYWORDS[k];
