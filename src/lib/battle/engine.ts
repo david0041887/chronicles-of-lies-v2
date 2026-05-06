@@ -306,6 +306,11 @@ interface ResolveOpts {
   powerScale: number;
   /** Keywords to skip during this resolution (prevents infinite echo loops). */
   ignoreKeywords: string[];
+  /** When true, a board-full minion fizzle does NOT refund mana or
+   *  push the card back to hand. Used by echo replay where the card
+   *  isn't being "played from hand" — there's nothing to put back and
+   *  no mana was spent to refund. */
+  noRefund?: boolean;
 }
 
 function resolveCardEffect(
@@ -394,15 +399,25 @@ function resolveCardEffect(
   //    dead play caused by cramped board.
   if (isMinion) {
     if (self.board.length >= MAX_BOARD_SIZE) {
-      self.mana += card.cost; // refund
-      self.hand.unshift(card); // put card back
-      const idx = self.discard.findIndex((c) => c.uid === card.uid);
-      if (idx >= 0) self.discard.splice(idx, 1);
+      // Refund + put-back path is for cards being PLAYED FROM HAND
+      // (where mana was just deducted and the card was just discarded).
+      // Echo replay arrives here with neither having happened, so a
+      // refund would mint free mana and the unshift would duplicate the
+      // card into hand. Gate on the explicit opts.noRefund flag set by
+      // the echo path.
+      if (!opts.noRefund) {
+        self.mana += card.cost; // refund
+        self.hand.unshift(card); // put card back
+        const idx = self.discard.findIndex((c) => c.uid === card.uid);
+        if (idx >= 0) self.discard.splice(idx, 1);
+      }
       state.log.push({
         turn: state.turn,
         side: sideName,
         kind: "debuff",
-        text: `戰場已滿(${MAX_BOARD_SIZE} 格),${card.name} 無法召喚`,
+        text: opts.noRefund
+          ? `🔁 ${card.name} 無法重現:戰場已滿`
+          : `戰場已滿(${MAX_BOARD_SIZE} 格),${card.name} 無法召喚`,
       });
       return postPlay(state, sideName, card, false, opts);
     }
@@ -912,6 +927,14 @@ function applyStartOfTurnEffects(state: BattleState, sideName: "player" | "enemy
     state.log.push({ turn: state.turn, side: sideName, kind: "damage", text: `${self.name} 詛咒傷害 -${dmg}` });
     self.curseStacks = Math.max(0, self.curseStacks - 1);
   }
+  // If a tick was lethal, short-circuit so we don't spam the log with
+  // cosmetic post-mortem entries (poison "−N" against a 0-hp side, the
+  // mana refill, the auto-draw, the echo replay etc.). checkWin flips
+  // phase to lost and the rest of the start-of-turn becomes a no-op.
+  if (self.hp <= 0) {
+    checkWin(state);
+    return;
+  }
 
   // Poison tick (does NOT decay — sticks until cleansed)
   if (self.poison > 0) {
@@ -923,6 +946,10 @@ function applyStartOfTurnEffects(state: BattleState, sideName: "player" | "enemy
       kind: "damage",
       text: `☠️ ${self.name} 中毒 −${dmg}`,
     });
+  }
+  if (self.hp <= 0) {
+    checkWin(state);
+    return;
   }
 
   // Vulnerable / weak timers decay
@@ -949,6 +976,10 @@ function applyStartOfTurnEffects(state: BattleState, sideName: "player" | "enemy
     resolveCardEffect(state, sideName, pending, {
       powerScale: 0.5,
       ignoreKeywords: ["echo", "sacrifice", "whisper"],
+      // Echo replay isn't "playing from hand" — if the minion summon
+      // fizzles on a full board, don't refund mana or duplicate the
+      // card back into hand.
+      noRefund: true,
     });
   }
 
