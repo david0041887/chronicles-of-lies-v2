@@ -863,10 +863,23 @@ export function BattleClient({
 
   // Auto-leave after win/loss — but only when there's no next-stage choice
   // to offer. With a next stage available, we let the player choose.
+  // Tower victories also surface a "下一層" button (gated on a successful
+  // settle), so likewise hold back the auto-leave so the player can act.
   useEffect(() => {
     if (battle.phase !== "won" && battle.phase !== "lost") return;
     // Skip auto-leave on win when a next stage exists (we surface a button).
     if (battle.phase === "won" && nextStage && !tutorialMode) return;
+    // Skip auto-leave on a tower clear with successful settle — the
+    // result modal renders a "下一層" button and the player needs time
+    // to decide whether to push on or bank the run.
+    if (
+      battle.phase === "won" &&
+      !tutorialMode &&
+      towerInfo &&
+      !settleError
+    ) {
+      return;
+    }
     const dest = tutorialMode
       ? "/home"
       : returnHref ?? `/era/${stage.eraId}`;
@@ -878,7 +891,7 @@ export function BattleClient({
     // because router identity changed (which it shouldn't) would just
     // re-arm an identical timer — harmless but pointless.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [battle.phase]);
+  }, [battle.phase, towerInfo, settleError]);
 
   const openPreview = (handIdx: number) => {
     if (battle.phase !== "player_turn") return;
@@ -1573,6 +1586,35 @@ export function BattleClient({
                     }
                   >
                     {returnHref ? "返回" : "返回時代"}
+                  </Button>
+                </div>
+              ) : battle.phase === "won" &&
+                !tutorialMode &&
+                towerInfo &&
+                !settleError ? (
+                /* Tower clear path — backend already advanced run.level
+                   to towerInfo.currentLevel, so the canonical next
+                   floor is currentLevel + 1. Anti-skip on the tower
+                   battle page would 302 us to /dungeon/tower if we
+                   were wrong, so this is safe. */
+                <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
+                  <Button
+                    variant="primary"
+                    size="md"
+                    onClick={() =>
+                      router.push(
+                        `/dungeon/tower/battle/${towerInfo.currentLevel + 1}`,
+                      )
+                    }
+                  >
+                    ⬆ 下一層 · 第 {towerInfo.currentLevel + 1} 層
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => router.push("/dungeon/tower")}
+                  >
+                    返回幽音塔
                   </Button>
                 </div>
               ) : battle.phase === "won" && !tutorialMode ? (
