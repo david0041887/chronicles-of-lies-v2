@@ -73,8 +73,12 @@ function draw(
   capOverride?: number,
 ) {
   const cap = capOverride ?? BASE_HAND_CAP;
+  let skipped = 0;
   for (let i = 0; i < n; i++) {
-    if (side.hand.length >= cap) break;
+    if (side.hand.length >= cap) {
+      skipped = n - i;
+      break;
+    }
     if (side.deck.length === 0) {
       // Shuffle discard back
       side.deck = shuffle(side.discard);
@@ -84,6 +88,19 @@ function draw(
     if (!card) break;
     side.hand.push(card);
     log.push({ turn, side: sideName, kind: "draw", text: `抽到 ${card.name}` });
+  }
+  // Surface "draw was eaten by hand cap" so the player knows their
+  // unused turn-start draws aren't free — they're forfeit until the
+  // hand frees up. Suppressed during the opening hand / mulligan
+  // refill (capOverride pushed the cap past BASE_HAND_CAP so any skip
+  // there is a perk overflow we don't want to spam about).
+  if (skipped > 0 && capOverride === undefined) {
+    log.push({
+      turn,
+      side: sideName,
+      kind: "debuff",
+      text: `${side.name} 手牌已滿,跳過 ${skipped} 張抽牌`,
+    });
   }
 }
 
