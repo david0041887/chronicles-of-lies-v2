@@ -32,7 +32,7 @@ import type { BattleCard, BattleState, LogEntry, Minion, SideState } from "@/lib
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 type StatusStampTone =
   | "poison"
@@ -763,64 +763,81 @@ export function BattleClient({
   // reportSent (rather than as soon as phase flips) means a refresh
   // during the brief result-modal countdown still resumes onto the
   // result screen rather than dropping the player into a fresh fight.
+  // Held back when settleError is set so the player can refresh and
+  // retry the /complete call without losing the win state — otherwise
+  // the localStorage wipe would orphan their unrewarded victory.
   useEffect(() => {
     if (tutorialMode) return;
     if (!isPersistable(stage.id)) return;
     if ((battle.phase === "won" || battle.phase === "lost") && reportSent) {
+      if (settleError) return;
       clearSaved(stage.id);
     }
-  }, [battle.phase, reportSent, stage.id, tutorialMode]);
+  }, [battle.phase, reportSent, settleError, stage.id, tutorialMode]);
+
+  // Result settlement — sends one POST to /api/battle/complete and
+  // updates rewards / settleError accordingly. Pulled out as a stable
+  // callback so the result modal can offer a manual "重試結算" button
+  // when the first attempt fails. settlingRef stops a button-mash from
+  // queuing multiple in-flight POSTs.
+  const settlingRef = useRef(false);
+  const settleResult = useCallback(async () => {
+    if (settlingRef.current) return;
+    settlingRef.current = true;
+    setSettleError(null);
+    try {
+      const url = tutorialMode
+        ? "/api/tutorial/complete"
+        : "/api/battle/complete";
+      const payload = {
+        ticket: ticket ?? "",
+        won: battle.phase === "won",
+        turnsElapsed: battle.turn,
+        playerHpEnd: battle.player.hp,
+        enemyHpEnd: battle.enemy.hp,
+        playerPlays: battle.playerPlays,
+      };
+      // Only the real battle endpoint requires a signature; tutorial
+      // uses a simpler one-shot path.
+      const sig = !tutorialMode && ticket
+        ? await signBattleResult(payload)
+        : undefined;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stageId: stage.id,
+          sig,
+          ...payload,
+        }),
+      });
+      const body = await res.json();
+      if (body?.ok) {
+        if (body.rewards) setRewards(body.rewards);
+        setFirstClear(!!body.firstClear);
+      } else {
+        // 4xx/5xx from the server — surface the reason so the player
+        // isn't silently cheated out of rewards (expired ticket, rate
+        // limit, sanity check rejection).
+        const msg = body?.error ?? "結算被拒絕";
+        push(msg, "danger");
+        setSettleError(msg);
+      }
+    } catch {
+      const msg = "結算失敗(無連線),獎勵未發放";
+      push(msg, "danger");
+      setSettleError(msg);
+    } finally {
+      settlingRef.current = false;
+    }
+  }, [battle, ticket, tutorialMode, stage.id, push]);
 
   // Report results once
   useEffect(() => {
     if (reportSent) return;
     if (battle.phase !== "won" && battle.phase !== "lost") return;
     setReportSent(true);
-    (async () => {
-      try {
-        const url = tutorialMode
-          ? "/api/tutorial/complete"
-          : "/api/battle/complete";
-        const payload = {
-          ticket: ticket ?? "",
-          won: battle.phase === "won",
-          turnsElapsed: battle.turn,
-          playerHpEnd: battle.player.hp,
-          enemyHpEnd: battle.enemy.hp,
-          playerPlays: battle.playerPlays,
-        };
-        // Only the real battle endpoint requires a signature; tutorial
-        // uses a simpler one-shot path.
-        const sig = !tutorialMode && ticket
-          ? await signBattleResult(payload)
-          : undefined;
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            stageId: stage.id,
-            sig,
-            ...payload,
-          }),
-        });
-        const body = await res.json();
-        if (body?.ok) {
-          if (body.rewards) setRewards(body.rewards);
-          setFirstClear(!!body.firstClear);
-        } else {
-          // 4xx/5xx from the server — surface the reason so the player
-          // isn't silently cheated out of rewards (expired ticket, rate
-          // limit, sanity check rejection).
-          const msg = body?.error ?? "結算被拒絕";
-          push(msg, "danger");
-          setSettleError(msg);
-        }
-      } catch {
-        const msg = "結算失敗(無連線),獎勵未發放";
-        push(msg, "danger");
-        setSettleError(msg);
-      }
-    })();
+    settleResult();
     // SAFE: must fire EXACTLY ONCE per battle. The reportSent guard at
     // the top of the body provides idempotence within a session; deps
     // are the minimal set that needs to wake it up — phase flipping to
@@ -1469,9 +1486,18 @@ export function BattleClient({
               )}
               {!tutorialMode && settleError && battle.phase === "won" && (
                 <div className="mb-4 px-3 py-2 rounded border border-danger/40 bg-danger/10 text-danger text-sm text-left">
-                  ⚠ {settleError}
-                  <div className="text-xs text-danger/80 mt-1">
-                    請重新整理頁面或返回主頁;若問題持續請聯絡支援。
+                  <div>⚠ {settleError}</div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => settleResult()}
+                    >
+                      重試結算
+                    </Button>
+                    <span className="text-xs text-danger/80">
+                      失敗時請勿關閉頁面;進度仍保留至結算成功。
+                    </span>
                   </div>
                 </div>
               )}
