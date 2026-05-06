@@ -8,6 +8,12 @@ import { useToast } from "@/components/ui/Toast";
 import { previewEnemyIntent, runEnemyStep, type EnemyIntent } from "@/lib/battle/ai";
 import { getBossOpener } from "@/lib/battle/boss-lines";
 import { playerCanLethalEnemy } from "@/lib/battle/lethal";
+import {
+  clearSaved,
+  isPersistable,
+  loadSaved,
+  saveBattle,
+} from "@/lib/battle/persist";
 import { cardArtUrl } from "@/lib/card-art";
 import { getAbilitiesFor, getAbilityDescriptionsForCard } from "@/lib/battle/card-abilities";
 import { signBattleResult } from "@/lib/battle/client-sig";
@@ -134,8 +140,20 @@ export function BattleClient({
   const router = useRouter();
   const { push } = useToast();
 
+  // Try to resume a persisted in-progress battle for this stageId.
+  // Saved state is bypassed for tutorial / tower (different routing
+  // contracts) and for any save older than the persistence TTL. When
+  // a save is found, also rehydrate mulliganDone + openerSeen so the
+  // overlay flow doesn't replay (you don't get a free re-mulligan).
+  const persistResume = useMemo(() => {
+    if (tutorialMode) return null;
+    if (!isPersistable(stage.id)) return null;
+    return loadSaved(stage.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage.id]);
+
   const [battle, setBattle] = useState<BattleState>(() =>
-    createBattle(
+    persistResume?.battle ?? createBattle(
       playerName,
       playerDeck,
       stage.enemyName,
@@ -188,7 +206,9 @@ export function BattleClient({
   /** Starting-hand mulligan: shown once at battle start, dismissed by
    *  the player (skipped automatically in tutorial mode so onboarding
    *  doesn't have to teach two layers at once). */
-  const [mulliganDone, setMulliganDone] = useState<boolean>(tutorialMode);
+  const [mulliganDone, setMulliganDone] = useState<boolean>(
+    tutorialMode || persistResume?.mulliganDone === true,
+  );
   const [mulliganPicks, setMulliganPicks] = useState<Set<string>>(new Set());
 
   /** Boss opener overlay — only fires for boss/prime stages, briefly
@@ -197,7 +217,9 @@ export function BattleClient({
     if (!stage.isBoss) return null;
     return getBossOpener(stage.eraId, stage.mode);
   }, [stage]);
-  const [openerVisible, setOpenerVisible] = useState<boolean>(!!bossOpener && !tutorialMode);
+  const [openerVisible, setOpenerVisible] = useState<boolean>(
+    !!bossOpener && !tutorialMode && persistResume?.openerSeen !== true,
+  );
   useEffect(() => {
     if (!openerVisible) return;
     // Curtain pulls back at ~900ms, opener mounts after, holds ~2200ms,
@@ -695,6 +717,43 @@ export function BattleClient({
     // close over stale snapshots).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battle.phase]);
+
+  // Persist battle state at safe checkpoints. Saving only on the
+  // player's turn (after mulligan + boss opener finish) means a
+  // restored state is always at a stable resume point — no risk of
+  // re-firing in-flight enemy actions or replaying overlays. Tower /
+  // tutorial battles opt out via isPersistable / tutorialMode.
+  useEffect(() => {
+    if (tutorialMode) return;
+    if (!isPersistable(stage.id)) return;
+    if (battle.phase !== "player_turn") return;
+    if (!mulliganDone) return;
+    if (openerVisible) return;
+    saveBattle(stage.id, {
+      battle,
+      mulliganDone,
+      openerSeen: !openerVisible && bossOpener !== null,
+    });
+  }, [
+    battle,
+    mulliganDone,
+    openerVisible,
+    bossOpener,
+    stage.id,
+    tutorialMode,
+  ]);
+
+  // Wipe persistence after the result has been reported. Doing it after
+  // reportSent (rather than as soon as phase flips) means a refresh
+  // during the brief result-modal countdown still resumes onto the
+  // result screen rather than dropping the player into a fresh fight.
+  useEffect(() => {
+    if (tutorialMode) return;
+    if (!isPersistable(stage.id)) return;
+    if ((battle.phase === "won" || battle.phase === "lost") && reportSent) {
+      clearSaved(stage.id);
+    }
+  }, [battle.phase, reportSent, stage.id, tutorialMode]);
 
   // Report results once
   useEffect(() => {
