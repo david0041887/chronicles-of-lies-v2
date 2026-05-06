@@ -5,7 +5,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import type { DungeonKind, DungeonRun } from "@prisma/client";
+import type { DungeonKind, DungeonRun, Prisma } from "@prisma/client";
 
 /**
  * Get or lazy-create the run for (user, kind). The default row is
@@ -71,14 +71,14 @@ export async function recordTowerFloorClear(
         highestLevel: floor,
         lastFloorAt: now,
         totalClears: 1,
-        state: { towerTokens: rewards.towerTokens },
+        state: mergeRunState(null, { towerTokens: rewards.towerTokens }),
       },
       update: {
         level: floor,
         highestLevel: nextHighest,
         totalClears: { increment: 1 },
         lastFloorAt: now,
-        state: { towerTokens: nextTokens },
+        state: mergeRunState(existing?.state, { towerTokens: nextTokens }),
       },
     });
 
@@ -111,26 +111,54 @@ function readTokensFromState(state: unknown): number {
   return typeof v === "number" && v >= 0 ? v : 0;
 }
 
+/** Internal — merge a partial update into a DungeonRun.state JSON
+ *  blob WITHOUT clobbering keys we don't know about. Earlier writes
+ *  used `data: { state: { towerTokens: N } }` directly which replaces
+ *  the whole JSON — fine while towerTokens was the only key, but
+ *  fragile the moment another dungeon kind drops a key in there.
+ *
+ *  Returns Prisma.InputJsonValue so it slots straight into a `data`
+ *  payload without an explicit cast at every call site. */
+function mergeRunState(
+  existing: unknown,
+  patch: Record<string, Prisma.InputJsonValue>,
+): Prisma.InputJsonValue {
+  const base =
+    existing && typeof existing === "object" && !Array.isArray(existing)
+      ? (existing as Record<string, Prisma.InputJsonValue>)
+      : {};
+  return { ...base, ...patch };
+}
+
 /**
  * Defeat / abandon — resets level to 0 (run starts over from floor 1)
  * but PRESERVES highestLevel for vanity stats. Tokens stay in `state`.
+ *
+ * Uses upsert to handle the (rare) case where the run row was never
+ * created — happens if a dev seeds a battle ticket directly or a row
+ * was wiped out of band. Failing the loss-settlement on a missing row
+ * would leave the player stuck unable to retry.
  */
 export async function abandonRun(userId: string, kind: DungeonKind) {
-  return prisma.dungeonRun.update({
+  return prisma.dungeonRun.upsert({
     where: { userId_kind: { userId, kind } },
-    data: { level: 0, lastResetAt: new Date() },
+    update: { level: 0, lastResetAt: new Date() },
+    create: {
+      userId,
+      kind,
+      level: 0,
+      highestLevel: 0,
+      lastResetAt: new Date(),
+    },
   });
 }
 
 /** Read-only — what's in a run's state JSON, normalised.
  *
- * NOTE: tower tokens accumulate here but currently have NO spend
- * mechanism. Players collect them as a vanity counter on the hub
- * until a future "tower exchange" feature ships (e.g., trade tokens
- * for an awakening reagent or a bypass pass). Don't add a top-level
- * User.towerTokens column — the JSON-on-DungeonRun shape is
- * intentional so each dungeon kind keeps its currency local to its
- * run record. See the TODO at the bottom of this file. */
+ * NOTE: don't add a top-level User.towerTokens column — the
+ * JSON-on-DungeonRun shape is intentional so each dungeon kind keeps
+ * its currency local to its run record. Spend path goes through
+ * spendTowerTokens() below. */
 export function readTowerState(run: DungeonRun) {
   return { towerTokens: readTokensFromState(run.state) };
 }
@@ -160,7 +188,7 @@ export async function spendTowerTokens(
 
     await tx.dungeonRun.update({
       where: { userId_kind: { userId, kind: "tower" } },
-      data: { state: { towerTokens: remaining } },
+      data: { state: mergeRunState(run?.state, { towerTokens: remaining }) },
     });
     await tx.user.update({
       where: { id: userId },
