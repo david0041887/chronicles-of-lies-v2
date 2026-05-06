@@ -2211,19 +2211,20 @@ function StatusTray({
         tone="muted"
       />
       {/* Hand pill — shows current count out of cap. Goes red at the
-          cap (5/5) because the next draw will burn silently. */}
-      {side.hand.length >= 0 && (
-        <StatusPill
-          icon="🎴"
-          value={`${side.hand.length}/5`}
-          title={
-            side.hand.length >= 5
-              ? "手牌已滿 — 下次抽牌會消失"
-              : "手牌"
-          }
-          tone={side.hand.length >= 5 ? "danger" : "muted"}
-        />
-      )}
+          cap (5/5) because the engine pauses draws until the player
+          plays something, NOT to signal a burn (engine doesn't burn —
+          excess draws skip silently and the cards stay on the deck). */}
+      <StatusPill
+        icon="🎴"
+        value={`${side.hand.length}/5`}
+        title={
+          side.hand.length >= 5
+            ? "手牌已滿 — 下次抽牌會跳過,須先打出卡片才能繼續抽"
+            : "手牌"
+        }
+        tone={side.hand.length >= 5 ? "danger" : "muted"}
+      />
+
       {side.shield > 0 && (
         <PulsePillWrapper bumpKey={shieldKey} active={animate}>
           <StatusPill icon="🛡" value={`${side.shield}`} title="護盾" tone="info" />
