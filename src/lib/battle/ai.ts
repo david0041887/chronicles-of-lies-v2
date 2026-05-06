@@ -73,18 +73,40 @@ export function runEnemyStep(state: BattleState): EnemyStepResult {
     };
   }
 
-  // Otherwise attack with one minion.
-  const attacker = state.enemy.board.find(
+  // Otherwise attack with one minion. Order matters: with multiple
+  // ready attackers we want to pick the right one for the situation
+  // (don't waste a 6/6 swing on a 1-hp taunt while a 1/1 sits idle).
+  const ready = state.enemy.board.filter(
     (m) => !m.summonedThisTurn && m.attacksRemaining > 0,
   );
-  if (!attacker) return { done: true };
+  if (ready.length === 0) return { done: true };
 
   const taunts = state.player.board.filter((m) => m.keywords.includes("taunt"));
+  const lethal = taunts.length === 0 && enemyCanLethalPlayer(state);
+
+  let attacker: typeof ready[number];
+  if (taunts.length > 0) {
+    // Smallest taunt first; pick the smallest attacker that still kills
+    // it (preserves bigger swingers for later targets). If none kills
+    // outright, pick the smallest atk so chumps spend first.
+    const smallestTaunt = [...taunts].sort((a, b) => a.hp - b.hp)[0];
+    const overkillers = ready
+      .filter((m) => m.atk >= smallestTaunt.hp)
+      .sort((a, b) => a.atk - b.atk);
+    attacker = overkillers[0] ?? [...ready].sort((a, b) => a.atk - b.atk)[0];
+  } else if (lethal) {
+    // Going for the kill — biggest swing first so face damage lands
+    // before any reactive trigger could shift state mid-sequence.
+    attacker = [...ready].sort((a, b) => b.atk - a.atk)[0];
+  } else {
+    attacker = ready[0];
+  }
+
   let target: { kind: "face" } | { kind: "minion"; uid: string };
   if (taunts.length > 0) {
     const t = [...taunts].sort((a, b) => a.hp - b.hp)[0];
     target = { kind: "minion", uid: t.uid };
-  } else if (enemyCanLethalPlayer(state)) {
+  } else if (lethal) {
     // Lethal reachable + no taunts in the way → don't waste swings
     // trading into minions. Every point of face damage is the kill.
     target = { kind: "face" };
