@@ -157,6 +157,11 @@ export function BattleClient({
   const [firstClear, setFirstClear] = useState(false);
   const [previewIdx, setPreviewIdx] = useState<number | null>(null);
   const [surrenderOpen, setSurrenderOpen] = useState(false);
+  /** Full-screen battle-log overlay. Tapping the inline log strip opens
+   *  a Modal listing every entry from the start of the fight, grouped
+   *  by turn. Useful for verifying what just happened during a fast
+   *  staged enemy turn. */
+  const [logExpanded, setLogExpanded] = useState(false);
   const [floaters, setFloaters] = useState<
     { id: number; side: "player" | "enemy"; delta: number }[]
   >([]);
@@ -199,7 +204,7 @@ export function BattleClient({
     const t = setTimeout(() => setOpenerVisible(false), 2900);
     return () => clearTimeout(t);
   }, [openerVisible]);
-  const logRef = useRef<HTMLDivElement>(null);
+  const logRef = useRef<HTMLButtonElement>(null);
   const prevLogLenRef = useRef(0);
   const sleepTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const prevHpRef = useRef({
@@ -1188,9 +1193,11 @@ export function BattleClient({
           onMinionClick={(uid) => onAttackTarget({ kind: "minion", uid })}
         />
 
-        <div
+        <button
           ref={logRef}
-          className="relative mx-4 my-2 rounded-lg border border-parchment/10 bg-black/30 backdrop-blur p-3 max-h-24 overflow-y-auto text-xs space-y-0.5"
+          onClick={() => setLogExpanded(true)}
+          aria-label="展開戰鬥紀錄"
+          className="relative mx-4 my-2 rounded-lg border border-parchment/10 bg-black/30 backdrop-blur p-3 max-h-24 overflow-y-auto text-xs space-y-0.5 text-left w-auto block hover:border-gold/30 transition-colors group"
         >
           {(() => {
             // Hide UI-only marker entries (empty text, e.g. minion_attack
@@ -1201,7 +1208,15 @@ export function BattleClient({
               <LogLine key={base + i} entry={l} />
             ));
           })()}
-        </div>
+          {/* Expand affordance — small chevron in the top-right that
+              brightens on hover so the log feels tappable. */}
+          <span
+            aria-hidden
+            className="absolute top-1.5 right-2 text-[10px] text-parchment/30 group-hover:text-gold tracking-widest pointer-events-none"
+          >
+            ⤢
+          </span>
+        </button>
 
         <BoardRow
           side="player"
@@ -1229,6 +1244,23 @@ export function BattleClient({
           onTap={openPreview}
         />
       </div>
+
+      {/* Full-screen log overlay — tapping the inline log opens this so
+          the player can review the entire fight, not just the last 40
+          entries. Grouped by turn for fast scanning. */}
+      <Modal
+        open={logExpanded}
+        onClose={() => setLogExpanded(false)}
+        title={`戰鬥紀錄 · 第 ${battle.turn} 回合`}
+        className="max-w-lg"
+      >
+        <BattleLogFull log={battle.log} />
+        <div className="flex justify-end mt-4">
+          <Button variant="ghost" size="sm" onClick={() => setLogExpanded(false)}>
+            關閉
+          </Button>
+        </div>
+      </Modal>
 
       {/* Surrender confirm */}
       <Modal
@@ -2864,6 +2896,38 @@ const LOG_KIND_ICON: Record<string, string> = {
   draw: "⤵︎",
   phase: "⸻",
 };
+
+/**
+ * Full-screen battle-log content. Filters out UI-marker entries (empty
+ * text), then walks the timeline in order so phase rows form natural
+ * dividers between turns. Auto-scrolls to the bottom on open so the
+ * most recent action is in view; the player scrolls up to review.
+ */
+function BattleLogFull({ log }: { log: LogEntry[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const visible = useMemo(() => log.filter((l) => l.text !== ""), [log]);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [visible.length]);
+  if (visible.length === 0) {
+    return (
+      <div className="text-center text-parchment/40 text-sm py-12">
+        戰鬥才剛開始 — 紀錄會逐步累積。
+      </div>
+    );
+  }
+  return (
+    <div
+      ref={containerRef}
+      className="max-h-[60vh] overflow-y-auto rounded-lg border border-parchment/10 bg-black/40 p-3 space-y-0.5 text-xs"
+    >
+      {visible.map((l, i) => (
+        <LogLine key={i} entry={l} />
+      ))}
+    </div>
+  );
+}
 
 function LogLine({ entry }: { entry: LogEntry }) {
   const color = useMemo(() => {
