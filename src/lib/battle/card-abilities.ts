@@ -54,15 +54,45 @@ function log(ctx: AbilityContext, text: string, kind: "buff" | "debuff" | "damag
   });
 }
 
+/** Apply attacker weak (-25%) and defender vulnerable (+50%) to a raw
+ *  damage value. Mirrors engine.ts dealDamage / minion-vs-minion path
+ *  so ability damage stays consistent with attack damage. */
+function applyStatusMods(
+  raw: number,
+  attacker: SideState,
+  defender: SideState,
+): number {
+  let dmg = Math.max(0, Math.floor(raw));
+  if (attacker.weakTurns > 0) dmg = Math.floor(dmg * 0.75);
+  if (defender.vulnerableTurns > 0) dmg = Math.floor(dmg * 1.5);
+  return Math.max(0, dmg);
+}
+
 function damageEnemyFace(ctx: AbilityContext, amount: number) {
-  const dmg = Math.max(0, Math.floor(amount));
+  // Match dealDamage(): weak/vulnerable first, then face shield, then hp.
+  // Previously this skipped both, letting battlecry pings ignore the
+  // defender's shield entirely — a real bug for boss arena starts which
+  // begin with a shield buffer that abilities should still respect.
+  let dmg = applyStatusMods(amount, ctx.self, ctx.other);
   if (dmg === 0) return;
-  ctx.other.hp = Math.max(0, ctx.other.hp - dmg);
-  log(ctx, `${ctx.source.name} 直擊 ${ctx.other.name} −${dmg}`, "damage");
+  if (ctx.other.shield > 0) {
+    const absorbed = Math.min(ctx.other.shield, dmg);
+    ctx.other.shield -= absorbed;
+    dmg -= absorbed;
+    if (absorbed > 0) {
+      log(ctx, `護盾吸收 ${absorbed}`, "buff");
+    }
+  }
+  if (dmg > 0) {
+    ctx.other.hp = Math.max(0, ctx.other.hp - dmg);
+    log(ctx, `${ctx.source.name} 直擊 ${ctx.other.name} −${dmg}`, "damage");
+  }
 }
 
 function damageAllEnemyMinions(ctx: AbilityContext, amount: number) {
-  const dmg = Math.max(0, Math.floor(amount));
+  // Vulnerable is a SideState flag; engine's minion-vs-minion path also
+  // multiplies minion damage by it, so ability AOE follows the same rule.
+  const dmg = applyStatusMods(amount, ctx.self, ctx.other);
   if (dmg === 0) return;
   for (const m of ctx.other.board) {
     if (m.shielded) {
@@ -77,8 +107,9 @@ function damageAllEnemyMinions(ctx: AbilityContext, amount: number) {
 }
 
 function damageRandomEnemyMinion(ctx: AbilityContext, amount: number) {
-  const dmg = Math.max(0, Math.floor(amount));
-  if (dmg === 0 || ctx.other.board.length === 0) return;
+  if (ctx.other.board.length === 0) return;
+  const dmg = applyStatusMods(amount, ctx.self, ctx.other);
+  if (dmg === 0) return;
   const target = ctx.other.board[Math.floor(Math.random() * ctx.other.board.length)];
   if (target.shielded) {
     target.shielded = false;
