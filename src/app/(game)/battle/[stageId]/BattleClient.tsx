@@ -1004,6 +1004,30 @@ export function BattleClient({
       {/* Turn transition banner */}
       <TurnBanner phase={battle.phase} turn={battle.turn} />
 
+      {/* Attack-mode cancel — floating pill at the top centre of the
+          arena once the player has selected an attacker. Without this
+          a mobile player who picked the wrong minion has to re-tap
+          the same minion to deselect (not obvious). The pill is
+          deliberately above the enemy face so it's far from the
+          attack targets — tap-zone separation prevents accidental
+          deselects when reaching for a target. */}
+      <AnimatePresence>
+        {selectedAttackerUid !== null && (
+          <motion.button
+            initial={{ opacity: 0, y: -8, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.95 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            onClick={() => setSelectedAttackerUid(null)}
+            className="absolute top-14 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-full border border-parchment/30 bg-veil/95 backdrop-blur text-[11px] tracking-widest text-parchment hover:text-blood hover:border-blood/60 transition-colors flex items-center gap-1.5 shadow-lg"
+            aria-label="取消攻擊"
+          >
+            <span aria-hidden>✕</span>
+            <span>取消攻擊</span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* Confused-turn telegraph: tells the player WHY they can't act
           right now (1.8s) before the engine auto-skips the turn. */}
       <AnimatePresence>
