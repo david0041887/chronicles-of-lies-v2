@@ -578,11 +578,19 @@ export function BattleClient({
         scheduleTimer(r, ms);
       });
 
+    /** Pacing baseline so empty turns ("enemy can't afford anything",
+     *  "no minions to attack with") still feel like a turn. Without
+     *  this floor those turns end in ~420ms which reads as glitchy
+     *  rather than as a deliberate "they had nothing to do" beat. */
+    const MIN_ENEMY_TURN_MS = 1400;
+    const turnStartedAt = Date.now();
+
     const runAsync = async () => {
       try {
         await sleep(420);
         if (cancelled) return;
 
+        let actionsTaken = 0;
         if (isConfused(battle, "enemy")) {
           try {
             consumeConfusion(battle, "enemy");
@@ -591,6 +599,7 @@ export function BattleClient({
           }
           tick();
           await sleep(350);
+          actionsTaken = 1; // confusion log entry IS the visible action
         } else {
           // Staged play — one action per loop iteration, with delay
           // proportional to the action so the screen flow feels natural.
@@ -607,11 +616,33 @@ export function BattleClient({
             }
             tick();
             if (step.done) break;
+            actionsTaken++;
             // card plays get a longer pause so the impact flash finishes;
             // minion attacks are snappier so chained trades don't drag.
             await sleep(step.kind === "play" ? 620 : 380);
           }
         }
+        if (cancelled) return;
+
+        // Idle turn — enemy literally couldn't act. Push a log entry
+        // so the player gets a visible signal alongside the dwell pad
+        // below, otherwise the UI just sits silent.
+        if (actionsTaken === 0) {
+          battle.log.push({
+            turn: battle.turn,
+            side: "enemy",
+            kind: "phase",
+            text: `${battle.enemy.name} 沒有可用行動`,
+          });
+          tick();
+        }
+
+        // Pacing floor: pad the turn out so even an idle / single-
+        // confusion-tick / one-attack turn takes roughly the same
+        // time on screen. Otherwise short turns feel skipped.
+        const elapsed = Date.now() - turnStartedAt;
+        const pad = MIN_ENEMY_TURN_MS - elapsed;
+        if (pad > 0) await sleep(pad);
         if (cancelled) return;
 
         // Always attempt to end the enemy turn. endEnemyTurn self-guards
