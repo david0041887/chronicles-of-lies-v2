@@ -586,6 +586,17 @@ export function BattleClient({
     }
   }, [battle.player.board, selectedAttackerUid]);
 
+  // ESC cancels attack-target selection — desktop QoL parity with the
+  // floating cancel-attack button shown when an attacker is picked.
+  useEffect(() => {
+    if (selectedAttackerUid === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedAttackerUid(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedAttackerUid]);
+
   // Enemy turn runner — plays one action at a time with brief delays so
   // the player sees each card/attack land instead of a batched snap.
   const enemyRunningRef = useRef(false);
