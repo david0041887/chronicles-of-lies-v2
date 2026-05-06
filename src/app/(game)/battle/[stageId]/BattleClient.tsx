@@ -2297,7 +2297,7 @@ function Hand({
     };
   };
   return (
-    <div className="relative h-[40vh] max-h-[300px] flex items-end justify-center px-2 pb-3 gap-1 overflow-x-auto">
+    <div className="relative h-[30vh] max-h-[230px] flex items-end justify-center px-2 pb-2 gap-1 overflow-x-auto">
       <AnimatePresence mode="popLayout">
         {hand.map((c, i) => {
           const affordable = c.cost <= mana;
@@ -2327,7 +2327,7 @@ function Hand({
               transition={{ duration: 0.25, ease: [0.22, 0.97, 0.32, 1.08] }}
               whileHover={{ y: -12, scale: 1.05 }}
               className={cn(
-                "shrink-0 w-[22vw] max-w-[112px] min-w-[84px] transition-opacity relative",
+                "shrink-0 w-[19vw] max-w-[96px] min-w-[76px] transition-opacity relative",
                 !affordable && canPlay && "opacity-60",
               )}
             >
@@ -2365,7 +2365,7 @@ function Hand({
                   }}
                 />
               )}
-              <CardTile card={c} size="sm" />
+              <CardTile card={c} size="sm" compact />
               {comboReady && (
                 <span
                   className="absolute -top-2 left-1/2 -translate-x-1/2 text-[9px] font-bold tracking-widest bg-emerald-500 text-veil rounded-full px-2 py-0.5 shadow-[0_2px_8px_rgba(80,220,140,0.7)] pointer-events-none"

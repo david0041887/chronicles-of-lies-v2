@@ -33,6 +33,11 @@ interface CardTileProps {
   onClick?: () => void;
   /** Show a NEW badge — for cards newly acquired since user last viewed. */
   isNew?: boolean;
+  /** Compact mode — for in-battle hand where vertical space is tight.
+   *  Hides the English subtitle, drops the keyword pill row to a single
+   *  pill (rest collapse into a "+N"), and tightens internal padding so
+   *  the card fits in roughly two-thirds the height of the standard sm. */
+  compact?: boolean;
 }
 
 const RARITY_GLOW: Record<Rarity, string> = {
@@ -86,6 +91,7 @@ function CardTileInner({
   tilt = false,
   onClick,
   isNew = false,
+  compact = false,
 }: CardTileProps) {
   const notOwned = typeof ownedCount === "number" && ownedCount === 0;
 
@@ -232,35 +238,50 @@ function CardTileInner({
           rather than the raw English id. We also hide the noisy
           `minion` keyword from the visible pill row since the card
           gets a dedicated ATK/HP block below for that — leaving it
-          in the pills was visually redundant. */}
+          in the pills was visually redundant. Compact mode only
+          shows the first pill + a "+N" overflow chip. */}
       {(() => {
         const visibleKw = card.keywords.filter((k) => k !== "minion");
         if (visibleKw.length === 0) return null;
+        const headLimit = compact ? 1 : 3;
+        const head = visibleKw.slice(0, headLimit);
+        const tail = visibleKw.slice(headLimit);
         return (
           <div className="relative flex flex-wrap gap-0.5 justify-center px-1 pb-1">
-            {visibleKw.slice(0, 3).map((k) => (
+            {head.map((k) => (
               <span
                 key={k}
                 title={keywordTitle(k)}
-                className="text-[9px] tracking-widest px-1 py-0.5 rounded bg-black/60 text-parchment/90 backdrop-blur-sm cursor-help"
+                className={cn(
+                  "tracking-widest px-1 py-0.5 rounded bg-black/60 text-parchment/90 backdrop-blur-sm cursor-help",
+                  compact ? "text-[8px]" : "text-[9px]",
+                )}
               >
                 {keywordZh(k)}
               </span>
             ))}
-            {visibleKw.length > 3 && (
+            {tail.length > 0 && (
               <span
-                title={visibleKw.slice(3).map(keywordTitle).join("\n")}
-                className="text-[9px] tracking-widest px-1 py-0.5 rounded bg-black/60 text-parchment/60 backdrop-blur-sm cursor-help"
+                title={tail.map(keywordTitle).join("\n")}
+                className={cn(
+                  "tracking-widest px-1 py-0.5 rounded bg-black/60 text-parchment/60 backdrop-blur-sm cursor-help",
+                  compact ? "text-[8px]" : "text-[9px]",
+                )}
               >
-                +{visibleKw.length - 3}
+                +{tail.length}
               </span>
             )}
           </div>
         );
       })()}
 
-      <div className="relative p-2 border-t border-black/40 bg-gradient-to-t from-black/75 to-black/35 backdrop-blur">
-        <div className="flex items-center justify-between">
+      <div
+        className={cn(
+          "relative border-t border-black/40 bg-gradient-to-t from-black/75 to-black/35 backdrop-blur",
+          compact ? "px-1.5 py-1" : "p-2",
+        )}
+      >
+        <div className="flex items-center justify-between gap-1">
           <span className="display-serif truncate text-parchment">
             {card.name}
           </span>
@@ -271,10 +292,20 @@ function CardTileInner({
               + type-icon stat block. */}
           {card.keywords.includes("minion") ? (
             <span className="flex items-center gap-1 text-parchment shrink-0 font-[family-name:var(--font-mono)] tabular-nums leading-none">
-              <span className="text-orange-300 text-xs font-bold">
+              <span
+                className={cn(
+                  "text-orange-300 font-bold",
+                  compact ? "text-[10px]" : "text-xs",
+                )}
+              >
                 ⚔{card.power}
               </span>
-              <span className="text-emerald-300 text-xs font-bold">
+              <span
+                className={cn(
+                  "text-emerald-300 font-bold",
+                  compact ? "text-[10px]" : "text-xs",
+                )}
+              >
                 ❤{Math.max(2, Math.floor(card.power * 1.5) + card.cost)}
               </span>
             </span>
@@ -287,7 +318,9 @@ function CardTileInner({
             </span>
           )}
         </div>
-        {card.nameEn && (
+        {/* English subtitle — useful in collection / preview but extra
+            visual noise in the battle hand where space is tight. */}
+        {!compact && card.nameEn && (
           <div className="text-[10px] text-parchment/40 tracking-wider truncate">
             {card.nameEn}
           </div>
@@ -343,6 +376,7 @@ export const CardTile = memo(CardTileInner, (prev, next) => {
     prev.revealed === next.revealed &&
     prev.size === next.size &&
     prev.tilt === next.tilt &&
-    prev.isNew === next.isNew
+    prev.isNew === next.isNew &&
+    prev.compact === next.compact
   );
 });
