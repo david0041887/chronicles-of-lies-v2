@@ -172,6 +172,19 @@ export function BattleClient({
     faith?: number;
     levelBefore: number;
     levelAfter: number;
+    /** Dungeon-specific currencies (tower / hunt). Backend already sends
+     *  these alongside the regular crystals/believers; the modal renders
+     *  them when present so the player sees what they actually earned. */
+    essence?: number;
+    towerTokens?: number;
+  } | null>(null);
+  /** Tower progression snapshot returned by /complete on tower stages.
+   *  Lets the result modal show "現在第 N 層 · 最高 M 層" before the
+   *  player goes back to the hub. */
+  const [towerInfo, setTowerInfo] = useState<{
+    currentLevel: number;
+    highestLevel: number;
+    totalClears: number;
   } | null>(null);
   const [firstClear, setFirstClear] = useState(false);
   /** Settlement error message, shown in the result modal when the
@@ -814,6 +827,7 @@ export function BattleClient({
       const body = await res.json();
       if (body?.ok) {
         if (body.rewards) setRewards(body.rewards);
+        if (body.tower) setTowerInfo(body.tower);
         setFirstClear(!!body.firstClear);
       } else {
         // 4xx/5xx from the server — surface the reason so the player
@@ -1479,10 +1493,43 @@ export function BattleClient({
               )}
 
               {!tutorialMode && rewards && battle.phase === "won" && (
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                  <Reward label="💎 水晶" value={rewards.crystals} />
-                  <Reward label="🕯️ 信念" value={rewards.faith ?? 0} />
-                  <Reward label="🪙 信徒" value={rewards.believers} />
+                <>
+                  <div className="grid grid-cols-3 gap-2 mb-2">
+                    <Reward label="💎 水晶" value={rewards.crystals} />
+                    <Reward label="🕯️ 信念" value={rewards.faith ?? 0} />
+                    <Reward label="🪙 信徒" value={rewards.believers} />
+                  </div>
+                  {/* Tower-specific currencies — only render when the
+                      backend actually sent them (i.e. tower battle won),
+                      otherwise the row would be empty zeroes for normal
+                      stages. */}
+                  {(rewards.essence || rewards.towerTokens) && (
+                    <div className="grid grid-cols-2 gap-2 mb-4">
+                      {rewards.essence ? (
+                        <Reward label="✨ 精華" value={rewards.essence} />
+                      ) : null}
+                      {rewards.towerTokens ? (
+                        <Reward label="🗝 塔幣" value={rewards.towerTokens} />
+                      ) : null}
+                    </div>
+                  )}
+                  {!rewards.essence && !rewards.towerTokens && (
+                    <div className="mb-4" />
+                  )}
+                </>
+              )}
+              {/* Tower progression snapshot — shown after a tower clear
+                  so the player sees their current floor + high-water
+                  mark before bouncing back to the hub. */}
+              {!tutorialMode && towerInfo && battle.phase === "won" && (
+                <div className="mb-4 px-3 py-2 rounded border border-gold/30 bg-gold/5 text-sm text-center">
+                  幽音塔 · 第{" "}
+                  <span className="text-gold font-bold">
+                    {towerInfo.currentLevel}
+                  </span>{" "}
+                  層 · 最高{" "}
+                  <span className="text-gold">{towerInfo.highestLevel}</span>{" "}
+                  · 總計 {towerInfo.totalClears} 次守關
                 </div>
               )}
               {!tutorialMode && settleError && battle.phase === "won" && (
