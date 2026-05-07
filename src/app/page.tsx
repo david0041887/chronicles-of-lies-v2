@@ -35,7 +35,7 @@ const factions = [
 
 const pillars = [
   { emoji: "🎴", title: "180 張傳奇卡牌", text: "橫跨 10 個歷史時代與神話" },
-  { emoji: "⚔️", title: "策略深度戰鬥", text: "10 種關鍵字 × 7 種狀態疊加" },
+  { emoji: "⚔️", title: "策略深度戰鬥", text: "20+ 種關鍵字 × 多種狀態疊加" },
   { emoji: "🌍", title: "原創「帷幕理論」", text: "每個時代都是一段被重寫的歷史" },
   { emoji: "✨", title: "免費即可推進", text: "不強迫付費 — 日常任務累積資源" },
 ];
