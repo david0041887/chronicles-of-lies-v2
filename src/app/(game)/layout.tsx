@@ -1,4 +1,5 @@
 import { BgmPlayer } from "@/components/fx/BgmPlayer";
+import { MotionRoot } from "@/components/fx/MotionRoot";
 import { PageBackdrop } from "@/components/fx/PageBackdrop";
 import { RouteTransition } from "@/components/fx/RouteTransition";
 import { SettingsBoot } from "@/components/fx/SettingsBoot";
@@ -10,7 +11,7 @@ import { ReactNode } from "react";
 export default async function GameLayout({ children }: { children: ReactNode }) {
   await requireUser();
   return (
-    <>
+    <MotionRoot>
       <SettingsBoot />
       <PageBackdrop />
       <TopBar />
@@ -19,6 +20,6 @@ export default async function GameLayout({ children }: { children: ReactNode }) 
       </div>
       <BottomTabs />
       <BgmPlayer />
-    </>
+    </MotionRoot>
   );
 }
