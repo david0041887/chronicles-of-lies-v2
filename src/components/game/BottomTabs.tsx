@@ -30,6 +30,8 @@ export function BottomTabs() {
             <Link
               key={tab.href}
               href={tab.href}
+              aria-current={active ? "page" : undefined}
+              aria-label={tab.label}
               className={cn(
                 "flex flex-col items-center justify-center py-2.5 gap-0.5 relative min-h-[56px]",
                 "transition-colors duration-200",
@@ -37,9 +39,14 @@ export function BottomTabs() {
               )}
             >
               {active && (
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2px] bg-gold rounded-full" />
+                <span
+                  aria-hidden
+                  className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2px] bg-gold rounded-full"
+                />
               )}
-              <span className="text-xl leading-none">{tab.icon}</span>
+              <span aria-hidden className="text-xl leading-none">
+                {tab.icon}
+              </span>
               <span className="text-[11px] tracking-wider">{tab.label}</span>
             </Link>
           );

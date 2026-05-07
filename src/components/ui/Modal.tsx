@@ -10,9 +10,20 @@ interface ModalProps {
   title?: string;
   children: ReactNode;
   className?: string;
+  /** Hide the ✕ close button (use when the modal handles dismissal
+   *  internally, e.g. result modals with a primary "下一關" button
+   *  that auto-navigates). */
+  hideCloseButton?: boolean;
 }
 
-export function Modal({ open, onClose, title, children, className }: ModalProps) {
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  className,
+  hideCloseButton = false,
+}: ModalProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -55,8 +66,20 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
               className,
             )}
           >
+            {!hideCloseButton && (
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="關閉"
+                className="absolute top-2 right-2 w-9 h-9 flex items-center justify-center rounded-lg text-parchment/50 hover:text-parchment hover:bg-parchment/10 transition-colors text-lg leading-none"
+              >
+                ✕
+              </button>
+            )}
             {title && (
-              <h2 className="display-serif text-2xl text-sacred mb-4">{title}</h2>
+              <h2 className="display-serif text-2xl text-sacred mb-4 pr-8">
+                {title}
+              </h2>
             )}
             {children}
           </motion.div>
