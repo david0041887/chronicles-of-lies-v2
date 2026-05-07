@@ -189,7 +189,6 @@ export default function RegisterPage() {
               onChange={(e) => setConfirm(e.target.value)}
               aria-invalid={confirmMismatch}
               aria-describedby="confirm-hint"
-              className={confirmMismatch ? "border-blood/60" : ""}
             />
             <div
               id="confirm-hint"
