@@ -57,6 +57,11 @@ async function saveDeckUnsafe(
     return { ok: false, error: "牌組中有未知卡" };
   }
 
+  // Verify the player owns ENOUGH copies of each card they're trying
+  // to slot. Earlier versions only checked "owns at least one" with a
+  // dangling `void n`, which let a player squeeze 3× of a card they
+  // only owned 1 copy of into a deck — a free dupe that bypassed the
+  // gacha pull cost.
   const owned = await prisma.ownedCard.groupBy({
     by: ["cardId"],
     where: { userId: user.id, cardId: { in: [...counts.keys()] } },
@@ -64,10 +69,15 @@ async function saveDeckUnsafe(
   });
   const ownedMap = new Map(owned.map((o) => [o.cardId, o._count]));
   for (const [id, n] of counts) {
-    if ((ownedMap.get(id) ?? 0) < 1) {
-      return { ok: false, error: `未擁有 ${id}` };
+    const have = ownedMap.get(id) ?? 0;
+    if (have < n) {
+      return {
+        ok: false,
+        error: have === 0
+          ? `未擁有此卡片(${id})`
+          : `${id} 僅擁有 ${have} 張,牌組需要 ${n} 張`,
+      };
     }
-    void n;
   }
 
   const eraCount = new Map<string, number>();

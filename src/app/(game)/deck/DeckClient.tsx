@@ -154,6 +154,15 @@ export function DeckClient({
       push(`同名卡最多 ${MAX_COPIES_PER_CARD} 張`, "warning");
       return;
     }
+    // Don't let the player slot more copies than they actually own.
+    // The server now enforces this too, so this is purely UX feedback
+    // (immediate toast vs. round-tripping a save error).
+    const card = ownedCards.find((c) => c.id === id);
+    const ownedCount = card?.ownedCount ?? 0;
+    if (cur >= ownedCount) {
+      push(`僅擁有 ${ownedCount} 張此卡`, "warning");
+      return;
+    }
     setCounts({ ...counts, [id]: cur + 1 });
   };
 
@@ -471,6 +480,10 @@ export function DeckClient({
           {sorted.map((c) => {
             const inDeck = counts[c.id] ?? 0;
             const capped = inDeck >= MAX_COPIES_PER_CARD;
+            // Out of physical copies — disable + button so the UI
+            // matches the server-side ownership check rather than
+            // failing the save round-trip with an error toast.
+            const outOfStock = inDeck >= c.ownedCount;
             return (
               <div key={c.id} className="relative flex flex-col items-center gap-1">
                 <div onClick={() => setPreview(c)} className="cursor-pointer">
@@ -498,7 +511,7 @@ export function DeckClient({
                   </div>
                   <button
                     onClick={() => add(c.id)}
-                    disabled={capped || total >= DECK_SIZE}
+                    disabled={capped || outOfStock || total >= DECK_SIZE}
                     className={cn(
                       "flex-1 px-1 py-1 rounded-r border border-parchment/20 text-xs",
                       capped || total >= DECK_SIZE
