@@ -39,22 +39,54 @@ export function getEraTicketCount(
   return tickets[eraId] ?? 0;
 }
 
+/**
+ * Race-safe read-modify-write helper for User.eraTickets.
+ *
+ * eraTickets is a JSON column, so Prisma can't express "increment only
+ * this key" as a typed operator — every grant/spend has to read the
+ * whole blob, mutate locally, and write it back. Without serialisation
+ * two parallel grants (e.g. boss clear A finishing milliseconds after
+ * boss clear B) would each read the same baseline and one write would
+ * clobber the other.
+ *
+ * We avoid Prisma raw SQL by taking a row lock on User via an empty
+ * \`update\` at the start of the transaction (Prisma serialises these
+ * via Postgres's row-level lock). Subsequent read-modify-write inside
+ * the same transaction is then exclusive for this user.
+ */
+async function withUserLock<T>(
+  userId: string,
+  body: (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => Promise<T>,
+): Promise<T> {
+  return prisma.$transaction(async (tx) => {
+    // SELECT ... FOR UPDATE on User to acquire a row lock — Postgres
+    // holds an exclusive lock on the row for the rest of this
+    // transaction so any concurrent withUserLock for the same user has
+    // to wait. Using $queryRaw because the User model has no field we
+    // can no-op update through Prisma's typed API.
+    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+    return body(tx);
+  });
+}
+
 export async function grantEraTickets(
   userId: string,
   eraId: string,
   amount: number,
 ): Promise<void> {
   if (amount <= 0) return;
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { eraTickets: true },
-  });
-  if (!user) return;
-  const current = parseEraTickets(user.eraTickets);
-  const next = { ...current, [eraId]: (current[eraId] ?? 0) + amount };
-  await prisma.user.update({
-    where: { id: userId },
-    data: { eraTickets: next as unknown as object },
+  await withUserLock(userId, async (tx) => {
+    const u = await tx.user.findUnique({
+      where: { id: userId },
+      select: { eraTickets: true },
+    });
+    if (!u) return;
+    const current = parseEraTickets(u.eraTickets);
+    const next = { ...current, [eraId]: (current[eraId] ?? 0) + amount };
+    await tx.user.update({
+      where: { id: userId },
+      data: { eraTickets: next as unknown as object },
+    });
   });
 }
 
@@ -65,7 +97,7 @@ export async function spendEraTickets(
   amount: number,
 ): Promise<boolean> {
   if (amount <= 0) return true;
-  return await prisma.$transaction(async (tx) => {
+  return withUserLock(userId, async (tx) => {
     const u = await tx.user.findUnique({
       where: { id: userId },
       select: { eraTickets: true },
