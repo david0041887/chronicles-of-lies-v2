@@ -122,7 +122,7 @@ export function LeaderboardClient({ data }: { data: LeaderboardData }) {
           even when not in the top 50. Hidden for stats they haven't
           started accumulating yet. */}
       {mySnapshot.show && !myRow && (
-        <div className="mb-4 rounded-xl border border-gold/40 bg-gold/8 p-3">
+        <div className="mb-4 rounded-xl border border-gold/40 bg-gold/10 p-3">
           <div className="flex items-baseline justify-between gap-3">
             <div>
               <div className="text-[10px] tracking-widest text-gold/70 uppercase font-[family-name:var(--font-cinzel)] mb-0.5">
@@ -163,7 +163,7 @@ export function LeaderboardClient({ data }: { data: LeaderboardData }) {
                 key={row.userId}
                 className={
                   "flex items-center gap-3 px-4 py-2.5 " +
-                  (isMe ? "bg-gold/8" : "")
+                  (isMe ? "bg-gold/10" : "")
                 }
               >
                 <span

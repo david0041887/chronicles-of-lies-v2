@@ -94,7 +94,14 @@ function TimelineRow({ tile, index }: { tile: Tile; index: number }) {
       <div className={`pl-20 md:pl-0 ${isLeft ? "md:order-1 md:pr-10 md:text-right" : "md:order-2 md:pl-10"}`}>
         <CardWrapper
           className={`group block p-5 rounded-2xl border relative overflow-hidden ${
-            unlocked ? "transition-all cursor-pointer" : "cursor-not-allowed"
+            unlocked
+              // Inline style sets borderColor/background/boxShadow, so
+              // Tailwind hover variants for those properties get
+              // overridden by the inline style and never fire. Use
+              // transform + brightness instead — those aren't set
+              // inline so the hover variants actually take effect.
+              ? "transition-all cursor-pointer hover:scale-[1.015] hover:brightness-110"
+              : "cursor-not-allowed"
           }`}
           style={{
             borderColor: !unlocked
