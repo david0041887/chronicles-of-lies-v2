@@ -9,8 +9,17 @@ import { WorldGrid } from "./WorldGrid";
 
 export const dynamic = "force-dynamic";
 
-export default async function WorldPage() {
+interface WorldPageProps {
+  // Next.js 16 passes searchParams as a Promise.
+  searchParams: Promise<{ locked?: string }>;
+}
+
+export default async function WorldPage({ searchParams }: WorldPageProps) {
   const user = await requireOnboarded();
+  const { locked: lockedEraId } = await searchParams;
+  const lockedEra = lockedEraId
+    ? ERAS.find((e) => e.id === lockedEraId)
+    : null;
   // Idempotent: if DB has <70 stages, seed the missing Prime/Elite rows.
   await ensureStagesSeeded();
   const progressByEra = new Map(user.eraProgress.map((p) => [p.eraId, p]));
@@ -29,6 +38,12 @@ export default async function WorldPage() {
   // Progressive unlock chain: era N+1 is locked until era N's BOSS is cleared.
   // Admins bypass the gate so they can test any era directly.
   const isAdmin = user.role === "ADMIN";
+
+  // If we landed here from /era/[id]?locked redirect, surface a banner
+  // explaining WHICH era was locked and what the player needs to clear
+  // first — otherwise the bounce-back is silent and feels like a bug.
+  const lockedIdx = lockedEra ? ERAS.findIndex((e) => e.id === lockedEra.id) : -1;
+  const lockedPrev = lockedIdx > 0 ? ERAS[lockedIdx - 1] : null;
   const tiles = ERAS.map((era, idx) => {
     const progress = progressByEra.get(era.id);
     const prevEra = idx > 0 ? ERAS[idx - 1] : null;
@@ -69,6 +84,23 @@ export default async function WorldPage() {
               : "達到編織者 Lv.3 可啟動「每日傳說」系統。"
           }
         />
+
+        {lockedEra && (
+          <div
+            role="alert"
+            className="mb-6 px-4 py-3 rounded-xl border border-blood/40 bg-blood/10 text-sm text-parchment/85 text-center"
+          >
+            🔒 <span className="text-blood font-semibold">{lockedEra.name}</span>{" "}
+            尚未解鎖
+            {lockedPrev && (
+              <>
+                {" "}— 請先擊敗{" "}
+                <span className="text-gold">{lockedPrev.name}</span> 的 BOSS
+              </>
+            )}
+            。
+          </div>
+        )}
 
         <div className="mb-8 flex items-center justify-center gap-6 text-xs">
           <span className="text-parchment/60">

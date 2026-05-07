@@ -63,6 +63,30 @@ export default async function TowerBattlePage({ params }: Props) {
 
   // Player uses their real deck — tower is gear-check content.
   const rawPlayerDeck = await buildPlayerDeck(user.id);
+
+  // Match the campaign battle's < 15-card guard so a brand-new player
+  // can't get stuck on a tower-battle screen with no playable hand.
+  // Without this they'd hit the BattleClient with too few cards and
+  // either OOM the engine or just stare at an empty hand forever.
+  if (rawPlayerDeck.length < 15) {
+    const { default: Link } = await import("next/link");
+    return (
+      <main className="max-w-xl mx-auto px-6 py-16 text-center">
+        <h1 className="display-serif text-2xl text-parchment mb-3">卡牌不足</h1>
+        <p className="text-parchment/60 mb-6 text-sm">
+          您目前只有 {rawPlayerDeck.length} 張卡,至少需要 15 張才能進入幽音塔。
+          <br />
+          先到 <Link href="/gacha" className="text-gold underline">召喚</Link>{" "}
+          多抽幾張,或返回{" "}
+          <Link href="/dungeon/tower" className="text-gold underline">
+            幽音塔大廳
+          </Link>
+          。
+        </p>
+      </main>
+    );
+  }
+
   const { deck: playerDeck } = applyDailyLegendBuff(rawPlayerDeck, era.id);
   const todayLegendIdx = dailyLegendIndex(era.id, new Date());
   const dailyLegend =
