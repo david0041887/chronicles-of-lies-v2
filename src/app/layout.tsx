@@ -28,7 +28,7 @@ const cinzel = Cinzel({
 export const metadata: Metadata = {
   title: "謊言編年者 Chronicles of Lies",
   description:
-    "在帷幕撕裂之前,決定誰是神。卡牌對戰 RPG —— 穿越 15 個歷史時代,改寫人類信仰。",
+    "在帷幕撕裂之前,決定誰是神。卡牌對戰 RPG —— 穿越 10 個歷史時代,改寫人類信仰。",
   openGraph: {
     title: "謊言編年者 Chronicles of Lies",
     description: "你相信的一切,可能都是你自己造成的。",

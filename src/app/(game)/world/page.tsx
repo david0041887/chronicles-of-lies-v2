@@ -117,7 +117,7 @@ export default async function WorldPage({ searchParams }: WorldPageProps) {
         <WorldGrid tiles={tiles} />
 
         <div className="mt-12 text-center text-xs text-parchment/30 tracking-widest">
-          10 個時代 · 每代 4 主線關 + 3 Prime 深淵關
+          10 個時代 · 每代 6 主線關(含 BOSS)+ 3 Prime 深淵關
         </div>
       </main>
     </div>
