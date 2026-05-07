@@ -43,6 +43,11 @@ export const Pill = forwardRef<HTMLButtonElement, PillProps>(function Pill(
     <button
       ref={ref}
       type="button"
+      // aria-pressed mirrors the visual `active` state so a screen
+      // reader announces "selected" / "not selected" alongside the
+      // pill label. Used as a toggle button rather than a link, so
+      // aria-pressed is the right primitive (not aria-current).
+      aria-pressed={active}
       className={cn(BASE, active ? ACTIVE[tone] : INACTIVE[tone], className)}
       {...rest}
     >

@@ -38,10 +38,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ push }}>
       {children}
+      {/* Container is just a layout box — each toast carries its own
+          role="status" which implies aria-live="polite", so no aria
+          attrs here (otherwise screen readers double-announce). Top
+          offset uses --topbar-height + safe-area so the stack clears
+          a notched iPhone instead of getting clipped under the bar. */}
       <div
-        className="fixed top-16 left-1/2 -translate-x-1/2 z-[60] flex flex-col gap-2 pointer-events-none w-[min(92vw,24rem)] items-center"
-        aria-live="polite"
-        aria-atomic="true"
+        className="fixed left-1/2 -translate-x-1/2 z-[60] flex flex-col gap-2 pointer-events-none w-[min(92vw,24rem)] items-center"
+        style={{
+          top: "calc(3rem + env(safe-area-inset-top, 0px) + 1rem)",
+        }}
       >
         {toasts.map((t) => (
           <div
