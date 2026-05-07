@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import { ERAS } from "@/lib/constants/eras";
 import { PITY_SR, PITY_SSR, PITY_UR } from "@/lib/gacha";
 import { POOLS, type PoolId } from "@/lib/gacha-pools";
+import { useAppReducedMotion } from "@/lib/hooks/use-reduced-motion";
 import type { Rarity } from "@prisma/client";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -59,6 +60,7 @@ export function GachaClient({
 }: Props) {
   const router = useRouter();
   const { push } = useToast();
+  const reducedMotion = useAppReducedMotion();
   const [pending, startTransition] = useTransition();
   const [crystals, setCrystals] = useState(initialCrystals);
   const [faith, setFaith] = useState(initialFaith);
@@ -105,6 +107,12 @@ export function GachaClient({
       setShowAnimation(true);
       const best = highestRarity(res.data.cards);
       if (best === "SSR" || best === "UR") {
+        // Time the rarity-hit toast to land just after SummonAnimation
+        // finishes. Animation runs ~1600ms normally, ~300ms when reduce-
+        // motion is on — without this branch the toast still fired at
+        // 1800ms in reduced mode, leaving a 1.5s dead beat where the
+        // player saw the result modal but no celebration toast.
+        const toastDelay = reducedMotion ? 350 : 1800;
         setTimeout(() => {
           const hit = res.data.cards.find((c) => c.rarity === best);
           if (hit) {
@@ -115,7 +123,7 @@ export function GachaClient({
               "success",
             );
           }
-        }, 1800);
+        }, toastDelay);
       }
       router.refresh();
     });
