@@ -6,6 +6,7 @@ import { requireOnboarded } from "@/lib/auth-helpers";
 import { ensureTodaysMissions } from "@/lib/daily-missions";
 import { evaluate } from "@/lib/milestones";
 import { prisma } from "@/lib/prisma";
+import { cn } from "@/lib/utils";
 import { levelProgress, weaverLevel } from "@/lib/weaver";
 import Link from "next/link";
 
@@ -43,7 +44,9 @@ const QUICK_ACTIONS = [
     label: "鍛造所",
     desc: "升星 / 融合",
     emoji: "⚒️",
-    tone: "#EF4444",
+    // Forge fire — was using the danger red (#EF4444) which clashed
+    // with the action's actual sentiment (constructive, not warning).
+    tone: "#F97316",
   },
   {
     href: "/dungeon/tower",
@@ -129,13 +132,21 @@ export default async function HomePage() {
         <h3 className="display-serif text-xl text-sacred mb-3">今日行動</h3>
         <OrnamentDivider className="mb-4" />
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {QUICK_ACTIONS.map((a) => (
+          {QUICK_ACTIONS.map((a, idx) => (
             <Link
               key={a.href}
               href={a.href}
-              className="relative p-5 rounded-xl border border-parchment/10 bg-veil/40 hover:bg-veil/60 transition-all group overflow-hidden"
+              className={cn(
+                "relative p-5 rounded-xl border bg-veil/40 hover:bg-veil/60 transition-all group overflow-hidden",
+                // First entry (進入世界) is the primary game loop —
+                // span two columns + brighter border + a soft glow so
+                // the eye lands there before the secondary tiles.
+                idx === 0
+                  ? "col-span-2 border-gold/40 hover:border-gold/60 shadow-[0_0_24px_-8px_rgba(212,168,75,0.4)]"
+                  : "border-parchment/10",
+              )}
               style={{
-                boxShadow: `inset 0 1px 0 ${a.tone}22`,
+                boxShadow: idx === 0 ? undefined : `inset 0 1px 0 ${a.tone}22`,
               }}
             >
               {/* top accent bar */}
@@ -154,10 +165,7 @@ export default async function HomePage() {
                 {a.emoji}
               </span>
               <div className="relative text-3xl mb-2">{a.emoji}</div>
-              <div
-                className="relative display-serif text-base text-parchment transition-colors"
-                style={{ color: undefined }}
-              >
+              <div className="relative display-serif text-base text-parchment transition-colors">
                 {a.label}
               </div>
               <div className="relative text-xs text-parchment/50 mt-0.5">
