@@ -497,15 +497,20 @@ export function DeckClient({
             const outOfStock = inDeck >= c.ownedCount;
             return (
               <div key={c.id} className="relative flex flex-col items-center gap-1">
-                <div onClick={() => setPreview(c)} className="cursor-pointer">
-                  <CardTile
-                    card={c}
-                    size="sm"
-                    ownedCount={c.ownedCount}
-                  />
-                </div>
+                {/* Pass onClick straight into CardTile so it renders
+                    as a real <button> (keyboard-focusable, screen-
+                    reader-announced) instead of a div-onClick which
+                    can't be tabbed to. */}
+                <CardTile
+                  card={c}
+                  size="sm"
+                  ownedCount={c.ownedCount}
+                  onClick={() => setPreview(c)}
+                />
                 <div className="flex items-stretch gap-1 w-full">
                   <button
+                    type="button"
+                    aria-label={`${c.name} − 減一張`}
                     onClick={() => sub(c.id)}
                     disabled={inDeck === 0}
                     className="flex-1 px-1 py-1 rounded-l bg-veil/60 border border-parchment/20 text-parchment/70 hover:bg-parchment/10 disabled:opacity-30 disabled:cursor-not-allowed text-xs"
@@ -513,6 +518,7 @@ export function DeckClient({
                     −
                   </button>
                   <div
+                    aria-hidden
                     className={cn(
                       "flex-1 text-center px-1 py-1 text-xs font-[family-name:var(--font-mono)] tabular-nums border-y border-parchment/20",
                       inDeck > 0 ? "bg-gold/20 text-gold" : "bg-veil/60 text-parchment/50",
@@ -521,6 +527,8 @@ export function DeckClient({
                     {inDeck}/{MAX_COPIES_PER_CARD}
                   </div>
                   <button
+                    type="button"
+                    aria-label={`${c.name} + 加一張(目前 ${inDeck}/${MAX_COPIES_PER_CARD})`}
                     onClick={() => add(c.id)}
                     disabled={capped || outOfStock || total >= DECK_SIZE}
                     className={cn(

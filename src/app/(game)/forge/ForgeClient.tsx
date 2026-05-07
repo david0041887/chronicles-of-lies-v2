@@ -489,6 +489,11 @@ function FusionTab({
             return (
               <button
                 key={inst.id}
+                type="button"
+                aria-pressed={picked}
+                aria-label={`${g.card.name} · ${g.card.rarity} · ${inst.stars}★${
+                  picked ? "(已選為融合素材)" : ""
+                }`}
                 onClick={() => toggle(inst.id, g, inst)}
                 className={cn(
                   "relative flex flex-col items-center gap-1 p-0 rounded-lg transition-transform",
@@ -501,7 +506,10 @@ function FusionTab({
                     {inst.stars}★
                   </div>
                   {picked && (
-                    <div className="absolute inset-0 bg-gold/20 rounded-xl flex items-center justify-center">
+                    <div
+                      aria-hidden
+                      className="absolute inset-0 bg-gold/20 rounded-xl flex items-center justify-center"
+                    >
                       <span className="text-3xl">✓</span>
                     </div>
                   )}
