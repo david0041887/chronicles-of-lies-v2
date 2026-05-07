@@ -315,6 +315,17 @@ export function DeckClient({
           return (
             <button
               key={slot}
+              type="button"
+              aria-pressed={isEditing}
+              aria-label={`${SLOT_LABEL[slot] ?? `欄位 ${slot}`}${
+                isActive ? " · 戰鬥中使用" : ""
+              } · ${
+                cardCount === 0
+                  ? "空"
+                  : cardCount === DECK_SIZE
+                    ? "完整 30 張"
+                    : `${cardCount}/${DECK_SIZE} 張`
+              }`}
               onClick={() => {
                 if (dirty && slot !== editSlot) {
                   if (!window.confirm("目前牌組有未儲存變更,要切換嗎?")) return;

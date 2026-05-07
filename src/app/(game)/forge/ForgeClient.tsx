@@ -71,6 +71,8 @@ export function ForgeClient({ groups }: Props) {
       {/* Tabs */}
       <div className="flex gap-1 mb-4 border-b border-parchment/10">
         <button
+          type="button"
+          aria-pressed={tab === "upgrade"}
           onClick={() => setTab("upgrade")}
           className={cn(
             "px-4 py-2 text-sm tracking-wider border-b-2 transition-colors",
@@ -82,6 +84,8 @@ export function ForgeClient({ groups }: Props) {
           ⭐ 升星
         </button>
         <button
+          type="button"
+          aria-pressed={tab === "fusion"}
           onClick={() => setTab("fusion")}
           className={cn(
             "px-4 py-2 text-sm tracking-wider border-b-2 transition-colors",
