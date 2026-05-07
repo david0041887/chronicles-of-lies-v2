@@ -480,6 +480,15 @@ export function BattleClient({
   // gold halo. Each fresh tag clears after 1.5s so the highlight fades
   // naturally without crowding the visual when many cards arrive at
   // once (e.g., post-mulligan opening hand).
+  //
+  // CAUTION on deps: the engine mutates state in place, so
+  // `battle.player.hand` is the same array reference for the whole
+  // battle — using it as a dep would only fire this effect on mount
+  // and silently kill the halo for every subsequent draw. Use `battle`
+  // itself; tick() does `setBattle({...b})` so the outer reference
+  // changes each turn, while hand-shape comparison is handled inside
+  // via prevHandUidsRef. Early-return when no fresh uids keeps the
+  // overhead negligible.
   useEffect(() => {
     const currentUids = new Set(battle.player.hand.map((c) => c.uid));
     const fresh: string[] = [];
@@ -501,7 +510,7 @@ export function BattleClient({
       });
     }, 1500);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [battle.player.hand]);
+  }, [battle]);
 
   // Status-application stamps. Compares each tracked status field to the
   // previous snapshot; any field that INCREASED gets a stamp pushed onto
@@ -597,6 +606,13 @@ export function BattleClient({
   // Also clear if the selected minion has left the board (died between
   // picks) so the "valid target" ring on enemy minions doesn't linger
   // after the attacker itself is gone.
+  //
+  // CAUTION: same mutate-in-place caveat as the fresh-hand detector —
+  // battle.player.board is a stable reference, so we depend on
+  // `battle` itself (whose top-level reference flips on every tick())
+  // instead. Length alone isn't enough: a one-for-one swap (a minion
+  // dying while another is summoned) would keep length steady but
+  // invalidate the selection.
   useEffect(() => {
     if (
       selectedAttackerUid !== null &&
@@ -604,7 +620,8 @@ export function BattleClient({
     ) {
       setSelectedAttackerUid(null);
     }
-  }, [battle.player.board, selectedAttackerUid]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [battle, selectedAttackerUid]);
 
   // ESC cancels attack-target selection — desktop QoL parity with the
   // floating cancel-attack button shown when an attacker is picked.
@@ -1018,14 +1035,20 @@ export function BattleClient({
   const lethalThisTurn = useMemo(() => {
     if (battle.phase !== "player_turn") return false;
     return playerCanLethalEnemy(battle);
+    // CAUTION: enemy.board / player.hand / player.board are mutated in
+    // place by the engine, so their array references never change. Add
+    // .length entries so the memo invalidates on shape changes (a
+    // taunt minion dying, a card being played, a minion summoned),
+    // not just on the side-fields whose values change with HP/mana.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     battle.phase,
     battle.enemy.hp,
     battle.enemy.shield,
     battle.enemy.vulnerableTurns,
-    battle.enemy.board,
-    battle.player.hand,
-    battle.player.board,
+    battle.enemy.board.length,
+    battle.player.hand.length,
+    battle.player.board.length,
     battle.player.mana,
     battle.player.weakTurns,
     battle.player.strength,
