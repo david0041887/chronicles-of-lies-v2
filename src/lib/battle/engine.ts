@@ -276,22 +276,45 @@ function dealDamage(
   }
 
   // Enrage check — only for defenders that set enrageAt (BOSS / Prime BOSS).
+  maybeEnrage(defender, log, turn, sideName === "player" ? "enemy" : "player");
+  return dealt;
+}
+
+/**
+ * Trigger BOSS / Prime BOSS enrage if `side` just dropped past their
+ * enrageAt threshold. Idempotent — `enraged` flag stops re-firing.
+ *
+ * Exposed at module scope so DoT paths (curse / poison ticks) and
+ * ability damage can re-check enrage without re-implementing the
+ * arithmetic. Without this, a BOSS could be ticked below the rage
+ * line and never actually rage because the original dealDamage check
+ * lived inline.
+ *
+ * `side` here is the FACE that took damage (the boss). `sideName`
+ * is which side that boss belongs to (so the log entry attributes
+ * the rage notice to the right team).
+ */
+function maybeEnrage(
+  side: SideState,
+  log: LogEntry[],
+  turn: number,
+  sideName: "player" | "enemy",
+) {
   if (
-    defender.enrageAt !== undefined &&
-    !defender.enraged &&
-    defender.hp > 0 &&
-    defender.hp / defender.hpMax <= defender.enrageAt
+    side.enrageAt !== undefined &&
+    !side.enraged &&
+    side.hp > 0 &&
+    side.hp / side.hpMax <= side.enrageAt
   ) {
-    defender.enraged = true;
-    defender.damageBonus = (defender.damageBonus ?? 0) + 2;
+    side.enraged = true;
+    side.damageBonus = (side.damageBonus ?? 0) + 2;
     log.push({
       turn,
-      side: sideName === "player" ? "enemy" : "player",
+      side: sideName,
       kind: "buff",
-      text: `⚠️ ${defender.name} 進入狂暴 — 永久 +2 威力`,
+      text: `⚠️ ${side.name} 進入狂暴 — 永久 +2 威力`,
     });
   }
-  return dealt;
 }
 
 function heal(side: SideState, amount: number, log: LogEntry[], turn: number, sideName: "player" | "enemy") {
@@ -959,12 +982,15 @@ function applyStartOfTurnEffects(state: BattleState, sideName: "player" | "enemy
   }
   cleanupDeadMinions(state);
 
-  // Curse tick (decays)
+  // Curse tick (decays). DoT can cross BOSS enrage threshold without
+  // an attacker, so we re-check enrage here too — otherwise a BOSS
+  // ticked into <50% HP by curse alone would never enter rage phase.
   if (self.curseStacks > 0) {
     const dmg = self.curseStacks;
     self.hp = Math.max(0, self.hp - dmg);
     state.log.push({ turn: state.turn, side: sideName, kind: "damage", text: `${self.name} 詛咒傷害 -${dmg}` });
     self.curseStacks = Math.max(0, self.curseStacks - 1);
+    maybeEnrage(self, state.log, state.turn, sideName);
   }
   // If a tick was lethal, short-circuit so we don't spam the log with
   // cosmetic post-mortem entries (poison "−N" against a 0-hp side, the
@@ -985,6 +1011,7 @@ function applyStartOfTurnEffects(state: BattleState, sideName: "player" | "enemy
       kind: "damage",
       text: `☠️ ${self.name} 中毒 −${dmg}`,
     });
+    maybeEnrage(self, state.log, state.turn, sideName);
   }
   if (self.hp <= 0) {
     checkWin(state);

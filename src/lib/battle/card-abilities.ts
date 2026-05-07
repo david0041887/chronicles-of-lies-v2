@@ -68,6 +68,25 @@ function applyStatusMods(
   return Math.max(0, dmg);
 }
 
+/** Trigger BOSS / Prime BOSS enrage if the defender just dropped past
+ *  their enrageAt threshold. Mirrors the same check in engine.ts'
+ *  dealDamage so ability hits and direct minion attacks both qualify
+ *  for enrage activation — without this, an ability that crossed the
+ *  HP line would silently skip the +2 damageBonus phase change. */
+function checkEnrageAfterFaceHit(ctx: AbilityContext) {
+  const d = ctx.other;
+  if (
+    d.enrageAt !== undefined &&
+    !d.enraged &&
+    d.hp > 0 &&
+    d.hp / d.hpMax <= d.enrageAt
+  ) {
+    d.enraged = true;
+    d.damageBonus = (d.damageBonus ?? 0) + 2;
+    log(ctx, `⚠️ ${d.name} 進入狂暴 — 永久 +2 威力`, "debuff");
+  }
+}
+
 function damageEnemyFace(ctx: AbilityContext, amount: number) {
   // Match dealDamage(): weak/vulnerable first, then face shield, then hp.
   // Previously this skipped both, letting battlecry pings ignore the
@@ -86,6 +105,7 @@ function damageEnemyFace(ctx: AbilityContext, amount: number) {
   if (dmg > 0) {
     ctx.other.hp = Math.max(0, ctx.other.hp - dmg);
     log(ctx, `${ctx.source.name} 直擊 ${ctx.other.name} −${dmg}`, "damage");
+    checkEnrageAfterFaceHit(ctx);
   }
 }
 
