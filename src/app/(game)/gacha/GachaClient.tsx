@@ -157,12 +157,6 @@ export function GachaClient({
       : config.currency === "faith"
         ? "🕯️"
         : "🎟️";
-  const currencyLabel =
-    config.currency === "crystals"
-      ? "水晶"
-      : config.currency === "faith"
-        ? "信念幣"
-        : "時代券";
 
   return (
     <>
@@ -177,7 +171,7 @@ export function GachaClient({
       />
 
       {/* Top resource row */}
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2 mb-6">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-8 gap-2 mb-6">
         <Stat label="🎁 免費抽" value={freePulls} tint={freePulls > 0 ? "text-gold" : "text-parchment/50"} />
         <Stat label="💎 水晶" value={crystals} tint="text-rarity-super" />
         <Stat label="🕯️ 信念幣" value={faith} tint="text-weavers" />
@@ -189,6 +183,11 @@ export function GachaClient({
         <Stat label="保底 SR" value={`${Math.max(0, PITY_SR - pitySR)}`} />
         <Stat label="保底 SSR" value={`${Math.max(0, PITY_SSR - pitySSR)}`} />
         <Stat label="保底 UR" value={`${Math.max(0, PITY_UR - pityUR)}`} />
+        {/* Cumulative pulls — was tracked in state but never rendered.
+            Putting it last so it doesn't crowd the priority stats but
+            lets the player see milestone progress like "10000 pulls"
+            without leaving the page. */}
+        <Stat label="🌀 累計召喚" value={totalPulls} tint="text-parchment/70" />
       </div>
 
       {/* Pool tabs */}
