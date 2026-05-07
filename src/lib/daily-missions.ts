@@ -176,27 +176,50 @@ export async function claimMission(
   userId: string,
   slotId: string,
 ): Promise<{ ok: true; crystals: number; faith: number } | { ok: false; error: string }> {
-  const state = await ensureTodaysMissions(userId);
-  const slot = state.slots.find((s) => s.id === slotId);
-  if (!slot) return { ok: false, error: "任務不存在" };
-  if (slot.claimed) return { ok: false, error: "已領取" };
-  if (slot.progress < slot.target) return { ok: false, error: "進度未達標" };
+  // Pre-flight read for fast-fail UX (the real authoritative re-read
+  // happens inside the transaction below — without that, two parallel
+  // claim requests could both pass the claimed=false check and double-
+  // award rewards).
+  const preState = await ensureTodaysMissions(userId);
+  const preSlot = preState.slots.find((s) => s.id === slotId);
+  if (!preSlot) return { ok: false, error: "任務不存在" };
+  if (preSlot.claimed) return { ok: false, error: "已領取" };
+  if (preSlot.progress < preSlot.target) return { ok: false, error: "進度未達標" };
 
-  const nextSlots = state.slots.map((s) =>
-    s.id === slotId ? { ...s, claimed: true } : s,
-  );
-  const next: DailyMissionsState = { date: state.date, slots: nextSlots };
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const fresh = await tx.user.findUnique({
+        where: { id: userId },
+        select: { dailyMissions: true },
+      });
+      const state = parseState(fresh?.dailyMissions);
+      if (!state) throw new Error("STATE_LOST");
+      const slot = state.slots.find((s) => s.id === slotId);
+      if (!slot) throw new Error("STATE_LOST");
+      if (slot.claimed) throw new Error("ALREADY_CLAIMED");
+      if (slot.progress < slot.target) throw new Error("PROGRESS_REGRESSED");
 
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: userId },
-      data: {
-        dailyMissions: next as unknown as object,
-        crystals: { increment: MISSION_REWARD.crystals },
-        faith: { increment: MISSION_REWARD.faith },
-      },
-    }),
-  ]);
+      const nextSlots = state.slots.map((s) =>
+        s.id === slotId ? { ...s, claimed: true } : s,
+      );
+      const next: DailyMissionsState = { date: state.date, slots: nextSlots };
 
-  return { ok: true, ...MISSION_REWARD };
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          dailyMissions: next as unknown as object,
+          crystals: { increment: MISSION_REWARD.crystals },
+          faith: { increment: MISSION_REWARD.faith },
+        },
+      });
+      return { ok: true as const, ...MISSION_REWARD };
+    });
+  } catch (err) {
+    const msg = (err as Error).message ?? "";
+    if (msg === "ALREADY_CLAIMED") return { ok: false, error: "已領取" };
+    if (msg === "PROGRESS_REGRESSED") return { ok: false, error: "進度未達標" };
+    if (msg === "STATE_LOST") return { ok: false, error: "任務狀態已重置" };
+    console.error("claimMission failed", err);
+    return { ok: false, error: "領取失敗,請稍後再試" };
+  }
 }
