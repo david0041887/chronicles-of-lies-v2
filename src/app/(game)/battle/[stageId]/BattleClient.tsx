@@ -1053,6 +1053,7 @@ export function BattleClient({
     battle.player.weakTurns,
     battle.player.strength,
     battle.player.damageBonus,
+    battle.player.buffNextCard,
   ]);
 
   return (

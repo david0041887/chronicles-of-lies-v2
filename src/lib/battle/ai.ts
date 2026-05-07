@@ -111,16 +111,31 @@ export function runEnemyStep(state: BattleState): EnemyStepResult {
     // trading into minions. Every point of face damage is the kill.
     target = { kind: "face" };
   } else if (state.player.board.length > 0) {
+    // Prefer a clean kill (we kill them, we live). If no clean kill
+    // exists, only suicide-trade into a minion if that minion would
+    // also die — otherwise we just feed the player a free attacker.
     const killable = state.player.board.find(
       (m) => m.hp <= attacker.atk && attacker.hp > m.atk,
     );
     if (killable) {
       target = { kind: "minion", uid: killable.uid };
     } else if (attacker.atk >= state.player.hp / 3) {
+      // Big enough swing to be worth chunking the player even past a
+      // board of small chumps. Threshold tuned to ~33% face per swing.
       target = { kind: "face" };
     } else {
-      const weakest = [...state.player.board].sort((a, b) => a.hp - b.hp)[0];
-      target = { kind: "minion", uid: weakest.uid };
+      // Last-resort minion target: pick the weakest, but only if our
+      // attacker can survive (or at least kill it). If every minion
+      // out-trades the attacker, go face — chip damage beats a free
+      // attacker for the player.
+      const survivable = state.player.board
+        .filter((m) => attacker.hp > m.atk || m.hp <= attacker.atk)
+        .sort((a, b) => a.hp - b.hp)[0];
+      if (survivable) {
+        target = { kind: "minion", uid: survivable.uid };
+      } else {
+        target = { kind: "face" };
+      }
     }
   } else {
     target = { kind: "face" };

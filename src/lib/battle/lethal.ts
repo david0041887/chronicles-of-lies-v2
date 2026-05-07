@@ -41,6 +41,9 @@ interface DamageSide {
   damageBonus?: number;
   /** Attacker weak — outgoing −25%. */
   weakTurns: number;
+  /** Multiplier on the next played card (set by buff cards). Engine:
+   *  rawPower *= buffNextCard, then resets to 1 in postPlay. */
+  buffNextCard?: number;
 }
 
 interface DefenderSide {
@@ -86,16 +89,37 @@ export function canLethal(
     .filter((c) => c.type === "attack" || c.type === "ritual" || c.type === "debuff")
     .sort((a, b) => a.cost - b.cost);
   const flatBonus = attacker.strength + (attacker.damageBonus ?? 0);
+  // buffNextCard from a previous-turn buff card carries over and
+  // applies to ONLY the first damage card we play (then engine resets
+  // to 1 in postPlay). Greedy assumption: the player will use it on
+  // the highest-damage hand card to maximise lethal — find that card
+  // up front and tag it. If buffNextCard is 1 (the default), nothing
+  // changes.
+  const buffMult = attacker.buffNextCard ?? 1;
+  let buffTargetUid: string | null = null;
+  if (buffMult > 1) {
+    let bestPower = -1;
+    for (const c of hand) {
+      if (c.cost > mana) continue;
+      const factor = c.type === "debuff" ? 0.7 : 1;
+      const projected = (c.power + flatBonus) * factor;
+      if (projected > bestPower) {
+        bestPower = projected;
+        buffTargetUid = c.uid;
+      }
+    }
+  }
   for (const c of hand) {
     if (c.cost > mana) continue;
     mana -= c.cost;
     // Engine: rawPower = (power + strength) × buffNextCard + sacrificeBonus
-    // + damageBonus. We skip buffNextCard (would require ordering) and
-    // sacrificeBonus (conditional on having junk to discard); add the
-    // flat strength + damageBonus components.
+    // + damageBonus. We skip sacrificeBonus (conditional on having junk
+    // to discard); flat strength + damageBonus added below; buffNextCard
+    // applied only to the chosen target card above.
     const rawPower = c.power + flatBonus;
     const factor = c.type === "debuff" ? 0.7 : 1;
-    const cardDmg = Math.floor(rawPower * factor);
+    const mult = c.uid === buffTargetUid ? buffMult : 1;
+    const cardDmg = Math.floor(rawPower * factor * mult);
     if (c.keywords.includes("pierce")) pierceRaw += cardDmg;
     else normalRaw += cardDmg;
   }
