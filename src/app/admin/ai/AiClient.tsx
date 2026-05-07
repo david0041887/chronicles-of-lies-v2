@@ -65,6 +65,8 @@ export function AiClient({ cards, enabled }: Props) {
           {RARITIES.map((r) => (
             <button
               key={r}
+              type="button"
+              aria-pressed={rFilter === r}
               onClick={() => setRFilter(r)}
               className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                 rFilter === r
@@ -79,6 +81,8 @@ export function AiClient({ cards, enabled }: Props) {
         <div className="w-px h-6 bg-parchment/10 mx-1" />
         <div className="flex gap-1 flex-wrap">
           <button
+            type="button"
+            aria-pressed={eFilter === "ALL"}
             onClick={() => setEFilter("ALL")}
             className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
               eFilter === "ALL"
@@ -91,6 +95,8 @@ export function AiClient({ cards, enabled }: Props) {
           {ERAS.map((e) => (
             <button
               key={e.id}
+              type="button"
+              aria-pressed={eFilter === e.id}
               onClick={() => setEFilter(e.id)}
               className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                 eFilter === e.id

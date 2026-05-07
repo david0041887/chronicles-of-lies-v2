@@ -92,6 +92,7 @@ export function DailyMissionsPanel({
                 </div>
               ) : completed ? (
                 <button
+                  type="button"
                   onClick={() => onClaim(slot.id)}
                   disabled={pending}
                   className="w-full py-1.5 rounded-md bg-gold text-veil text-xs font-semibold hover:brightness-110 disabled:opacity-50 min-h-[36px]"

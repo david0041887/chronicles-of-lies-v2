@@ -70,6 +70,8 @@ export function WelcomeClient({ username }: Props) {
           {PAGES.map((_, i) => (
             <button
               key={i}
+              type="button"
+              aria-current={i === page ? "step" : undefined}
               onClick={() => setPage(i)}
               className={`h-1.5 rounded-full transition-all ${
                 i === page

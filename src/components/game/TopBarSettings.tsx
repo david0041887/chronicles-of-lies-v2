@@ -35,6 +35,7 @@ export function TopBarSettings({ isAdmin }: { isAdmin: boolean }) {
         ⚙︎
       </Link>
       <button
+        type="button"
         onClick={() => signOut({ callbackUrl: "/" })}
         className="hidden sm:inline-block text-[11px] text-parchment/50 hover:text-parchment tracking-wider px-2"
         aria-label="登出"

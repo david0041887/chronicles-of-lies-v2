@@ -342,6 +342,7 @@ export function TutorialCoach({ state, onComplete }: CoachProps) {
                 {def.title}
               </span>
               <button
+                type="button"
                 onClick={dismissAll}
                 className="ml-auto text-[10px] text-parchment/50 hover:text-parchment tracking-widest min-h-[28px] px-1.5 shrink-0"
                 aria-label="關閉教學"
@@ -360,6 +361,7 @@ export function TutorialCoach({ state, onComplete }: CoachProps) {
             {def.manualAdvance && !isEndState && (
               <div className="flex justify-end mt-3">
                 <button
+                  type="button"
                   onClick={advance}
                   className="px-4 py-1.5 rounded-lg bg-gold text-veil font-semibold text-xs shadow-[0_2px_10px_rgba(212,168,75,0.4)] min-h-[36px]"
                 >
@@ -370,6 +372,7 @@ export function TutorialCoach({ state, onComplete }: CoachProps) {
             {isEndState && (
               <div className="flex justify-end mt-3">
                 <button
+                  type="button"
                   onClick={dismissAll}
                   className={cn(
                     "px-4 py-1.5 rounded-lg font-semibold text-xs min-h-[36px]",

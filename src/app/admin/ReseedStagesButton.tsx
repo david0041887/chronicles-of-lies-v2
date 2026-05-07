@@ -29,6 +29,7 @@ export function ReseedStagesButton({ currentCount }: { currentCount: number }) {
   return (
     <div className="flex flex-col items-end gap-0.5">
       <button
+        type="button"
         onClick={onClick}
         disabled={pending}
         className="text-xs px-3 py-1.5 rounded border border-parchment/40 text-parchment hover:border-gold hover:text-gold tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
