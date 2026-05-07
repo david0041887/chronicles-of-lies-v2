@@ -17,7 +17,7 @@ const dict = {
     "settings.bindAccount": "綁定正式帳號",
     "settings.guest": "訪客",
     "settings.bindHint": "您目前是訪客,進度僅存於此裝置。綁定後可跨裝置登入。",
-    "settings.clearConfirm": "確定要清除本機資料?遊戲設定與訪客裝置 ID 都會消失(雲端資料不受影響)。",
+    "settings.clearConfirm": "確定要清除本機資料?(音量、無障礙、語言等本機設定會還原為預設;雲端帳號與進度不受影響)",
     "common.save": "儲存",
     "common.cancel": "取消",
   },
@@ -33,7 +33,7 @@ const dict = {
     "settings.bindHint":
       "You are currently a guest — progress is bound to this device. Bind an account to sync.",
     "settings.clearConfirm":
-      "Clear all local data? Game settings and guest device ID will be erased (cloud data is safe).",
+      "Clear local data? (Volume / accessibility / language preferences reset to defaults — your cloud account and progress are not affected.)",
     "common.save": "Save",
     "common.cancel": "Cancel",
   },

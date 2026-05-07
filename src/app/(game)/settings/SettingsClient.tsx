@@ -87,7 +87,14 @@ export function SettingsClient({ user }: Props) {
   };
 
   const onClearLocal = () => {
-    if (!confirm(t("settings.clearConfirm", locale))) return;
+    // Guests' progress is keyed off the deviceId in localStorage, so
+    // wiping it strands them from their account permanently. Show a
+    // stronger warning to those users so they can't lose progress by
+    // tapping through a generic confirm.
+    const message = user.isGuest
+      ? "你是訪客帳號 — 清除本機資料會把你的訪客裝置 ID 也清掉,目前的進度就無法再以訪客身份找回。\n\n建議先到上方「綁定正式帳號」儲存進度,確定後再執行。\n\n仍要繼續嗎?"
+      : t("settings.clearConfirm", locale);
+    if (!confirm(message)) return;
     const keys = [
       VOLUME_KEY,
       MUTED_KEY,
