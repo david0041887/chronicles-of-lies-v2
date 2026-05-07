@@ -266,6 +266,7 @@ export function TowerHubClient({
 
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <button
+            type="button"
             onClick={() => setConfirmAbandon(true)}
             disabled={run.currentLevel === 0 || busy}
             className="text-[11px] text-parchment/50 hover:text-parchment/80 tracking-widest min-h-[40px] px-2 disabled:opacity-30 disabled:cursor-not-allowed"
@@ -303,6 +304,10 @@ export function TowerHubClient({
                 return (
                   <button
                     key={offer.id}
+                    type="button"
+                    aria-label={`${offer.title} · 兌換 ${rewardParts.join(" 加 ")} · 花費 ${offer.cost} 塔幣${
+                      canAfford ? "" : "(塔幣不足)"
+                    }`}
                     onClick={() => onRedeem(offer.id, offer.cost)}
                     disabled={!canAfford || isThisRedeeming || redeeming !== null}
                     className={

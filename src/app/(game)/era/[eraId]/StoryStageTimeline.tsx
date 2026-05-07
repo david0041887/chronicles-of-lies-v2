@@ -144,6 +144,13 @@ function ChapterRow({
         {unlocked ? "📖" : "🔒"}
       </div>
       <button
+        type="button"
+        aria-expanded={unlocked ? open : undefined}
+        aria-label={
+          unlocked
+            ? `${chapter.title} · ${open ? "收合" : "展開"}`
+            : `${chapter.title} · 鎖定中`
+        }
         onClick={() => unlocked && setOpen(!open)}
         disabled={!unlocked}
         className={cn(

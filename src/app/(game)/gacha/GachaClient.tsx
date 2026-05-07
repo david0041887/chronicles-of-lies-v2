@@ -198,6 +198,9 @@ export function GachaClient({
           return (
             <button
               key={id}
+              type="button"
+              aria-pressed={active}
+              aria-label={`${p.name} 召喚池`}
               onClick={() => setActivePool(id)}
               className={`relative p-3 rounded-xl border text-left transition-all overflow-hidden ${
                 active
@@ -274,6 +277,9 @@ export function GachaClient({
                 return (
                   <button
                     key={era.id}
+                    type="button"
+                    aria-pressed={active}
+                    aria-label={`${era.name} · 時代券 ${tix} 張`}
                     onClick={() => setEraChoice(era.id)}
                     className={`relative p-2 rounded-lg border text-xs transition-all ${
                       active
@@ -470,6 +476,7 @@ function ResultContent({
                 </motion.div>
               ) : (
                 <button
+                  type="button"
                   onClick={() => revealOne(i)}
                   aria-label={`翻開第 ${i + 1} 張牌`}
                   className="aspect-[3/4] w-32 rounded-xl border-2 border-gold/70 relative overflow-hidden bg-gradient-to-br from-[#2a1b4a] via-veil to-[#0a0612] hover:brightness-125 active:scale-95 transition-all"

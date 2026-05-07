@@ -1108,6 +1108,7 @@ export function BattleClient({
       <AnimatePresence>
         {selectedAttackerUid !== null && (
           <motion.button
+            type="button"
             initial={{ opacity: 0, y: -8, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.95 }}
@@ -1212,6 +1213,8 @@ export function BattleClient({
                   return (
                     <button
                       key={c.uid}
+                      type="button"
+                      aria-pressed={picked}
                       onClick={() => toggleMulliganPick(c.uid)}
                       className={cn(
                         "shrink-0 w-[22vw] max-w-[112px] min-w-[80px] rounded-xl transition-all",
@@ -1298,6 +1301,7 @@ export function BattleClient({
       {/* Top bar */}
       <div className="relative flex items-center justify-between px-3 py-2 border-b border-parchment/10 bg-veil/60 backdrop-blur">
         <button
+          type="button"
           onClick={() => setSurrenderOpen(true)}
           disabled={battle.phase === "won" || battle.phase === "lost"}
           className="text-xs text-blood/80 hover:text-blood tracking-wider disabled:opacity-30 disabled:cursor-not-allowed min-h-[44px] min-w-[44px] px-2 rounded"
@@ -1345,6 +1349,7 @@ export function BattleClient({
 
         <button
           ref={logRef}
+          type="button"
           onClick={() => setLogExpanded(true)}
           aria-label="展開戰鬥紀錄"
           className="relative mx-4 my-2 rounded-lg border border-parchment/10 bg-black/30 backdrop-blur p-3 max-h-24 overflow-y-auto text-xs space-y-0.5 text-left w-auto block hover:border-gold/30 transition-colors group"
@@ -1931,6 +1936,7 @@ function EnemyArea({
         </motion.div>
       )}
       <button
+        type="button"
         onClick={attackMode ? onFaceClick : undefined}
         disabled={!attackMode}
         className={cn(
@@ -2146,6 +2152,7 @@ function MinionCard({
   const attackDirY = side === "player" ? -attackDist : attackDist;
   return (
     <motion.button
+      type="button"
       layout
       initial={{ opacity: 0, y: side === "player" ? 30 : -30, scale: 0.7 }}
       animate={
@@ -2165,6 +2172,7 @@ function MinionCard({
           : { duration: 0.28, ease: [0.22, 0.97, 0.32, 1.08] }
       }
       onClick={onClick}
+      aria-label={`${minion.name} · ATK ${minion.atk} HP ${minion.hp}/${minion.hpMax}`}
       title={`${minion.name} · ATK ${minion.atk} / HP ${minion.hp}/${minion.hpMax}${
         minion.keywords.length ? " · " + minion.keywords.join("/") : ""
       }${abilityTitle}`}
@@ -2641,8 +2649,12 @@ function Hand({
           return (
             <motion.button
               key={c.uid}
+              type="button"
               layout
               onClick={() => onTap(i)}
+              aria-label={`${c.name} · 費 ${c.cost}${
+                affordable ? "" : "(信仰不足)"
+              }${comboReady ? "(連擊就緒)" : ""}`}
               initial={{ y: 60, opacity: 0, scale: 0.85 }}
               animate={{
                 y: canPlay && affordable ? (comboReady ? -8 : 0) : 10,

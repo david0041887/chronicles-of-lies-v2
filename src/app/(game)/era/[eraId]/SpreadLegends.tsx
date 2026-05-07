@@ -127,6 +127,12 @@ export function SpreadLegends({
                 ×{count} 次傳播
               </div>
               <button
+                type="button"
+                aria-label={
+                  ready
+                    ? `傳播「${lg.name}」謊言`
+                    : `「${lg.name}」冷卻中,${cd} 秒後可再傳播`
+                }
                 onClick={() => onSpread(i)}
                 disabled={pending || !ready}
                 className={cn(
