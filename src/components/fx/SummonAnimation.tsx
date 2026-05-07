@@ -1,5 +1,6 @@
 "use client";
 
+import { useAppReducedMotion } from "@/lib/hooks/use-reduced-motion";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import type { Rarity } from "@prisma/client";
@@ -16,9 +17,16 @@ interface Props {
  * Phase 2 (500 → 900) runes ignite + sparks emit
  * Phase 3 (900 → 1400) rarity light column bursts
  * Phase 4 (1400 → 1600) fade out, reveal cards
+ *
+ * When reduced motion is preferred (OS or in-app), we still show a
+ * brief overlay so the gacha result modal doesn't pop in cold, but
+ * compress the timeline to ~300ms — long enough to register as a
+ * deliberate beat, short enough that motion-sensitive players aren't
+ * stuck staring at a 1.6s spinning circle every pull.
  */
 export function SummonAnimation({ active, highestRarity, onComplete }: Props) {
   const [phase, setPhase] = useState(0);
+  const reduced = useAppReducedMotion();
 
   useEffect(() => {
     if (!active) {
@@ -26,6 +34,10 @@ export function SummonAnimation({ active, highestRarity, onComplete }: Props) {
       return;
     }
     setPhase(1);
+    if (reduced) {
+      const t = setTimeout(() => onComplete(), 300);
+      return () => clearTimeout(t);
+    }
     const t1 = setTimeout(() => setPhase(2), 500);
     const t2 = setTimeout(() => setPhase(3), 900);
     const t3 = setTimeout(() => onComplete(), 1600);
@@ -34,7 +46,7 @@ export function SummonAnimation({ active, highestRarity, onComplete }: Props) {
       clearTimeout(t2);
       clearTimeout(t3);
     };
-  }, [active, onComplete]);
+  }, [active, onComplete, reduced]);
 
   const glow =
     highestRarity === "UR"
