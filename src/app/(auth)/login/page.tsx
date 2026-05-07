@@ -72,8 +72,11 @@ function LoginInner() {
       body: JSON.stringify({ deviceId }),
     });
     if (!r.ok) {
+      // Surface server-provided reason when present so a 429 / quota /
+      // CSRF block doesn't look identical to a generic network failure.
+      const body = await r.json().catch(() => null);
       setGuestLoading(false);
-      push("訪客登入失敗", "danger");
+      push(body?.error ?? "訪客登入失敗", "danger");
       return;
     }
     const { email, password } = (await r.json()) as {
