@@ -106,12 +106,24 @@ export async function buildPlayerDeck(userId: string): Promise<BattleCard[]> {
     return enrichCardKeywords(raw);
   };
 
-  // Prefer active deck
+  // Prefer active deck. Cap per-card emissions at ownedById count so
+  // a deck saved before the ownership-validator was tightened (or
+  // grown via copyDeckSlot) can't fabricate phantom copies of a card
+  // the player only owns 1 of. The deck shrinks instead of dupe-ing —
+  // shorter deck is better than a free duplicate that bypassed gacha.
   if (activeDeck && activeDeck.cardIds.length === 30) {
     const deck: BattleCard[] = [];
+    const usedPerCard = new Map<string, number>();
     for (let i = 0; i < activeDeck.cardIds.length; i++) {
-      const bc = toBattleCard(activeDeck.cardIds[i], `deck-${i}`);
-      if (bc) deck.push(bc);
+      const cid = activeDeck.cardIds[i];
+      const owned = ownedById.get(cid)?.length ?? 0;
+      const used = usedPerCard.get(cid) ?? 0;
+      if (used >= owned) continue; // out of physical copies, skip
+      const bc = toBattleCard(cid, `deck-${i}`);
+      if (bc) {
+        deck.push(bc);
+        usedPerCard.set(cid, used + 1);
+      }
     }
     if (deck.length >= 20) return deck;
     // fall through to auto-build if deck somehow invalid

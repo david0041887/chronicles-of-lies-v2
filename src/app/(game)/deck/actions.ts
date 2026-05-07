@@ -150,6 +150,32 @@ export async function copyDeckSlot(
   if (!source || source.cardIds.length !== DECK_SIZE) {
     return { ok: false, error: "來源牌組不完整" };
   }
+
+  // Re-validate ownership at copy time. Source slot may have been
+  // saved under an older validator OR the player may have decomposed
+  // some of the cards since saving — without this check we'd
+  // propagate a phantom-copy deck to another slot and let it
+  // materialise as duplicate BattleCards in combat.
+  const counts = new Map<string, number>();
+  for (const id of source.cardIds) counts.set(id, (counts.get(id) ?? 0) + 1);
+  const owned = await prisma.ownedCard.groupBy({
+    by: ["cardId"],
+    where: { userId: user.id, cardId: { in: [...counts.keys()] } },
+    _count: true,
+  });
+  const ownedMap = new Map(owned.map((o) => [o.cardId, o._count]));
+  for (const [id, n] of counts) {
+    const have = ownedMap.get(id) ?? 0;
+    if (have < n) {
+      return {
+        ok: false,
+        error: have === 0
+          ? `來源牌組含未擁有卡片(${id})`
+          : `來源牌組需 ${n} 張 ${id},但僅擁有 ${have} 張`,
+      };
+    }
+  }
+
   await prisma.deck.upsert({
     where: { userId_slot: { userId: user.id, slot: to } },
     update: { cardIds: source.cardIds, eraId: source.eraId },
