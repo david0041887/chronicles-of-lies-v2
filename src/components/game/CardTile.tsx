@@ -142,6 +142,17 @@ function CardTileInner({
   }
 
   const Wrapper: React.ElementType = onClick ? "button" : "div";
+  // Common props the wrapper needs regardless of element type. When
+  // we're rendering as a <button> we want type="button" (so a CardTile
+  // dropped inside a future <form> doesn't accidentally submit it) and
+  // an aria-label so a screen reader reads "信徒之劍 SR 攻擊 5/3" instead
+  // of just whatever DOM nodes happen to be focusable inside.
+  const wrapperA11y = onClick
+    ? {
+        type: "button" as const,
+        "aria-label": `${card.name}${card.nameEn ? ` (${card.nameEn})` : ""} · ${card.rarity}`,
+      }
+    : {};
 
   // Derived ability preview — first description line for SR+ cards that
   // become minions. Used to paint a small trigger badge on the art so
@@ -180,6 +191,7 @@ function CardTileInner({
 
   return (
     <Wrapper
+      {...wrapperA11y}
       onClick={onClick}
       className={cn(
         "relative aspect-[3/4] rounded-xl border-2 overflow-hidden",
