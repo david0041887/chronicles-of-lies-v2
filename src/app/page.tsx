@@ -163,7 +163,7 @@ export default async function Home() {
             帷幕已薄,等你編織
           </h3>
           <p className="text-parchment/60 text-sm mb-6 font-[family-name:var(--font-noto-serif)]">
-            30 秒註冊 → 送 300 水晶 + 30 張起始牌組 + 10 連免費召喚
+            30 秒註冊 → 送 300 水晶 · 完成教學戰再領 30 張起始牌組 + 300 信念 + 10 連免費召喚
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link href="/register">
