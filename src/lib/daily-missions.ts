@@ -1,3 +1,4 @@
+import { withUserLock } from "@/lib/db-lock";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -155,20 +156,32 @@ export async function progressMission(
   delta: number,
 ): Promise<void> {
   if (delta <= 0) return;
-  const state = await ensureTodaysMissions(userId);
-  let touched = false;
-  const updated: MissionSlot[] = state.slots.map((slot) => {
-    const tpl = TPL_BY_ID.get(slot.id);
-    if (!tpl || tpl.event !== event || slot.claimed) return slot;
-    const nextProgress = Math.min(slot.target, slot.progress + delta);
-    if (nextProgress !== slot.progress) touched = true;
-    return { ...slot, progress: nextProgress };
-  });
-  if (!touched) return;
-  const next: DailyMissionsState = { date: state.date, slots: updated };
-  await prisma.user.update({
-    where: { id: userId },
-    data: { dailyMissions: next as unknown as object },
+  // Two parallel battle wins / card plays / gacha pulls would each
+  // read the same dailyMissions baseline and one write would clobber
+  // the other — losing one event's progress. Take the User row lock
+  // so progress increments serialise.
+  await ensureTodaysMissions(userId);
+  await withUserLock(userId, async (tx) => {
+    const u = await tx.user.findUnique({
+      where: { id: userId },
+      select: { dailyMissions: true },
+    });
+    const state = parseState(u?.dailyMissions);
+    if (!state) return;
+    let touched = false;
+    const updated: MissionSlot[] = state.slots.map((slot) => {
+      const tpl = TPL_BY_ID.get(slot.id);
+      if (!tpl || tpl.event !== event || slot.claimed) return slot;
+      const nextProgress = Math.min(slot.target, slot.progress + delta);
+      if (nextProgress !== slot.progress) touched = true;
+      return { ...slot, progress: nextProgress };
+    });
+    if (!touched) return;
+    const next: DailyMissionsState = { date: state.date, slots: updated };
+    await tx.user.update({
+      where: { id: userId },
+      data: { dailyMissions: next as unknown as object },
+    });
   });
 }
 
@@ -187,7 +200,12 @@ export async function claimMission(
   if (preSlot.progress < preSlot.target) return { ok: false, error: "進度未達標" };
 
   try {
-    return await prisma.$transaction(async (tx) => {
+    // Use withUserLock so the inner read truly is serialised against
+    // any concurrent claimMission / progressMission for the same user.
+    // The previous interactive-transaction-without-lock relied on
+    // READ_COMMITTED + a fresh read, which still left a small window
+    // where two tabs could both observe claimed=false and double-award.
+    return await withUserLock(userId, async (tx) => {
       const fresh = await tx.user.findUnique({
         where: { id: userId },
         select: { dailyMissions: true },

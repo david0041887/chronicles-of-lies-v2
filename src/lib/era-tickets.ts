@@ -1,5 +1,3 @@
-import { prisma } from "@/lib/prisma";
-
 /**
  * Era tickets — per-era premium currency for the time-era gacha pool.
  * Stored on User.eraTickets as { [eraId: string]: number }.
@@ -39,35 +37,9 @@ export function getEraTicketCount(
   return tickets[eraId] ?? 0;
 }
 
-/**
- * Race-safe read-modify-write helper for User.eraTickets.
- *
- * eraTickets is a JSON column, so Prisma can't express "increment only
- * this key" as a typed operator — every grant/spend has to read the
- * whole blob, mutate locally, and write it back. Without serialisation
- * two parallel grants (e.g. boss clear A finishing milliseconds after
- * boss clear B) would each read the same baseline and one write would
- * clobber the other.
- *
- * We avoid Prisma raw SQL by taking a row lock on User via an empty
- * \`update\` at the start of the transaction (Prisma serialises these
- * via Postgres's row-level lock). Subsequent read-modify-write inside
- * the same transaction is then exclusive for this user.
- */
-async function withUserLock<T>(
-  userId: string,
-  body: (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => Promise<T>,
-): Promise<T> {
-  return prisma.$transaction(async (tx) => {
-    // SELECT ... FOR UPDATE on User to acquire a row lock — Postgres
-    // holds an exclusive lock on the row for the rest of this
-    // transaction so any concurrent withUserLock for the same user has
-    // to wait. Using $queryRaw because the User model has no field we
-    // can no-op update through Prisma's typed API.
-    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
-    return body(tx);
-  });
-}
+// User-row locking lives in @/lib/db-lock so other JSON-column paths
+// (dailyMissions, etc.) can share the same helper.
+import { withUserLock } from "@/lib/db-lock";
 
 export async function grantEraTickets(
   userId: string,
