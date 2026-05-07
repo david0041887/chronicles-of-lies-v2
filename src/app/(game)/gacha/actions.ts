@@ -177,15 +177,50 @@ export async function pullGacha(args: {
     paidWith = "eraTicket";
   }
 
-  const [updatedUser] = await prisma.$transaction([
-    prisma.user.update({
-      where: { id: user.id },
-      data: updateData,
-    }),
-    prisma.ownedCard.createMany({
-      data: drawn.map((c) => ({ userId: user.id, cardId: c.id })),
-    }),
-  ]);
+  // Conditional debit: use updateMany with a where clause that requires
+  // the balance to still be >= cost (or freePulls >= count). If a
+  // parallel request drained the wallet between the pre-flight check
+  // and now, this returns count=0 and we abort BEFORE creating the
+  // OwnedCard rows — no free pulls. The previous prisma.$transaction
+  // wrapped a plain update() that would happily decrement into negative
+  // territory if balance had since dropped below cost.
+  let balanceWhere: Record<string, unknown> = {};
+  if (useFree) {
+    balanceWhere = { freePulls: { gte: count } };
+  } else if (config.currency === "crystals") {
+    balanceWhere = { crystals: { gte: cost } };
+  } else if (config.currency === "faith") {
+    balanceWhere = { faith: { gte: cost } };
+  }
+  // eraTicket already conditionally debited above; no extra where needed.
+
+  let updatedUser;
+  try {
+    updatedUser = await prisma.$transaction(async (tx) => {
+      const debit = await tx.user.updateMany({
+        where: { id: user.id, ...balanceWhere },
+        data: updateData,
+      });
+      if (debit.count === 0) {
+        throw new Error("BALANCE_RACE");
+      }
+      await tx.ownedCard.createMany({
+        data: drawn.map((c) => ({ userId: user.id, cardId: c.id })),
+      });
+      return tx.user.findUniqueOrThrow({ where: { id: user.id } });
+    });
+  } catch (err) {
+    if ((err as Error).message === "BALANCE_RACE") {
+      // Era-ticket path already debited above (line ~152) and skips
+      // the balanceWhere check, so this branch only fires for the
+      // crystals/faith/freePulls paths — no era-ticket refund needed.
+      return {
+        ok: false,
+        error: "餘額已變動,召喚未完成,請重試",
+      };
+    }
+    throw err;
+  }
 
   // Mission progress (post-commit).
   await progressMission(user.id, "gacha_pull", count);
