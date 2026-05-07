@@ -51,7 +51,10 @@ export function PageBackdrop() {
         : "medium";
 
     // Subtle palette tint per top-level page so /home vs /deck vs /gacha
-    // feel like different rooms in the same temple.
+    // feel like different rooms in the same temple. Newer routes
+    // (/dungeon, /leaderboard) used to fall through to the /home tint,
+    // which made the tower in particular feel identical to the home
+    // dashboard despite being a totally different mode.
     const tintByRoute: Record<string, { main: string; accent: string; dark: string }> = {
       "/home": { main: "#6B2E8A", accent: "#D4A84B", dark: "#0A0612" },
       "/world": { main: "#6B2E8A", accent: "#D4A84B", dark: "#0A0612" },
@@ -62,6 +65,11 @@ export function PageBackdrop() {
       "/profile": { main: "#4A6B8A", accent: "#D4A84B", dark: "#070C14" },
       "/lore": { main: "#6B2E8A", accent: "#E0C07A", dark: "#0A0612" },
       "/settings": { main: "#3A3A52", accent: "#A0A0B8", dark: "#0A0812" },
+      // Tower of Whispers — deep indigo, the colour of the late hours
+      // when the tower's whispers are loudest.
+      "/dungeon": { main: "#3B2E7A", accent: "#8B5DE5", dark: "#06051A" },
+      // Leaderboard — austere gold-on-blue, like a hall of statues.
+      "/leaderboard": { main: "#3A4E7A", accent: "#F5CA5A", dark: "#06091A" },
     };
     const topLevel = "/" + (pathname.split("/")[1] ?? "");
     const palette = tintByRoute[topLevel] ?? tintByRoute["/home"];
