@@ -388,14 +388,16 @@ export function BattleClient({
     if (next.length > 0) {
       setFloaters((f) => [...f, ...next]);
       const ids = next.map((n) => n.id);
-      setTimeout(
+      // scheduleTimer so unmount during the 1.6s float window cleans up
+      // the trailing setFloaters call.
+      scheduleTimer(
         () => setFloaters((f) => f.filter((x) => !ids.includes(x.id))),
         1600,
       );
       const hurt = next.find((n) => n.delta < 0);
       if (hurt) {
         setHurtFlash(hurt.side);
-        setTimeout(() => setHurtFlash(null), 350);
+        scheduleTimer(() => setHurtFlash(null), 350);
         if (hurt.side === "player" && Math.abs(hurt.delta) >= 4) {
           setShakeKey((k) => k + 1);
         }
@@ -901,7 +903,11 @@ export function BattleClient({
   const triggerImpact = (type: string, side: "player" | "enemy") => {
     const id = Date.now() + Math.random();
     setImpactFlash({ id, type, side });
-    setTimeout(() => {
+    // Use scheduleTimer so the impact-clear setState gets cleaned up on
+    // unmount — leaving it as bare setTimeout would log a setState-on-
+    // unmounted warning if the player hits surrender / nav-back during
+    // the 520ms flash window.
+    scheduleTimer(() => {
       setImpactFlash((f) => (f && f.id === id ? null : f));
     }, 520);
   };
