@@ -914,6 +914,11 @@ export function BattleClient({
 
   const openPreview = (handIdx: number) => {
     if (battle.phase !== "player_turn") return;
+    // Confused: engine will auto-end this turn in ~1.8s. Letting the
+    // player still tap cards / preview / play during that window means
+    // their action lands but the turn ends seconds later — looks like
+    // a desync. Block until the consume-confusion effect clears.
+    if (playerConfusedTurn) return;
     setPreviewIdx(handIdx);
   };
 
@@ -932,6 +937,7 @@ export function BattleClient({
   const playFromPreview = () => {
     if (previewIdx === null) return;
     if (battle.phase !== "player_turn") return;
+    if (playerConfusedTurn) return; // auto-skip window — block action
     const c = battle.player.hand[previewIdx];
     if (!c) return;
     if (c.cost > battle.player.mana) {
@@ -946,6 +952,7 @@ export function BattleClient({
 
   const onSelectAttacker = (minionUid: string) => {
     if (battle.phase !== "player_turn") return;
+    if (playerConfusedTurn) return;
     const m = battle.player.board.find((x) => x.uid === minionUid);
     if (!m) return;
     if (m.summonedThisTurn || m.attacksRemaining <= 0) {
@@ -958,6 +965,7 @@ export function BattleClient({
   const onAttackTarget = (target: { kind: "face" } | { kind: "minion"; uid: string }) => {
     if (!selectedAttackerUid) return;
     if (battle.phase !== "player_turn") return;
+    if (playerConfusedTurn) return;
     // Taunt check — if enemy has taunt minions, face & non-taunt are invalid
     const hasTaunt = battle.enemy.board.some((m) => m.keywords.includes("taunt"));
     if (hasTaunt) {
@@ -978,6 +986,7 @@ export function BattleClient({
 
   const onEndTurn = () => {
     if (battle.phase !== "player_turn") return;
+    if (playerConfusedTurn) return; // engine will auto-end shortly
     endPlayerTurn(battle);
     tick();
   };
@@ -1133,7 +1142,11 @@ export function BattleClient({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.05 }}
             transition={{ duration: 0.32 }}
-            className="absolute inset-0 z-[55] flex items-center justify-center bg-veil/70 backdrop-blur-sm pointer-events-none"
+            // Capture pointer events so a tap during the auto-skip
+            // window can't land on a hand card / minion underneath —
+            // belt-and-braces alongside the handler-level guards.
+            className="absolute inset-0 z-[55] flex items-center justify-center bg-veil/70 backdrop-blur-sm"
+            aria-live="polite"
           >
             <div className="rounded-2xl border-2 border-purple-400/60 bg-purple-900/60 backdrop-blur-md px-8 py-5 shadow-[0_0_40px_rgba(168,85,247,0.5)] text-center">
               <div className="text-5xl mb-2 animate-pulse">🌀</div>
